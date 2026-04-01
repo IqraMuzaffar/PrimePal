@@ -9,7 +9,7 @@ import { getTeacherHeaders } from "@/lib/teacherAuth";
 interface Props {
   classroomId: string;
   onClose: () => void;
-  onAdded: () => void; // parent re-fetches roster on success
+  onAdded: () => void; // triggers parent roster re-fetch; does NOT close the modal — user clicks "Done" to close
 }
 
 export default function BulkAddStudentsModal({

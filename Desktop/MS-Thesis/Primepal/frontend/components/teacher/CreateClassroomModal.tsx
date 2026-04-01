@@ -21,6 +21,11 @@ export default function CreateClassroomModal({ onClose, onCreated }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    if (!className.trim()) {
+      setError("Class name cannot be empty.");
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const headers = await getTeacherHeaders();
