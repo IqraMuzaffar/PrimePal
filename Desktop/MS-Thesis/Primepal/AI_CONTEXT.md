@@ -125,7 +125,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 | # | Feature | Status | Notes |
 |---|---|---|---|
 | 1 | Smart Auth & Role Management | ✅ **Complete & Tested** | See section 6 |
-| 2 | Classroom Manager (Registry) | 🔲 Stub only | Endpoint + page scaffolded |
+| 2 | Classroom Manager (Registry) | ✅ **Complete & Tested** | See section 7 |
 | 3 | SNC Document Ingestion (RAG Pipeline) | 🔲 Stub only | Agent A scaffolded |
 | 4 | Vector Storage & Curricular Tagging | 🔲 Stub only | Qdrant client not yet wired |
 | 5 | Multi-Modal Quest Architect | 🔲 Stub only | Agent B scaffolded |
@@ -158,7 +158,31 @@ These are two completely separate token systems — never mix them up.
 
 ---
 
-## 7. Architectural Rules (Non-Negotiable)
+## 7. Feature 2 — Detailed Summary (Complete)
+
+### What was built
+- **Supabase SQL** (`supabase/migrations/002_feature2_classroom.sql`): Adds `grade_level INTEGER` column to `classrooms` and creates a BEFORE INSERT trigger (`generate_class_code`) that auto-generates a unique 6-char hex class code. The function uses `SECURITY DEFINER` so the collision check bypasses RLS and sees all rows, and has a 100-iteration guard to prevent infinite loops.
+- **Backend**:
+  - `GET /api/v1/classroom/` — list authenticated teacher's classrooms, newest first.
+  - `POST /api/v1/classroom/` — create classroom; trigger auto-generates `class_code`.
+  - `GET /api/v1/classroom/{id}` — get classroom detail + full student roster.
+  - `POST /api/v1/classroom/{id}/students/bulk` — bulk-create student ghost profiles with random avatars from a 6-item list; strips empty/whitespace names.
+  - `DELETE /api/v1/classroom/{id}/students/{student_id}` — remove a student; returns 404 if student not found.
+  - `get_current_teacher()` dependency in `app/core/security.py` — validates Supabase GoTrue JWTs via `supabase.auth.get_user(token)`, returns `{"id": teacher_uuid}`.
+- **Frontend**:
+  - `app/(teacher)/classroom/page.tsx` — responsive classroom card grid with grade badge, class code copy button (clipboard API), "New Classroom" button.
+  - `app/(teacher)/classroom/[id]/page.tsx` — classroom detail: header with class code copy, Roster/Missions/Analytics tabs, student list with avatars, remove with confirm dialog, "Add Students" button.
+  - `components/teacher/CreateClassroomModal.tsx` — form: class name + grade level (1–5) → POST /classroom/.
+  - `components/teacher/BulkAddStudentsModal.tsx` — textarea (comma/newline separated) → POST /classroom/{id}/students/bulk. Stays open after success so teacher can add more batches.
+  - `lib/teacherAuth.ts` — `getTeacherHeaders()` helper reads Supabase session token for backend Bearer auth.
+- **Tests**: 10/10 passing (`tests/test_classroom.py`): create (201 + 403), list (owned + empty), detail (with roster + wrong teacher 403), bulk add (success + empty name filter), remove (success 204 + 404 not found).
+
+### Auth note for Feature 2
+All classroom endpoints require a Supabase GoTrue JWT in the `Authorization: Bearer` header. The frontend gets this from `supabase.auth.getSession()` via `getTeacherHeaders()`. This is validated server-side by `get_current_teacher` in `security.py` — completely separate from the student custom PyJWT system.
+
+---
+
+## 8. Architectural Rules (Non-Negotiable)
 
 ### Database & Security
 - **Always enable Row Level Security (RLS)** on every Supabase table. Never disable it.
@@ -189,7 +213,7 @@ These are two completely separate token systems — never mix them up.
 
 ---
 
-## 8. Running the Project Locally
+## 9. Running the Project Locally
 
 ```bash
 # Backend
@@ -212,7 +236,7 @@ python -m pytest tests/ -v
 
 ---
 
-## 9. Supabase Setup Checklist (one-time)
+## 10. Supabase Setup Checklist (one-time)
 
 1. Create a Supabase project at supabase.com.
 2. Go to **SQL Editor** → paste and run `supabase/migrations/001_feature1_auth.sql`.
