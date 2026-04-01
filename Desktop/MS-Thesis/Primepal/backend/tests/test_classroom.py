@@ -227,3 +227,51 @@ class TestBulkAddStudents:
 
         assert resp.status_code == 200
         assert resp.json()["added"] == 2  # only "Ali" and "Sara" are valid
+
+
+# ── DELETE /api/v1/classroom/{id}/students/{sid} ─────────────────────────────
+
+class TestRemoveStudent:
+
+    def _make_remove_mock(self, deleted_rows=None):
+        """deleted_rows=[] simulates student not found; deleted_rows=[row] simulates success."""
+        mock_admin = MagicMock()
+        if deleted_rows is None:
+            deleted_rows = [{"id": STUDENT_1_ID}]
+
+        def _table(name):
+            tbl = MagicMock()
+            if name == "classrooms":
+                r = MagicMock()
+                r.data = {"teacher_id": TEACHER_ID}
+                tbl.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = r
+            elif name == "students":
+                r = MagicMock()
+                r.data = deleted_rows
+                tbl.delete.return_value.eq.return_value.eq.return_value.execute.return_value = r
+            return tbl
+
+        mock_admin.table.side_effect = _table
+        return mock_admin
+
+    async def test_remove_student_success(self, client: AsyncClient):
+        """Valid student_id + classroom_id → 204."""
+        mock_admin = self._make_remove_mock()
+
+        with patch("app.api.v1.endpoints.classroom.get_supabase_admin", return_value=mock_admin):
+            resp = await client.delete(
+                f"/api/v1/classroom/{CLASSROOM_ID}/students/{STUDENT_1_ID}"
+            )
+
+        assert resp.status_code == 204
+
+    async def test_remove_student_not_found(self, client: AsyncClient):
+        """Student not in this classroom → 404."""
+        mock_admin = self._make_remove_mock(deleted_rows=[])
+
+        with patch("app.api.v1.endpoints.classroom.get_supabase_admin", return_value=mock_admin):
+            resp = await client.delete(
+                f"/api/v1/classroom/{CLASSROOM_ID}/students/nonexistent-id"
+            )
+
+        assert resp.status_code == 404

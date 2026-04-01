@@ -21,6 +21,7 @@ from app.schemas.classroom import (
     ClassroomDetail,
     ClassroomResponse,
     StudentBulkCreate,
+    StudentResponse,  # noqa: F401 — referenced via ClassroomDetail
 )
 
 router = APIRouter()
@@ -148,8 +149,9 @@ async def bulk_add_students(
         }
         for name in names
     ]
-    supabase.table("students").insert(rows).execute()
-    return {"added": len(rows)}
+    result = supabase.table("students").insert(rows).execute()
+    added = len(result.data) if result.data else len(rows)
+    return {"added": added}
 
 
 @router.delete("/{classroom_id}/students/{student_id}", status_code=204)
@@ -162,4 +164,13 @@ async def remove_student(
     supabase = get_supabase_admin()
     _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
 
-    supabase.table("students").delete().eq("id", student_id).eq("classroom_id", classroom_id).execute()
+    result = (
+        supabase.table("students")
+        .delete()
+        .eq("id", student_id)
+        .eq("classroom_id", classroom_id)
+        .execute()
+    )
+    # supabase-py returns deleted rows in result.data; if empty, no row matched
+    if result.data is not None and len(result.data) == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
