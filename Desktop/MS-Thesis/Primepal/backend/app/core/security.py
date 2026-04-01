@@ -61,3 +61,25 @@ def get_current_student(
 ) -> dict:
     """FastAPI dependency — extracts and validates the student JWT from the Authorization header."""
     return decode_student_token(credentials.credentials)
+
+
+# --- Teacher auth (Supabase GoTrue JWT) ---
+from app.core.supabase_client import get_supabase as _get_supabase_for_teacher_auth
+
+
+def get_current_teacher(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> dict:
+    """FastAPI dependency — validates a Supabase GoTrue JWT for a teacher session.
+
+    Returns {"id": "<teacher_uuid>"} on success.
+    Raises 401 if the token is invalid or expired.
+    """
+    supabase = _get_supabase_for_teacher_auth()
+    response = supabase.auth.get_user(credentials.credentials)
+    if not response or not response.user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired teacher session",
+        )
+    return {"id": str(response.user.id)}
