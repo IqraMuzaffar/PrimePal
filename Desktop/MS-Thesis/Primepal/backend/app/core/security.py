@@ -64,7 +64,9 @@ def get_current_student(
 
 
 # --- Teacher auth (Supabase GoTrue JWT) ---
-from app.core.supabase_client import get_supabase as _get_supabase_for_teacher_auth
+# Imported here (not at the top) to keep all supabase_client imports co-located with
+# their consumers and avoid any load-order surprises at import time.
+from app.core.supabase_client import get_supabase
 
 
 def get_current_teacher(
@@ -75,7 +77,7 @@ def get_current_teacher(
     Returns {"id": "<teacher_uuid>"} on success.
     Raises 401 if the token is invalid or expired.
     """
-    supabase = _get_supabase_for_teacher_auth()
+    supabase = get_supabase()
     response = supabase.auth.get_user(credentials.credentials)
     if not response or not response.user:
         raise HTTPException(
