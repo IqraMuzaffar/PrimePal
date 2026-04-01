@@ -1,3 +1,4 @@
+// frontend/types/index.ts
 // Shared TypeScript types matching backend Pydantic schemas
 
 export type UserRole = "teacher" | "student";
@@ -7,17 +8,20 @@ export interface TokenResponse {
   token_type: string;
 }
 
+// Updated: class_name (was "name"), grade_level is number (was string | null)
 export interface Classroom {
   id: string;
-  name: string;
+  class_name: string;
   class_code: string;
-  grade_level: string | null;
+  grade_level: number;
+  created_at: string;
 }
 
+// Updated: student_name + avatar_url matching DB columns
 export interface Student {
   id: string;
-  display_name: string;
-  avatar_id: string;
+  student_name: string;
+  avatar_url: string;
 }
 
 export type Pillar = "reading" | "writing" | "listening" | "speaking";
