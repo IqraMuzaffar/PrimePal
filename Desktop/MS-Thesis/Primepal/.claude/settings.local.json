@@ -3,7 +3,10 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(pip install:*)",
-      "Bash(python -m pytest tests/test_auth.py -v)"
+      "Bash(python -m pytest tests/test_auth.py -v)",
+      "Bash(claude:*)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(ls '/c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/frontend/app/\\(teacher\\)/classroom/')"
     ]
   }
 }
