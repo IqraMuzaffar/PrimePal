@@ -126,7 +126,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 |---|---|---|---|
 | 1 | Smart Auth & Role Management | ✅ **Complete & Tested** | See section 6 |
 | 2 | Classroom Manager (Registry) | ✅ **Complete & Tested** | See section 7 |
-| 3 | SNC Document Ingestion (RAG Pipeline) | 🔲 Stub only | Agent A scaffolded |
+| 3 | SNC Document Ingestion (RAG Pipeline) | ✅ **Backend Complete & Tested** | See section 8; frontend pending |
 | 4 | Vector Storage & Curricular Tagging | 🔲 Stub only | Qdrant client not yet wired |
 | 5 | Multi-Modal Quest Architect | 🔲 Stub only | Agent B scaffolded |
 | 6 | Four-Pillar Interactive UI | 🔲 Stub only | `/quests` page scaffolded |
@@ -182,7 +182,27 @@ All classroom endpoints require a Supabase GoTrue JWT in the `Authorization: Bea
 
 ---
 
-## 8. Architectural Rules (Non-Negotiable)
+## 8. Feature 3 — Detailed Summary (Backend Complete)
+
+### What was built
+- **Supabase Storage** (`supabase/migrations/003_feature3_storage.sql`): Creates `snc-textbooks` private bucket with RLS policies restricting upload/view to authenticated teachers only.
+- **Backend utilities** (`app/agents/curriculum_agent/ingestion.py`):
+  - `clean_snc_text(text)` — strips isolated page numbers, "Single National Curriculum" headers, collapses blank lines.
+  - `chunk_documents(documents, grade_level, book_title)` — uses `RecursiveCharacterTextSplitter` (chunk_size=1000, overlap=200), applies strict metadata (`grade_level`, `book_title`, `chunk_id`) to every chunk, discards chunks < 50 chars.
+- **Backend endpoint** (`app/api/v1/endpoints/curriculum.py`):
+  - `POST /api/v1/curriculum/upload` — teacher-protected (Supabase GoTrue JWT), accepts `multipart/form-data` with `file` (PDF), `grade_level` (1–6), `book_title`. Validates `.pdf` extension, writes to temp file, uploads raw PDF to Supabase Storage, extracts text via `PyMuPDFLoader`, chunks via `chunk_documents`, returns `{status, message, total_chunks, sample_chunk}`. Temp file always deleted in `finally` block.
+- **Requirements**: `pymupdf==1.24.3` added to `requirements.txt`.
+- **Tests**: 13/13 passing (`tests/test_ingestion.py`): endpoint (valid PDF × 2, txt rejected, jpg rejected, all-short chunks, no auth), `clean_snc_text` × 3, `chunk_documents` × 4.
+
+### Key design notes
+- `PyMuPDFLoader` is imported at module level in `curriculum.py` — safe without pymupdf installed (lazy internal import), and patchable at `app.api.v1.endpoints.curriculum.PyMuPDFLoader` in tests.
+- Supabase Storage upload is non-fatal (wrapped in try/except) — PDF processing continues even if backup fails.
+- Feature 4 will consume the returned chunks for embedding into Qdrant.
+- Frontend UI (`app/(teacher)/curriculum/page.tsx` + `FileUploadZone.tsx`) is pending.
+
+---
+
+## 9. Architectural Rules (Non-Negotiable)
 
 ### Database & Security
 - **Always enable Row Level Security (RLS)** on every Supabase table. Never disable it.
@@ -213,7 +233,7 @@ All classroom endpoints require a Supabase GoTrue JWT in the `Authorization: Bea
 
 ---
 
-## 9. Running the Project Locally
+## 10. Running the Project Locally
 
 ```bash
 # Backend
@@ -236,10 +256,12 @@ python -m pytest tests/ -v
 
 ---
 
-## 10. Supabase Setup Checklist (one-time)
+## 11. Supabase Setup Checklist (one-time)
 
 1. Create a Supabase project at supabase.com.
 2. Go to **SQL Editor** → paste and run `supabase/migrations/001_feature1_auth.sql`.
-3. Copy **Project URL** and **anon key** → paste into `backend/.env` and `frontend/.env.local`.
-4. Copy **service_role key** → paste into `backend/.env` (`SUPABASE_SERVICE_ROLE_KEY`). Keep this secret — never expose it to the frontend.
-5. For teacher registration, use Supabase's **Authentication → Users** dashboard or build a `/register` endpoint in Feature 2.
+3. Paste and run `supabase/migrations/002_feature2_classroom.sql`.
+4. Paste and run `supabase/migrations/003_feature3_storage.sql` (creates `snc-textbooks` storage bucket).
+5. Copy **Project URL** and **anon key** → paste into `backend/.env` and `frontend/.env.local`.
+6. Copy **service_role key** → paste into `backend/.env` (`SUPABASE_SERVICE_ROLE_KEY`). Keep this secret — never expose it to the frontend.
+7. For teacher registration, use Supabase's **Authentication → Users** dashboard.
