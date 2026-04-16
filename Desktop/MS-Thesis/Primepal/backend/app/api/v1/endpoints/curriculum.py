@@ -191,3 +191,29 @@ async def embed_chunks(
         "message": f"Successfully embedded and stored {embedded_count} chunks.",
         "embedded_count": embedded_count,
     }
+
+
+# ── GET /uploads  — upload history for the current teacher ────────────────────
+
+@router.get("/uploads", status_code=200)
+async def get_uploads(
+    grade_level: int | None = None,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """
+    Return all snc_uploads rows for the current teacher, newest first.
+    Optional query param: ?grade_level=3 to filter to one grade.
+    """
+    supabase = get_supabase_admin()
+    teacher_id: str = teacher["sub"]
+
+    query = (
+        supabase.table("snc_uploads")
+        .select("id, book_title, grade_level, filename, total_chunks, embedded_count, created_at")
+        .eq("teacher_id", teacher_id)
+    )
+    if grade_level is not None:
+        query = query.eq("grade_level", grade_level)
+
+    result = query.order("created_at", desc=True).execute()
+    return result.data
