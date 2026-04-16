@@ -135,7 +135,7 @@ async def upload_snc_textbook(
     # ── 7. Log to upload history ──────────────────────────────────────────────
     _log_upload(
         supabase=supabase,
-        teacher_id=teacher["sub"],   # Supabase JWT "sub" claim = user UUID
+        teacher_id=teacher["id"],
         book_title=book_title.strip(),
         grade_level=grade_level,
         filename=filename,
@@ -205,7 +205,7 @@ async def get_uploads(
     Optional query param: ?grade_level=3 to filter to one grade.
     """
     supabase = get_supabase_admin()
-    teacher_id: str = teacher["sub"]
+    teacher_id: str = teacher["id"]
 
     query = (
         supabase.table("snc_uploads")

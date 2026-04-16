@@ -62,7 +62,7 @@ def test_get_uploads_returns_teacher_history(monkeypatch):
     from app.core.security import get_current_teacher
     client = TestClient(app)
 
-    app.dependency_overrides[get_current_teacher] = lambda: {"sub": "teacher-uuid-123"}
+    app.dependency_overrides[get_current_teacher] = lambda: {"id": "teacher-uuid-123"}
     try:
         response = client.get(
             "/api/v1/curriculum/uploads",
