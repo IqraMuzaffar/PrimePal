@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { apiFetch } from "@/lib/api";
 
@@ -103,6 +104,7 @@ function LockedCard({ icon, label, tagline }: { icon: string; label: string; tag
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [quoteIndex, setQuoteIndex] = useState(0);
@@ -112,7 +114,10 @@ export default function HomePage() {
   // Fetch profile
   useEffect(() => {
     const token = getToken();
-    if (!token) { setLoadingProfile(false); return; }
+    if (!token) {
+      router.push("/play");
+      return;
+    }
 
     apiFetch<StudentProfile>("/missions/me", {
       headers: { Authorization: `Bearer ${token}` },
@@ -154,7 +159,7 @@ export default function HomePage() {
             </h1>
             <p className="text-white/80 text-sm mt-1">Ready to learn today?</p>
           </div>
-          <div className="flex flex-col items-center bg-white/20 rounded-2xl px-4 py-3 border-2 border-white/30 animate-pulse">
+          <div className="flex flex-col items-center bg-white/20 rounded-2xl px-4 py-3 border-2 border-white/30">
             <span className="text-3xl leading-none">⭐</span>
             <span className="text-white font-extrabold text-2xl leading-tight">{points}</span>
             <span className="text-white/70 text-xs font-semibold">Stars</span>
@@ -243,7 +248,7 @@ export default function HomePage() {
       {/* ⑤ Motivational footer strip */}
       <div
         className={[
-          "w-full rounded-2xl bg-gradient-to-r from-pink-100 to-yellow-100 border-2 border-yellow-200 px-5 py-4 text-center transition-opacity duration-400",
+          "w-full rounded-2xl bg-gradient-to-r from-pink-100 to-yellow-100 border-2 border-yellow-200 px-5 py-4 text-center transition-opacity duration-[400ms]",
           quoteFading ? "opacity-0" : "opacity-100",
         ].join(" ")}
       >
