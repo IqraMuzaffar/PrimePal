@@ -10,6 +10,8 @@ Grade level is always resolved from the classroom DB record — the client canno
 override it. correct_answer is stripped from the /daily response; the client sends back
 question_correct (bool) to /complete, which the server trusts (thesis prototype).
 """
+import logging
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
 
@@ -23,8 +25,6 @@ from app.agents.tutor_agent.mission_generator import (
     QuestionOption,
     generate_daily_missions,
 )
-
-import logging
 
 logger = logging.getLogger(__name__)
 
