@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -22,19 +23,21 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const router = useRouter();
   const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const token = localStorage.getItem("primepal_student_token");
-    if (!token) return;
+    if (!token) { setLoading(false); return; }
 
     setLoading(true);
     apiFetch<StudentProfile>("/missions/me", {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((data) => setProfile(data))
-      .catch(() => {})
+      .catch(() => {
+        // Silently degrade — show nav without profile data
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -61,13 +64,13 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
           {/* Nav links — center */}
           <nav className="flex items-center gap-1">
             {NAV_LINKS.map(({ href, label, icon }) => {
-              const active = pathname === href;
+              const active = pathname === href || pathname.startsWith(href + "/");
               return (
                 <Link
                   key={href}
                   href={href}
                   className={[
-                    "flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold transition-all duration-150",
+                    "flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold transition-all duration-150 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-orange-500 focus:outline-none",
                     active
                       ? "bg-white text-orange-500 shadow-sm"
                       : "text-white hover:bg-white/20",
@@ -92,11 +95,12 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             {!loading && profile && (
               <>
                 {profile.avatar_url ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
+                  <Image
                     src={profile.avatar_url}
                     alt={profile.student_name}
-                    className="w-8 h-8 rounded-full border-2 border-white object-cover shadow-sm"
+                    width={32}
+                    height={32}
+                    className="rounded-full border-2 border-white object-cover shadow-sm"
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-full border-2 border-white bg-white/30 flex items-center justify-center text-white font-bold text-sm">
@@ -111,7 +115,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
             <button
               onClick={handleLogout}
-              className="bg-white/20 hover:bg-white/40 text-white text-xs font-bold px-3 py-1.5 rounded-full transition-all duration-150 border border-white/30"
+              className="bg-white/20 hover:bg-white/40 text-white text-xs font-bold px-3 py-1.5 rounded-full transition-all duration-150 border border-white/30 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-orange-500 focus:outline-none"
               aria-label="Logout"
             >
               Out 👋
