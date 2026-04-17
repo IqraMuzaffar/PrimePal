@@ -48,9 +48,10 @@ Primepal/
 │   │   ├── (teacher)/               # Teacher route group
 │   │   │   ├── layout.tsx           # Pass-through (no sidebar yet)
 │   │   │   ├── login/page.tsx       # ✅ Feature 1 — email/password login
-│   │   │   ├── dashboard/page.tsx   # Feature 10 (stub)
-│   │   │   ├── classroom/page.tsx   # Feature 2 (stub)
-│   │   │   └── analytics/page.tsx   # Feature 10 (stub)
+│   │   │   ├── dashboard/page.tsx   # ✅ Feature 10 — analytics dashboard
+│   │   │   ├── dashboard/curriculum/page.tsx # ✅ Upload history + grade card UI
+│   │   │   ├── classroom/page.tsx   # ✅ Feature 2 — classroom list
+│   │   │   └── classroom/[id]/page.tsx # ✅ Feature 2 — classroom detail with tabs
 │   │   ├── (student)/               # Student route group
 │   │   │   ├── layout.tsx           # ✅ Sticky header + nav (Home/Chat/Missions) + logout
 │   │   │   ├── play/page.tsx        # ✅ Feature 1 — class code entry (Step 1)
@@ -152,7 +153,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 - **Frontend**:
   - `app/(teacher)/login/page.tsx` — professional email/password form → `supabase.auth.signInWithPassword()` → redirect `/dashboard`.
   - `app/(student)/play/page.tsx` — gamified two-step login: enter class code → fetch avatars.
-  - `app/(student)/play/avatar-select.tsx` — avatar grid → POST login → store JWT as `localStorage['primepal_student_token']` → redirect `/missions`.
+  - `app/(student)/play/avatar-select.tsx` — avatar grid → POST login → store JWT as `localStorage['primepal_student_token']` → redirect `/home`.
 - **Tests**: 14/14 passing (`tests/test_auth.py`).
 
 ### Auth architecture note
@@ -334,7 +335,7 @@ The `correct_answer` is **never sent to the client**. The `MissionQuestionOut` P
 - All student-facing UI must be **mobile-first, touch-friendly, large tap targets**. These are primary school children on shared smartphones.
 
 ### RAG / Curriculum
-- The RAG pipeline must **only** retrieve content tagged with the correct `grade` and `week` metadata from Qdrant. Never allow the LLM to answer from general knowledge for curriculum questions — always ground in SNC chunks.
+- The RAG pipeline must **only** retrieve content tagged with the correct `grade_level` metadata from `snc_knowledge_base` (pgvector). Never allow the LLM to answer from general knowledge for curriculum questions — always ground in SNC chunks.
 - SNC vocabulary is the single source of truth. Agent A is the gatekeeper.
 
 ### Testing

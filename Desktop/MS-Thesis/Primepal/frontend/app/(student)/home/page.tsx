@@ -125,7 +125,7 @@ export default function HomePage() {
       .then(setProfile)
       .catch(() => {})
       .finally(() => setLoadingProfile(false));
-  }, []);
+  }, [router]);
 
   // Rotate quotes every 8s with a fade
   useEffect(() => {
