@@ -76,6 +76,8 @@ class StudentProfileResponse(BaseModel):
     student_name: str
     avatar_url: str | None
     points: int
+    avatar_style: str
+    theme_color: str
 
 
 # ---------------------------------------------------------------------------
@@ -284,7 +286,7 @@ async def get_student_profile(
 
     student_resp = (
         supabase.table("students")
-        .select("student_name, avatar_url, points")
+        .select("student_name, avatar_url, avatar_style, theme_color, points")
         .eq("id", student_id)
         .maybe_single()
         .execute()
@@ -301,4 +303,6 @@ async def get_student_profile(
         student_name=data["student_name"],
         avatar_url=data.get("avatar_url"),
         points=data.get("points") or 0,
+        avatar_style=data.get("avatar_style") or "adventurer",
+        theme_color=data.get("theme_color") or "#6366f1",
     )
