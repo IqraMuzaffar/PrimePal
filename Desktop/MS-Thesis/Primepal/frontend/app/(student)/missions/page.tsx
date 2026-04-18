@@ -212,7 +212,7 @@ export default function MissionsPage() {
   const totalQuestions = missions?.questions.length ?? 3;
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-yellow-300 via-orange-300 to-pink-300 flex flex-col items-center px-4 py-8">
+    <div className="min-h-screen bg-gradient-to-b from-indigo-500 via-violet-500 to-purple-600 flex flex-col items-center px-4 py-8">
       {/* Brand header */}
       <div className="flex items-center gap-3 mb-8">
         <Star className="text-white fill-white drop-shadow" size={28} />
@@ -336,7 +336,7 @@ export default function MissionsPage() {
                     <button
                       type="submit"
                       disabled={!fillValue.trim()}
-                      className="w-full bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-extrabold text-xl py-4 rounded-2xl transition-all duration-150 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-95"
+                      className="w-full bg-indigo-600 text-white font-extrabold text-xl py-4 rounded-2xl shadow-[0_4px_0_#3730a3] hover:brightness-110 active:translate-y-1 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0 transition-all duration-100"
                     >
                       Check! ✓
                     </button>
@@ -371,13 +371,13 @@ export default function MissionsPage() {
           <div className="space-y-4">
             <button
               onClick={fetchMissions}
-              className="w-full bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xl py-5 rounded-2xl transition-all duration-150 shadow-lg border-b-4 border-orange-600 hover:shadow-xl hover:scale-[1.02] active:scale-95 active:border-b-0 active:translate-y-1"
+              className="w-full bg-indigo-600 text-white font-extrabold text-xl py-5 rounded-2xl shadow-[0_5px_0_#3730a3] hover:brightness-110 active:translate-y-[5px] active:shadow-none transition-all duration-100"
             >
               Play Again 🔄
             </button>
             <Link
               href="/chat"
-              className="block w-full bg-violet-500 hover:bg-violet-600 text-white font-extrabold text-xl py-5 rounded-2xl transition-all duration-150 shadow-lg border-b-4 border-violet-700 hover:shadow-xl hover:scale-[1.02] active:scale-95 active:border-b-0 active:translate-y-1 text-center"
+              className="block w-full bg-violet-500 text-white font-extrabold text-xl py-5 rounded-2xl shadow-[0_5px_0_#5b21b6] hover:brightness-110 active:translate-y-[5px] active:shadow-none transition-all duration-100 text-center"
             >
               Chat with PrimePal 💬
             </Link>
