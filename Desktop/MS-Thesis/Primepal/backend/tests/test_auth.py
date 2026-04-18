@@ -22,8 +22,8 @@ VALID_CLASS_CODE = "ABC123"
 
 MOCK_CLASSROOM = {"id": CLASSROOM_ID}
 MOCK_STUDENTS = [
-    {"id": STUDENT_1_ID, "student_name": "Ali", "avatar_url": "https://api.dicebear.com/7.x/adventurer/svg?seed=Ali"},
-    {"id": STUDENT_2_ID, "student_name": "Sara", "avatar_url": "https://api.dicebear.com/7.x/adventurer/svg?seed=Sara"},
+    {"id": STUDENT_1_ID, "student_name": "Ali", "avatar_url": "https://api.dicebear.com/7.x/adventurer/svg?seed=Ali", "avatar_style": "adventurer", "theme_color": "#6366f1"},
+    {"id": STUDENT_2_ID, "student_name": "Sara", "avatar_url": "https://api.dicebear.com/7.x/adventurer/svg?seed=Sara", "avatar_style": "bottts", "theme_color": "#8b5cf6"},
 ]
 
 
@@ -249,3 +249,103 @@ class TestJWTUtils:
             decode_student_token(token)
 
         assert exc_info.value.status_code == 403
+
+
+# ── New tests for Task 2 ──────────────────────────────────────────────────────
+
+from app.core.security import create_student_token
+
+
+class TestGetAvatarsReturnsCustomizationFields:
+    """GET /auth/classroom/{code}/avatars now includes avatar_style + theme_color."""
+
+    def test_avatars_include_style_and_color(self, client):
+        import asyncio
+        mock_classroom = MagicMock()
+        mock_classroom.data = {"id": "cls-1"}
+        mock_students = MagicMock()
+        mock_students.data = [
+            {
+                "id": "stu-1",
+                "student_name": "Ali",
+                "avatar_url": "https://api.dicebear.com/7.x/adventurer/svg?seed=Ali",
+                "avatar_style": "adventurer",
+                "theme_color": "#6366f1",
+            }
+        ]
+        mock_sb = MagicMock()
+        (mock_sb.table.return_value.select.return_value
+         .eq.return_value.maybe_single.return_value.execute.return_value) = mock_classroom
+        (mock_sb.table.return_value.select.return_value
+         .eq.return_value.execute.return_value) = mock_students
+
+        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+            response = asyncio.get_event_loop().run_until_complete(
+                client.get("/api/v1/auth/classroom/ABC123/avatars")
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data[0]["avatar_style"] == "adventurer"
+        assert data[0]["theme_color"] == "#6366f1"
+
+
+class TestPatchStudentProfile:
+    """PATCH /auth/student/profile — update avatar_style and theme_color."""
+
+    def _token(self):
+        return create_student_token(student_id="stu-1", classroom_id="cls-1")
+
+    def test_update_avatar_style_and_color(self, client):
+        import asyncio
+        mock_sb = MagicMock()
+        mock_sb.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        mock_result = MagicMock()
+        mock_result.data = {"avatar_style": "bottts", "theme_color": "#8b5cf6"}
+        (mock_sb.table.return_value.select.return_value
+         .eq.return_value.maybe_single.return_value.execute.return_value) = mock_result
+
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
+            response = asyncio.get_event_loop().run_until_complete(
+                client.patch(
+                    "/api/v1/auth/student/profile",
+                    json={"avatar_style": "bottts", "theme_color": "#8b5cf6"},
+                    headers={"Authorization": f"Bearer {self._token()}"},
+                )
+            )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["avatar_style"] == "bottts"
+        assert data["theme_color"] == "#8b5cf6"
+
+    def test_rejects_invalid_style(self, client):
+        import asyncio
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=MagicMock()):
+            response = asyncio.get_event_loop().run_until_complete(
+                client.patch(
+                    "/api/v1/auth/student/profile",
+                    json={"avatar_style": "hacker-style"},
+                    headers={"Authorization": f"Bearer {self._token()}"},
+                )
+            )
+        assert response.status_code == 422
+
+    def test_rejects_invalid_hex_color(self, client):
+        import asyncio
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=MagicMock()):
+            response = asyncio.get_event_loop().run_until_complete(
+                client.patch(
+                    "/api/v1/auth/student/profile",
+                    json={"theme_color": "red"},
+                    headers={"Authorization": f"Bearer {self._token()}"},
+                )
+            )
+        assert response.status_code == 422
+
+    def test_requires_auth(self, client):
+        import asyncio
+        response = asyncio.get_event_loop().run_until_complete(
+            client.patch("/api/v1/auth/student/profile", json={"avatar_style": "bottts"})
+        )
+        assert response.status_code == 403
