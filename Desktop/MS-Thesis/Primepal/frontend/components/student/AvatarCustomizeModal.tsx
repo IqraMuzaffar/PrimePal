@@ -99,7 +99,7 @@ export default function AvatarCustomizeModal({
         <div className="flex justify-center">
           <div
             className="w-24 h-24 rounded-full ring-4 ring-offset-2 overflow-hidden bg-slate-50 transition-all duration-300"
-            style={{ ringColor: selectedColor }}
+            style={{ "--tw-ring-color": selectedColor } as React.CSSProperties}
           >
             <Image
               src={dicebearUrl(selectedStyle, studentName)}
