@@ -1,15 +1,17 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { apiFetch } from "@/lib/api";
 
 interface StudentProfile {
   student_id: string;
   student_name: string;
   avatar_url: string | null;
+  avatar_style: string;
+  theme_color: string;
   points: number;
 }
 
@@ -30,14 +32,11 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
     const token = localStorage.getItem("primepal_student_token");
     if (!token) { setLoading(false); return; }
 
-    setLoading(true);
     apiFetch<StudentProfile>("/missions/me", {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((data) => setProfile(data))
-      .catch(() => {
-        // Silently degrade — show nav without profile data
-      })
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
@@ -49,19 +48,19 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   }
 
   return (
-    <div className="min-h-screen bg-yellow-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50">
       {/* ── Top bar ── */}
-      <header className="sticky top-0 z-20 bg-gradient-to-r from-yellow-400 to-orange-400 shadow-md">
-        <div className="flex items-center justify-between px-4 py-2 gap-2">
+      <header className="sticky top-0 z-20 bg-white border-b border-slate-100 shadow-sm">
+        <div className="flex items-center justify-between px-4 py-2 gap-2 max-w-2xl mx-auto">
           {/* Logo */}
           <Link href="/home" className="flex items-center gap-1.5 shrink-0">
             <span className="text-2xl leading-none">⭐</span>
-            <span className="font-extrabold text-white text-lg tracking-tight drop-shadow-sm hidden sm:inline">
+            <span className="font-extrabold text-indigo-600 text-lg tracking-tight hidden sm:inline">
               PrimePal
             </span>
           </Link>
 
-          {/* Nav links — center */}
+          {/* Nav links */}
           <nav className="flex items-center gap-1">
             {NAV_LINKS.map(({ href, label, icon }) => {
               const active = pathname === href || pathname.startsWith(href + "/");
@@ -70,10 +69,10 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                   key={href}
                   href={href}
                   className={[
-                    "flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold transition-all duration-150 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-orange-500 focus:outline-none",
+                    "flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
                     active
-                      ? "bg-white text-orange-500 shadow-sm"
-                      : "text-white hover:bg-white/20",
+                      ? "bg-indigo-600 text-white shadow-sm"
+                      : "text-slate-600 hover:bg-slate-100 hover:text-indigo-600",
                   ].join(" ")}
                 >
                   <span>{icon}</span>
@@ -87,8 +86,8 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
           <div className="flex items-center gap-2 shrink-0">
             {loading && (
               <div className="flex items-center gap-2 animate-pulse">
-                <div className="w-8 h-8 rounded-full bg-white/40" />
-                <div className="h-5 w-14 rounded-full bg-white/40" />
+                <div className="w-8 h-8 rounded-full bg-slate-200" />
+                <div className="h-5 w-14 rounded-full bg-slate-200" />
               </div>
             )}
 
@@ -100,14 +99,14 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                     alt={profile.student_name}
                     width={32}
                     height={32}
-                    className="rounded-full border-2 border-white object-cover shadow-sm"
+                    className="rounded-full border-2 border-indigo-200 shadow-sm"
                   />
                 ) : (
-                  <div className="w-8 h-8 rounded-full border-2 border-white bg-white/30 flex items-center justify-center text-white font-bold text-sm">
+                  <div className="w-8 h-8 rounded-full border-2 border-indigo-200 bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
                     {profile.student_name.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <span className="bg-white/20 rounded-full px-2 py-0.5 text-white text-xs font-bold whitespace-nowrap">
+                <span className="bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
                   ⭐ {profile.points}
                 </span>
               </>
@@ -115,7 +114,10 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
 
             <button
               onClick={handleLogout}
-              className="bg-white/20 hover:bg-white/40 text-white text-xs font-bold px-3 py-1.5 rounded-full transition-all duration-150 border border-white/30 focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-orange-500 focus:outline-none"
+              className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-full
+                         shadow-[0_3px_0_#3730a3] hover:brightness-110
+                         active:translate-y-[3px] active:shadow-none
+                         transition-all duration-100 border-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               aria-label="Logout"
             >
               Out 👋
@@ -124,7 +126,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
         </div>
       </header>
 
-      <main className="p-4">{children}</main>
+      <main className="p-4 max-w-2xl mx-auto">{children}</main>
     </div>
   );
 }
