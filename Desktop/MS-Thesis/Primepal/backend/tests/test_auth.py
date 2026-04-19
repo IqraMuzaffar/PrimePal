@@ -22,8 +22,8 @@ VALID_CLASS_CODE = "ABC123"
 
 MOCK_CLASSROOM = {"id": CLASSROOM_ID}
 MOCK_STUDENTS = [
-    {"id": STUDENT_1_ID, "student_name": "Ali", "avatar_url": "https://api.dicebear.com/7.x/adventurer/svg?seed=Ali", "avatar_style": "adventurer", "theme_color": "#6366f1"},
-    {"id": STUDENT_2_ID, "student_name": "Sara", "avatar_url": "https://api.dicebear.com/7.x/adventurer/svg?seed=Sara", "avatar_style": "bottts", "theme_color": "#8b5cf6"},
+    {"id": STUDENT_1_ID, "student_name": "Ali", "avatar_url": "https://api.dicebear.com/7.x/adventurer/svg?seed=Ali", "avatar_style": "adventurer", "theme_color": "#6366f1", "secret_pin": "1234"},
+    {"id": STUDENT_2_ID, "student_name": "Sara", "avatar_url": "https://api.dicebear.com/7.x/adventurer/svg?seed=Sara", "avatar_style": "bottts", "theme_color": "#8b5cf6", "secret_pin": "1234"},
 ]
 
 
@@ -110,12 +110,12 @@ class TestGetClassroomAvatars:
 class TestStudentLogin:
 
     async def test_returns_jwt_for_valid_student(self, client: AsyncClient):
-        """Happy path: valid student_id + class_code → JWT issued."""
+        """Happy path: valid student_id + class_code + PIN → JWT issued."""
         mock_sb = _make_supabase_mock()
         with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
             resp = await client.post(
                 "/api/v1/auth/student/login",
-                json={"student_id": STUDENT_1_ID, "class_code": VALID_CLASS_CODE},
+                json={"student_id": STUDENT_1_ID, "class_code": VALID_CLASS_CODE, "secret_pin": "1234"},
             )
 
         assert resp.status_code == 200
@@ -133,7 +133,7 @@ class TestStudentLogin:
         with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
             resp = await client.post(
                 "/api/v1/auth/student/login",
-                json={"student_id": STUDENT_1_ID, "class_code": VALID_CLASS_CODE},
+                json={"student_id": STUDENT_1_ID, "class_code": VALID_CLASS_CODE, "secret_pin": "1234"},
             )
 
         token = resp.json()["access_token"]
@@ -148,7 +148,7 @@ class TestStudentLogin:
         with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
             resp = await client.post(
                 "/api/v1/auth/student/login",
-                json={"student_id": STUDENT_1_ID, "class_code": "XXXXX"},
+                json={"student_id": STUDENT_1_ID, "class_code": "XXXXX", "secret_pin": "1234"},
             )
 
         assert resp.status_code == 404
@@ -159,7 +159,7 @@ class TestStudentLogin:
         with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
             resp = await client.post(
                 "/api/v1/auth/student/login",
-                json={"student_id": "foreign-student-id", "class_code": VALID_CLASS_CODE},
+                json={"student_id": "foreign-student-id", "class_code": VALID_CLASS_CODE, "secret_pin": "1234"},
             )
 
         assert resp.status_code == 403
@@ -168,7 +168,7 @@ class TestStudentLogin:
         """Missing required fields → FastAPI validation error 422."""
         resp = await client.post(
             "/api/v1/auth/student/login",
-            json={"class_code": VALID_CLASS_CODE},  # student_id missing
+            json={"class_code": VALID_CLASS_CODE},  # student_id and secret_pin missing
         )
         assert resp.status_code == 422
 
@@ -349,3 +349,120 @@ class TestPatchStudentProfile:
             client.patch("/api/v1/auth/student/profile", json={"avatar_style": "bottts"})
         )
         assert response.status_code == 403
+
+
+# ── New tests: Secret PIN (Feature 9) ────────────────────────────────────────
+
+TEACHER_ID = "cccccccc-0000-0000-0000-000000000001"
+
+
+def _make_admin_mock_for_pin_reset(student_classroom_id: str, classroom_teacher_id: str):
+    """Mock the admin supabase client for the teacher PIN reset endpoint."""
+    mock_admin = MagicMock()
+
+    def _table(name: str):
+        tbl = MagicMock()
+        if name == "students":
+            student_result = MagicMock()
+            student_result.data = {"id": STUDENT_1_ID, "classroom_id": student_classroom_id}
+            tbl.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = student_result
+            tbl.update.return_value.eq.return_value.execute.return_value = MagicMock()
+        elif name == "classrooms":
+            classroom_result = MagicMock()
+            classroom_result.data = {"teacher_id": classroom_teacher_id}
+            tbl.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = classroom_result
+        return tbl
+
+    mock_admin.table.side_effect = _table
+    return mock_admin
+
+
+class TestStudentLoginPIN:
+    """PIN verification in student login — Secret PIN feature."""
+
+    async def test_correct_pin_returns_token(self, client: AsyncClient):
+        """Correct PIN + valid student → 200 with JWT."""
+        mock_sb = _make_supabase_mock()
+        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+            resp = await client.post(
+                "/api/v1/auth/student/login",
+                json={"student_id": STUDENT_1_ID, "class_code": VALID_CLASS_CODE, "secret_pin": "1234"},
+            )
+        assert resp.status_code == 200
+        assert "access_token" in resp.json()
+
+    async def test_wrong_pin_returns_401(self, client: AsyncClient):
+        """Wrong PIN → 401 Incorrect PIN."""
+        mock_sb = _make_supabase_mock()
+        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+            resp = await client.post(
+                "/api/v1/auth/student/login",
+                json={"student_id": STUDENT_1_ID, "class_code": VALID_CLASS_CODE, "secret_pin": "9999"},
+            )
+        assert resp.status_code == 401
+        assert resp.json()["detail"] == "Incorrect PIN"
+
+    async def test_missing_pin_returns_422(self, client: AsyncClient):
+        """Missing secret_pin field → 422 validation error."""
+        resp = await client.post(
+            "/api/v1/auth/student/login",
+            json={"student_id": STUDENT_1_ID, "class_code": VALID_CLASS_CODE},
+        )
+        assert resp.status_code == 422
+
+    async def test_non_4_digit_pin_returns_422(self, client: AsyncClient):
+        """PIN that is not exactly 4 digits → 422 validation error."""
+        resp = await client.post(
+            "/api/v1/auth/student/login",
+            json={"student_id": STUDENT_1_ID, "class_code": VALID_CLASS_CODE, "secret_pin": "12"},
+        )
+        assert resp.status_code == 422
+
+
+class TestTeacherPINReset:
+    """PATCH /auth/student/{student_id}/pin — teacher-only PIN reset."""
+
+    @pytest.fixture(autouse=True)
+    def override_teacher_dep(self):
+        from app.main import app
+        from app.core.security import get_current_teacher
+        app.dependency_overrides[get_current_teacher] = lambda: {"id": TEACHER_ID}
+        yield
+        app.dependency_overrides.pop(get_current_teacher, None)
+
+    async def test_teacher_can_reset_student_pin(self, client: AsyncClient):
+        """Authenticated teacher resets a student PIN → 200 with new PIN."""
+        mock_admin = _make_admin_mock_for_pin_reset(
+            student_classroom_id=CLASSROOM_ID,
+            classroom_teacher_id=TEACHER_ID,
+        )
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_admin):
+            resp = await client.patch(
+                f"/api/v1/auth/student/{STUDENT_1_ID}/pin",
+                json={"secret_pin": "5678"},
+            )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["student_id"] == STUDENT_1_ID
+        assert data["secret_pin"] == "5678"
+
+    async def test_pin_reset_invalid_format_returns_422(self, client: AsyncClient):
+        """Non-4-digit PIN → 422 (Pydantic validation)."""
+        resp = await client.patch(
+            f"/api/v1/auth/student/{STUDENT_1_ID}/pin",
+            json={"secret_pin": "12"},
+        )
+        assert resp.status_code == 422
+
+    async def test_pin_reset_wrong_teacher_returns_403(self, client: AsyncClient):
+        """Student belongs to a different teacher → 403."""
+        mock_admin = _make_admin_mock_for_pin_reset(
+            student_classroom_id=CLASSROOM_ID,
+            classroom_teacher_id="different-teacher-id",
+        )
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_admin):
+            resp = await client.patch(
+                f"/api/v1/auth/student/{STUDENT_1_ID}/pin",
+                json={"secret_pin": "5678"},
+            )
+        assert resp.status_code == 403

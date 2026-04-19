@@ -3,8 +3,9 @@ Feature 1: Smart Auth & Role Management
 
 Endpoints:
   GET   /api/v1/auth/classroom/{class_code}/avatars  — fetch student roster for visual login
-  POST  /api/v1/auth/student/login                   — validate avatar tap and issue JWT
+  POST  /api/v1/auth/student/login                   — validate avatar tap + PIN and issue JWT
   PATCH /api/v1/auth/student/profile                 — update avatar_style and theme_color
+  PATCH /api/v1/auth/student/{student_id}/pin        — teacher-only PIN reset
 """
 import re
 import logging
@@ -13,7 +14,7 @@ from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, field_validator
 
-from app.core.security import create_student_token, get_current_student
+from app.core.security import create_student_token, get_current_student, get_current_teacher
 from app.core.supabase_client import get_supabase, get_supabase_admin
 
 logger = logging.getLogger(__name__)
@@ -37,6 +38,14 @@ class AvatarResponse(BaseModel):
 class StudentLoginRequest(BaseModel):
     student_id: str
     class_code: str
+    secret_pin: str
+
+    @field_validator("secret_pin")
+    @classmethod
+    def validate_pin(cls, v: str) -> str:
+        if not re.fullmatch(r"\d{4}", v):
+            raise ValueError("secret_pin must be exactly 4 digits")
+        return v
 
 
 class TokenResponse(BaseModel):
@@ -66,6 +75,22 @@ class UpdateProfileRequest(BaseModel):
 class UpdateProfileResponse(BaseModel):
     avatar_style: str
     theme_color: str
+
+
+class ResetPinRequest(BaseModel):
+    secret_pin: str
+
+    @field_validator("secret_pin")
+    @classmethod
+    def validate_pin(cls, v: str) -> str:
+        if not re.fullmatch(r"\d{4}", v):
+            raise ValueError("secret_pin must be exactly 4 digits")
+        return v
+
+
+class ResetPinResponse(BaseModel):
+    student_id: str
+    secret_pin: str
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -137,7 +162,7 @@ async def student_login(request: StudentLoginRequest) -> TokenResponse:
 
     student_res = (
         supabase.table("students")
-        .select("id")
+        .select("id, secret_pin")
         .eq("id", request.student_id)
         .eq("classroom_id", classroom_id)
         .maybe_single()
@@ -147,6 +172,12 @@ async def student_login(request: StudentLoginRequest) -> TokenResponse:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Student does not belong to this classroom",
+        )
+
+    if student_res.data["secret_pin"] != request.secret_pin:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Incorrect PIN",
         )
 
     token = create_student_token(
@@ -203,3 +234,49 @@ async def update_student_profile(
         avatar_style=result.data["avatar_style"],
         theme_color=result.data["theme_color"],
     )
+
+
+@router.patch(
+    "/student/{student_id}/pin",
+    response_model=ResetPinResponse,
+    summary="Reset a student's secret PIN (teacher only)",
+)
+async def reset_student_pin(
+    student_id: str,
+    body: ResetPinRequest,
+    teacher: dict = Depends(get_current_teacher),
+) -> ResetPinResponse:
+    """
+    Allows an authenticated teacher to reset any student's PIN,
+    provided the student belongs to one of that teacher's classrooms.
+    """
+    supabase = get_supabase_admin()
+
+    student_res = (
+        supabase.table("students")
+        .select("id, classroom_id")
+        .eq("id", student_id)
+        .maybe_single()
+        .execute()
+    )
+    if not student_res.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found",
+        )
+
+    classroom_res = (
+        supabase.table("classrooms")
+        .select("teacher_id")
+        .eq("id", student_res.data["classroom_id"])
+        .maybe_single()
+        .execute()
+    )
+    if not classroom_res.data or classroom_res.data["teacher_id"] != teacher["id"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not your student",
+        )
+
+    supabase.table("students").update({"secret_pin": body.secret_pin}).eq("id", student_id).execute()
+    return ResetPinResponse(student_id=student_id, secret_pin=body.secret_pin)
