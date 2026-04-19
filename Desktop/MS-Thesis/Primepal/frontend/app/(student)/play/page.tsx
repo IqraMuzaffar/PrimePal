@@ -4,6 +4,7 @@ import { useState, FormEvent } from "react";
 import { Loader2, Gamepad2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import AvatarSelect from "./avatar-select";
+import PinEntry from "./pin-entry";
 
 interface Avatar {
   id: string;
@@ -13,12 +14,13 @@ interface Avatar {
   theme_color: string;
 }
 
-type Step = "enter-code" | "pick-avatar";
+type Step = "enter-code" | "pick-avatar" | "enter-pin";
 
 export default function StudentPlayPage() {
   const [step, setStep] = useState<Step>("enter-code");
   const [classCode, setClassCode] = useState("");
   const [avatars, setAvatars] = useState<Avatar[]>([]);
+  const [selectedAvatar, setSelectedAvatar] = useState<Avatar | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,18 +45,29 @@ export default function StudentPlayPage() {
     }
   }
 
-  function handleBack() {
+  function handleAvatarSelect(avatar: Avatar) {
+    setSelectedAvatar(avatar);
+    setStep("enter-pin");
+  }
+
+  function handleBackToCode() {
     setStep("enter-code");
     setAvatars([]);
+    setSelectedAvatar(null);
     setError(null);
+  }
+
+  function handleBackToAvatars() {
+    setSelectedAvatar(null);
+    setStep("pick-avatar");
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-500 to-violet-600 flex flex-col items-center justify-center px-4 py-10">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl ring-1 ring-white/20 p-8">
+
         {step === "enter-code" && (
           <div>
-            {/* Icon + heading */}
             <div className="text-center mb-8">
               <div className="inline-flex items-center justify-center w-20 h-20 bg-indigo-100 rounded-2xl mb-4">
                 <Gamepad2 size={44} className="text-indigo-600" />
@@ -114,9 +127,17 @@ export default function StudentPlayPage() {
 
         {step === "pick-avatar" && (
           <AvatarSelect
-            classCode={classCode.trim().toUpperCase()}
             avatars={avatars}
-            onBack={handleBack}
+            onBack={handleBackToCode}
+            onAvatarSelect={handleAvatarSelect}
+          />
+        )}
+
+        {step === "enter-pin" && selectedAvatar && (
+          <PinEntry
+            avatar={selectedAvatar}
+            classCode={classCode.trim().toUpperCase()}
+            onBack={handleBackToAvatars}
           />
         )}
       </div>

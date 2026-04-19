@@ -22,6 +22,7 @@ export interface Student {
   id: string;
   student_name: string;
   avatar_url: string;
+  secret_pin: string;
 }
 
 export type Pillar = "reading" | "writing" | "listening" | "speaking";
