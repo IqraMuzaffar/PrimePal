@@ -33,8 +33,8 @@ MOCK_CLASSROOM_ROW = {
 }
 
 MOCK_STUDENTS = [
-    {"id": STUDENT_1_ID, "student_name": "Ali", "avatar_url": "/avatars/tiger.png"},
-    {"id": STUDENT_2_ID, "student_name": "Sara", "avatar_url": "/avatars/owl.png"},
+    {"id": STUDENT_1_ID, "student_name": "Ali", "avatar_url": "/avatars/tiger.png", "secret_pin": "1234"},
+    {"id": STUDENT_2_ID, "student_name": "Sara", "avatar_url": "/avatars/owl.png", "secret_pin": "1234"},
 ]
 
 # ── Fixtures ─────────────────────────────────────────────────────────────────

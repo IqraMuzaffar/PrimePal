@@ -9,7 +9,6 @@ Endpoints (all require a valid teacher Supabase session):
   POST   /api/v1/classroom/{id}/students/bulk         — bulk-add student ghost profiles
   DELETE /api/v1/classroom/{id}/students/{student_id} — remove a student
 """
-import random
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -25,16 +24,6 @@ from app.schemas.classroom import (
 )
 
 router = APIRouter()
-
-# Local avatar assets served from Next.js /public/avatars/
-DEFAULT_AVATARS = [
-    "/avatars/tiger.png",
-    "/avatars/owl.png",
-    "/avatars/panda.png",
-    "/avatars/fox.png",
-    "/avatars/monkey.png",
-    "/avatars/rabbit.png",
-]
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -117,7 +106,7 @@ async def get_classroom(
 
     students_res = (
         supabase.table("students")
-        .select("id, student_name, avatar_url")
+        .select("id, student_name, avatar_url, secret_pin")
         .eq("classroom_id", classroom_id)
         .execute()
     )
@@ -145,7 +134,7 @@ async def bulk_add_students(
         {
             "classroom_id": classroom_id,
             "student_name": name,
-            "avatar_url": random.choice(DEFAULT_AVATARS),
+            "avatar_url": f"https://api.dicebear.com/8.x/adventurer/svg?seed={name}",
         }
         for name in names
     ]

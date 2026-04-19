@@ -20,6 +20,7 @@ class StudentResponse(BaseModel):
     id: str
     student_name: str
     avatar_url: str
+    secret_pin: str
 
 
 class ClassroomDetail(ClassroomResponse):
