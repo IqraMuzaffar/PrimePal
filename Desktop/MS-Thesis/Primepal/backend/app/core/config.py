@@ -16,8 +16,8 @@ class Settings(BaseSettings):
 
     # LLM
     OPENAI_API_KEY: str = ""
-    EMBEDDING_MODEL: str = "text-embedding-3-small"
-    CHAT_MODEL: str = "gpt-4o"
+    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"  # local, free embeddings
+    CHAT_MODEL: str = "gpt-4o-mini"  # cost-optimized model (90% cheaper than gpt-4o)
 
     # Speech-to-Text
     WHISPER_MODEL: str = "whisper-1"
