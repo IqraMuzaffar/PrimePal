@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from "react";
 import { Loader2, Gamepad2 } from "lucide-react";
+import { motion } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import AvatarSelect from "./avatar-select";
 import PinEntry from "./pin-entry";
@@ -103,17 +104,18 @@ export default function StudentPlayPage() {
                 </p>
               )}
 
-              <button
+              <motion.button
                 type="submit"
                 disabled={loading || classCode.trim().length === 0}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 className="w-full bg-indigo-600 text-white font-extrabold text-2xl py-5 rounded-2xl
-                           shadow-[0_5px_0_#3730a3] hover:brightness-110
-                           active:translate-y-[5px] active:shadow-none
-                           disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0
+                           shadow-[0_5px_0_#3730a3]
+                           disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
                            transition-all duration-100 flex items-center justify-center gap-2"
               >
                 {loading ? <Loader2 size={28} className="animate-spin" /> : "Let's Go! 🚀"}
-              </button>
+              </motion.button>
             </form>
 
             <p className="text-center text-xs text-slate-400 mt-6">

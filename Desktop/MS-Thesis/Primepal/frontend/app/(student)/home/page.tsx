@@ -1,10 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Pencil } from "lucide-react";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import AvatarCustomizeModal from "@/components/student/AvatarCustomizeModal";
 
@@ -111,7 +112,6 @@ export default function HomePage() {
   const [showModal, setShowModal] = useState(false);
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [quoteFading, setQuoteFading] = useState(false);
-  const quoteTimer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const token = getToken();
@@ -157,13 +157,15 @@ export default function HomePage() {
               Hi {name}! 🌟
             </h1>
             <p className="text-white/80 text-sm mt-1">Ready to level up?</p>
-            <button
+            <motion.button
               onClick={() => setShowModal(true)}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
               className="mt-2 flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1 rounded-full transition-all duration-150"
             >
               <Pencil size={11} />
               Edit Character
-            </button>
+            </motion.button>
           </div>
           <div className="flex flex-col items-center bg-white/20 rounded-2xl px-4 py-3 border-2 border-white/30">
             {profile?.avatar_url ? (
@@ -181,28 +183,30 @@ export default function HomePage() {
       <section>
         <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3">Play Now</h2>
         <div className="grid grid-cols-2 gap-3">
-          <Link
-            href="/missions"
-            className="flex flex-col items-center gap-2 p-5 rounded-2xl bg-indigo-600 border-b-4 border-indigo-800
-                       shadow-[0_4px_0_#3730a3] hover:brightness-110
-                       active:translate-y-1 active:shadow-none
-                       text-white font-extrabold text-center transition-all duration-100"
-          >
-            <span className="text-4xl">🎯</span>
-            <span className="text-base">Daily Missions</span>
-            <span className="text-xs text-indigo-200 font-semibold">Earn stars!</span>
-          </Link>
-          <Link
-            href="/chat"
-            className="flex flex-col items-center gap-2 p-5 rounded-2xl bg-violet-500 border-b-4 border-violet-700
-                       shadow-[0_4px_0_#5b21b6] hover:brightness-110
-                       active:translate-y-1 active:shadow-none
-                       text-white font-extrabold text-center transition-all duration-100"
-          >
-            <span className="text-4xl">💬</span>
-            <span className="text-base">Chat with PrimePal</span>
-            <span className="text-xs text-violet-200 font-semibold">Ask anything!</span>
-          </Link>
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Link
+              href="/missions"
+              className="flex flex-col items-center gap-2 p-5 rounded-2xl bg-indigo-600 border-b-4 border-indigo-800
+                         shadow-[0_4px_0_#3730a3] hover:brightness-110
+                         text-white font-extrabold text-center transition-all duration-100"
+            >
+              <span className="text-4xl">🎯</span>
+              <span className="text-base">Daily Missions</span>
+              <span className="text-xs text-indigo-200 font-semibold">Earn stars!</span>
+            </Link>
+          </motion.div>
+          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+            <Link
+              href="/chat"
+              className="flex flex-col items-center gap-2 p-5 rounded-2xl bg-violet-500 border-b-4 border-violet-700
+                         shadow-[0_4px_0_#5b21b6] hover:brightness-110
+                         text-white font-extrabold text-center transition-all duration-100"
+            >
+              <span className="text-4xl">💬</span>
+              <span className="text-base">Chat with PrimePal</span>
+              <span className="text-xs text-violet-200 font-semibold">Ask anything!</span>
+            </Link>
+          </motion.div>
         </div>
       </section>
 

@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { Star } from "lucide-react";
+import { motion } from "framer-motion";
+import confetti from "canvas-confetti";
 import { apiFetch } from "@/lib/api";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -87,12 +89,14 @@ function ErrorScreen({ message, onRetry }: { message: string; onRetry: () => voi
       <p className="text-6xl mb-4">😕</p>
       <h2 className="text-2xl font-extrabold text-gray-800 mb-2">Oops!</h2>
       <p className="text-gray-500 text-base mb-6">{message}</p>
-      <button
+      <motion.button
         onClick={onRetry}
-        className="w-full bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xl py-4 rounded-2xl transition-all duration-150 shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-95"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        className="w-full bg-orange-500 hover:bg-orange-600 text-white font-extrabold text-xl py-4 rounded-2xl transition-all duration-150 shadow-lg hover:shadow-xl"
       >
         Try Again 🔄
-      </button>
+      </motion.button>
     </div>
   );
 }
@@ -149,6 +153,18 @@ export default function MissionsPage() {
       if (advanceTimer.current) clearTimeout(advanceTimer.current);
     };
   }, [fetchMissions]);
+
+  // ── Confetti on correct answer ──────────────────────────────────────────────
+  useEffect(() => {
+    if (showPointsBadge && lastAwarded > 0) {
+      confetti({
+        particleCount: 80,
+        spread: 70,
+        origin: { y: 0.4 },
+        colors: ["#fbbf24", "#f59e0b", "#d97706", "#b45309"],
+      });
+    }
+  }, [showPointsBadge, lastAwarded]);
 
   // ── Submit answer ───────────────────────────────────────────────────────────
   async function submitAnswer() {
@@ -290,15 +306,17 @@ export default function MissionsPage() {
                       const highlight = answered && isSelected;
 
                       return (
-                        <button
+                        <motion.button
                           key={opt.id}
                           onClick={() => handleOptionTap(opt.id)}
                           disabled={answered}
+                          whileHover={!answered ? { scale: 1.05 } : undefined}
+                          whileTap={!answered ? { scale: 0.95 } : undefined}
                           className={[
                             "w-full py-4 px-3 rounded-2xl border-[3px] font-semibold text-lg text-left transition-all duration-150",
-                            "hover:scale-[1.02] active:scale-95 disabled:cursor-not-allowed",
+                            "disabled:cursor-not-allowed",
                             highlight
-                              ? "bg-green-100 border-green-400 text-green-800 scale-[1.02]"
+                              ? "bg-green-100 border-green-400 text-green-800"
                               : answered
                               ? "bg-gray-50 border-gray-200 text-gray-500 opacity-60"
                               : "bg-white border-gray-200 hover:border-yellow-400 hover:bg-yellow-50 text-gray-800",
@@ -308,7 +326,7 @@ export default function MissionsPage() {
                             {opt.id}
                           </span>
                           {opt.text}
-                        </button>
+                        </motion.button>
                       );
                     })}
                   </div>
@@ -333,13 +351,15 @@ export default function MissionsPage() {
                     autoFocus
                   />
                   {pageState === "question" && (
-                    <button
+                    <motion.button
                       type="submit"
                       disabled={!fillValue.trim()}
-                      className="w-full bg-indigo-600 text-white font-extrabold text-xl py-4 rounded-2xl shadow-[0_4px_0_#3730a3] hover:brightness-110 active:translate-y-1 active:shadow-none disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0 transition-all duration-100"
+                      whileHover={fillValue.trim() ? { scale: 1.05 } : undefined}
+                      whileTap={fillValue.trim() ? { scale: 0.95 } : undefined}
+                      className="w-full bg-indigo-600 text-white font-extrabold text-xl py-4 rounded-2xl shadow-[0_4px_0_#3730a3] hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none transition-all duration-100"
                     >
                       Check! ✓
-                    </button>
+                    </motion.button>
                   )}
                   {pageState === "answered" && (
                     <div className="text-center text-green-700 font-bold text-lg bg-green-50 rounded-2xl py-3 border-2 border-green-200">
@@ -369,18 +389,22 @@ export default function MissionsPage() {
           </p>
 
           <div className="space-y-4">
-            <button
+            <motion.button
               onClick={fetchMissions}
-              className="w-full bg-indigo-600 text-white font-extrabold text-xl py-5 rounded-2xl shadow-[0_5px_0_#3730a3] hover:brightness-110 active:translate-y-[5px] active:shadow-none transition-all duration-100"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="w-full bg-indigo-600 text-white font-extrabold text-xl py-5 rounded-2xl shadow-[0_5px_0_#3730a3] hover:brightness-110 transition-all duration-100"
             >
               Play Again 🔄
-            </button>
-            <Link
-              href="/chat"
-              className="block w-full bg-violet-500 text-white font-extrabold text-xl py-5 rounded-2xl shadow-[0_5px_0_#5b21b6] hover:brightness-110 active:translate-y-[5px] active:shadow-none transition-all duration-100 text-center"
-            >
-              Chat with PrimePal 💬
-            </Link>
+            </motion.button>
+            <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+              <Link
+                href="/chat"
+                className="block w-full bg-violet-500 text-white font-extrabold text-xl py-5 rounded-2xl shadow-[0_5px_0_#5b21b6] hover:brightness-110 transition-all duration-100 text-center"
+              >
+                Chat with PrimePal 💬
+              </Link>
+            </motion.div>
           </div>
         </div>
       )}

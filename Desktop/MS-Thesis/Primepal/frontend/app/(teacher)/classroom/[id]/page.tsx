@@ -2,7 +2,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import Image from "next/image";
 import { Copy, Check, UserPlus, Trash2, Lock } from "lucide-react";
 import { apiFetch } from "@/lib/api";
@@ -88,6 +87,7 @@ export default function ClassroomDetailPage({
 
   useEffect(() => {
     fetchClassroom();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
   async function copyCode() {
