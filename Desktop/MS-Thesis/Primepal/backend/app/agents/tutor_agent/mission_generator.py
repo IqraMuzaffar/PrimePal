@@ -146,3 +146,62 @@ async def generate_daily_missions(
         result = await chain.ainvoke({"grade_level": grade_level})
 
     return result
+
+
+# ---------------------------------------------------------------------------
+# Feature 3: Pillar-based Missions (stub for Task 4 implementation)
+# ---------------------------------------------------------------------------
+
+async def generate_pillar_missions(
+    pillar: str,
+    grade_level: int,
+    current_week_topic: str | None,
+    student_id: str,
+    student_weaknesses: list[str],
+) -> list[MissionQuestion]:
+    """
+    STUB: Generate 10 questions for a specific pillar.
+
+    This is a stub implementation for Task 3. Task 4 will implement the full
+    LLM-based mission generation with pillar-specific prompts, weakness weighting,
+    and current_week_topic integration.
+
+    Args:
+        pillar:             One of: reading, writing, listening, speaking
+        grade_level:        The student's classroom grade (1-8)
+        current_week_topic: Teacher-configured topic for this week (e.g., "Animals", "Weather")
+        student_id:         UUID of the student
+        student_weaknesses: List of recent incorrect answers or weak areas
+
+    Returns:
+        A list of exactly 10 MissionQuestion objects (dicts with is_weakness_focused flag).
+        The caller (endpoint) is responsible for stripping correct_answer before
+        sending the response to the client.
+    """
+    # STUB: Generate 10 mock questions
+    # - First 3 questions are marked as weakness-focused
+    # - All questions include the pillar and are grade-appropriate
+    questions: list[dict] = []
+    for i in range(10):
+        is_weakness_focused = i < 3
+        questions.append({
+            "id": i + 1,
+            "type": "multiple_choice" if i < 7 else "fill_blank",
+            "question": f"Sample {pillar} question {i + 1} for grade {grade_level}"
+                        + (f" (topic: {current_week_topic})" if current_week_topic else ""),
+            "options": (
+                [
+                    QuestionOption(id="a", text="Option A"),
+                    QuestionOption(id="b", text="Option B"),
+                    QuestionOption(id="c", text="Option C"),
+                    QuestionOption(id="d", text="Option D"),
+                ]
+                if i < 7
+                else None
+            ),
+            "correct_answer": "a" if i < 7 else "answer",
+            "emoji_hint": "📖" if pillar == "reading" else "✍️" if pillar == "writing" else "👂" if pillar == "listening" else "🗣️",
+            "is_weakness_focused": is_weakness_focused,
+        })
+
+    return questions

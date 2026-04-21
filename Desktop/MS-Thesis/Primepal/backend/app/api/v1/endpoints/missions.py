@@ -5,14 +5,18 @@ Endpoints:
   GET  /api/v1/missions/daily    — Generate 3 daily questions (student auth required)
   POST /api/v1/missions/complete — Record answer result, award points (student auth required)
   GET  /api/v1/missions/me       — Fetch student profile + points (student auth required)
+  GET  /api/v1/missions/pillar   — Generate 10 questions for specific pillar (student auth required)
 
 Grade level is always resolved from the classroom DB record — the client cannot supply or
-override it. correct_answer is stripped from the /daily response; the client sends back
+override it. correct_answer is stripped from responses; the client sends back
 question_correct (bool) to /complete, which the server trusts (thesis prototype).
+
+The pillar endpoint (Feature 3) generates missions weighted by student weaknesses and
+the teacher-configured current_week_topic.
 """
 import logging
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from app.core.security import get_current_student
@@ -24,6 +28,7 @@ from app.agents.tutor_agent.mission_generator import (
     MissionQuestion,
     QuestionOption,
     generate_daily_missions,
+    generate_pillar_missions,
 )
 
 logger = logging.getLogger(__name__)
@@ -78,6 +83,13 @@ class StudentProfileResponse(BaseModel):
     points: int
     avatar_style: str
     theme_color: str
+
+
+class PillarMissionsResponse(BaseModel):
+    pillar: str
+    current_week_topic: str | None
+    questions: list[MissionQuestionOut]
+    weakness_focus_questions: int  # count of questions focused on student weaknesses
 
 
 # ---------------------------------------------------------------------------
@@ -305,4 +317,147 @@ async def get_student_profile(
         points=data.get("points") or 0,
         avatar_style=data.get("avatar_style") or "adventurer",
         theme_color=data.get("theme_color") or "#6366f1",
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /pillar (Feature 3: Pillar-based Missions)
+# ---------------------------------------------------------------------------
+
+@router.get("/pillar", response_model=PillarMissionsResponse, summary="Get missions for specific pillar")
+async def get_pillar_missions(
+    pillar: str = Query(..., description="Pillar type: reading, writing, listening, speaking"),
+    student: dict = Depends(get_current_student),
+):
+    """
+    Generate 10 questions for a specific pillar, weighted by student weaknesses.
+
+    - Pillar parameter must be one of: reading, writing, listening, speaking
+    - Questions are tailored to the current_week_topic set by the teacher
+    - Questions are weighted by the student's recent incorrect answers (weaknesses)
+    - correct_answer is NEVER included in the response
+    - Returns exactly 10 questions with a count of weakness-focused questions
+
+    Authentication: student JWT (Bearer token).
+    """
+    student_id: str = student["sub"]
+    classroom_id: str = student["classroom_id"]
+    supabase = get_supabase_admin()
+
+    # ------------------------------------------------------------------
+    # Step 1: Validate pillar parameter
+    # ------------------------------------------------------------------
+    valid_pillars = ["reading", "writing", "listening", "speaking"]
+    if pillar not in valid_pillars:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid pillar. Must be one of {valid_pillars}",
+        )
+
+    # ------------------------------------------------------------------
+    # Step 2: Fetch classroom and current_week_topic
+    # ------------------------------------------------------------------
+    classroom_resp = (
+        supabase.table("classrooms")
+        .select("grade_level, current_week_topic")
+        .eq("id", classroom_id)
+        .maybe_single()
+        .execute()
+    )
+    if not classroom_resp.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Classroom not found for this student",
+        )
+    classroom_data = classroom_resp.data
+    grade_level: int = classroom_data["grade_level"]
+    current_week_topic: str | None = classroom_data.get("current_week_topic")
+
+    # ------------------------------------------------------------------
+    # Step 3: Fetch student's recent incorrect answers (weaknesses)
+    # For now, we query the interactions table for failed interactions
+    # (This will be replaced with SQLAlchemy async when the interactions
+    # table is fully integrated)
+    # ------------------------------------------------------------------
+    try:
+        interactions_resp = (
+            supabase.table("interactions")
+            .select("*")
+            .eq("student_id", student_id)
+            .eq("pillar", pillar)
+            .order("created_at", desc=True)
+            .limit(5)
+            .execute()
+        )
+        student_weaknesses = [
+            interaction.get("input_text") or interaction.get("audio_transcript")
+            for interaction in (interactions_resp.data or [])
+            if interaction.get("score", 1.0) < 0.6  # Failed attempts (score < 60%)
+        ]
+    except Exception as exc:
+        logger.warning(
+            "Could not fetch student weaknesses for %s pillar %s: %s",
+            student_id, pillar, exc,
+        )
+        student_weaknesses = []
+
+    # ------------------------------------------------------------------
+    # Step 4: Generate pillar missions via mission generator stub
+    # (Task 4 will implement the full MissionGenerator.generate_pillar_missions)
+    # ------------------------------------------------------------------
+    try:
+        missions = await generate_pillar_missions(
+            pillar=pillar,
+            grade_level=grade_level,
+            current_week_topic=current_week_topic,
+            student_id=student_id,
+            student_weaknesses=student_weaknesses,
+        )
+        if missions is None:
+            raise ValueError("generate_pillar_missions returned None")
+        logger.info(
+            "Pillar mission generation succeeded for student %s pillar %s, count: %d",
+            student_id, pillar, len(missions),
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(
+            "Pillar mission generation failed for student %s classroom %s pillar %s: %s",
+            student_id, classroom_id, pillar, exc, exc_info=True,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not generate missions right now. Please try again shortly.",
+        )
+
+    # ------------------------------------------------------------------
+    # Step 5: Count weakness-focused questions and strip correct_answer
+    # ------------------------------------------------------------------
+    weakness_focus_count = sum(
+        1 for q in missions if q.get("is_weakness_focused", False)
+    )
+
+    # Convert dicts to MissionQuestion objects if needed
+    mission_questions = []
+    for q in missions:
+        if isinstance(q, dict):
+            # Create a MissionQuestion from dict, removing is_weakness_focused flag
+            mq = MissionQuestion(
+                id=q["id"],
+                type=q["type"],
+                question=q["question"],
+                options=q.get("options"),
+                correct_answer=q["correct_answer"],
+                emoji_hint=q["emoji_hint"],
+            )
+            mission_questions.append(mq)
+        else:
+            mission_questions.append(q)
+
+    return PillarMissionsResponse(
+        pillar=pillar,
+        current_week_topic=current_week_topic,
+        questions=[_strip_answer(q) for q in mission_questions],
+        weakness_focus_questions=weakness_focus_count,
     )
