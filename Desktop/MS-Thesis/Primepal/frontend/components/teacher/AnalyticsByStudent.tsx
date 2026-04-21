@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import SearchBar from "@/components/teacher/SearchBar";
 import type { AnalyticsDashboardData } from "@/types/analytics";
 
 interface Props {
@@ -18,15 +20,28 @@ export default function AnalyticsByStudent({
   onPageChange,
   onFiltersChange,
 }: Props) {
+  const [searchQuery, setSearchQuery] = useState("");
   const { studentTableData, classrooms } = data;
 
   const uniqueGrades = Array.from(new Set(classrooms.map((c) => c.grade))).sort();
   const uniqueClasses = Array.from(new Set(classrooms.map((c) => c.name))).sort();
 
-  // Filter students in memory
+  // Filter students in memory (grade, class, and search query)
   const filteredStudents = studentTableData.items.filter((student) => {
     if (filters.grade && student.grade !== filters.grade) return false;
     if (filters.class && student.className !== filters.class) return false;
+
+    // Search by name or roll number
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      if (
+        !student.name.toLowerCase().includes(query) &&
+        !student.rollNumber.toLowerCase().includes(query)
+      ) {
+        return false;
+      }
+    }
+
     return true;
   });
 
@@ -43,6 +58,13 @@ export default function AnalyticsByStudent({
 
   return (
     <div className="space-y-8">
+      {/* Search Bar */}
+      <SearchBar
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder="Search by name or roll number..."
+      />
+
       {/* Filter Bar */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="bg-white rounded-2xl border border-gray-200 p-6">
