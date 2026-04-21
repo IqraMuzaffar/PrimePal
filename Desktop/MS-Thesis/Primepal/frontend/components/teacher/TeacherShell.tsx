@@ -7,10 +7,10 @@ import { BookOpen, LayoutDashboard, School, LogOut, Settings, X, BarChart2 } fro
 import { supabase } from "@/lib/supabase/client";
 
 const NAV_LINKS = [
-  { href: "/teacher/dashboard",  label: "Dashboard",      icon: LayoutDashboard },
-  { href: "/teacher/classroom",  label: "Classrooms",     icon: School },
-  { href: "/teacher/analytics",  label: "Analytics",      icon: BarChart2 },
-  { href: "/teacher/curriculum", label: "Knowledge Base", icon: BookOpen },
+  { href: "/teacher/dashboard",  label: "Dashboard",       icon: LayoutDashboard },
+  { href: "/teacher/classroom",  label: "Classrooms",      icon: School },
+  { href: "/teacher/analytics",  label: "Analytics",       icon: BarChart2 },
+  { href: "/teacher/curriculum", label: "Curriculum Hub",  icon: BookOpen },
 ];
 
 export default function TeacherShell({ children }: { children: React.ReactNode }) {
