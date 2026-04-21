@@ -556,3 +556,193 @@ class TestGenerateDailyMissions:
         mock_chain.ainvoke.assert_called_once()
         invoke_payload = mock_chain.ainvoke.call_args[0][0]
         assert invoke_payload["grade_level"] == 3
+
+
+# ── TestEndToEndMissionFlow ───────────────────────────────────────────────────
+
+class TestEndToEndMissionFlow:
+    """Integration tests for the complete mission pipeline."""
+
+    @pytest.fixture(autouse=True)
+    def _override_student_auth(self):
+        from app.core.security import get_current_student
+        from app.main import app
+
+        app.dependency_overrides[get_current_student] = lambda: MOCK_STUDENT
+        yield
+        app.dependency_overrides.clear()
+
+    def make_dict_pillar_missions(self, count=10):
+        """Return missions as dicts."""
+        return [
+            {
+                "id": i,
+                "type": "multiple_choice",
+                "question": f"Question {i}?",
+                "options": [
+                    {"id": "a", "text": "Option A"},
+                    {"id": "b", "text": "Option B"},
+                    {"id": "c", "text": "Option C"},
+                    {"id": "d", "text": "Option D"},
+                ],
+                "correct_answer": "a",
+                "emoji_hint": "books",
+                "is_weakness_focused": False,
+            }
+            for i in range(count)
+        ]
+
+    async def test_complete_mission_flow_e2e(self, client: AsyncClient):
+        """Test flow: fetch classroom -> get missions -> log results."""
+        mock_pillar_missions = self.make_dict_pillar_missions()
+        mock_client = MagicMock()
+
+        def table_side_effect(table_name):
+            table_mock = MagicMock()
+            if table_name == "classrooms":
+                classroom_result = MagicMock()
+                classroom_result.data = {"grade_level": 3, "current_week_topic": "Animals"}
+                (table_mock.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value) = classroom_result
+            elif table_name == "interactions":
+                interactions_result = MagicMock()
+                interactions_result.data = []
+                (table_mock.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value) = interactions_result
+            elif table_name == "student_interactions":
+                insert_result = MagicMock()
+                insert_result.data = [{"id": "interaction-1"}]
+                table_mock.insert.return_value.execute.return_value = insert_result
+            return table_mock
+
+        mock_client.table.side_effect = table_side_effect
+
+        with (
+            patch("app.api.v1.endpoints.missions.get_supabase_admin", return_value=mock_client),
+            patch("app.api.v1.endpoints.missions.generate_pillar_missions", new=AsyncMock(return_value=mock_pillar_missions)),
+            patch("app.api.v1.endpoints.interactions.get_supabase_admin", return_value=mock_client),
+        ):
+            missions_response = await client.get(
+                "/api/v1/missions/pillar",
+                params={"pillar": "reading"},
+                headers={"Authorization": "Bearer fake-student-token"},
+            )
+
+            assert missions_response.status_code == 200
+            missions_data = missions_response.json()
+            assert "questions" in missions_data
+            assert len(missions_data["questions"]) == 10
+            assert missions_data["pillar"] == "reading"
+            assert missions_data["current_week_topic"] == "Animals"
+
+            questions = missions_data["questions"]
+            results = [
+                {"question_id": str(i), "is_correct": i % 2 == 0, "time_remaining": 10 - (i % 10)}
+                for i in range(len(questions))
+            ]
+
+            log_response = await client.post(
+                "/api/v1/interactions",
+                json={"pillar": "reading", "results": results},
+                headers={"Authorization": "Bearer fake-student-token"},
+            )
+
+            assert log_response.status_code == 201
+            log_data = log_response.json()
+            assert log_data["logged_interactions"] == 10
+            assert log_data["correct_count"] == 5
+            assert log_data["accuracy"] == 0.5
+            assert log_data["pillar"] == "reading"
+
+    async def test_mission_flow_all_pillars(self, client: AsyncClient):
+        """Test all 4 pillars work independently."""
+        pillars = ["reading", "writing", "listening", "speaking"]
+
+        for pillar in pillars:
+            mock_pillar_missions = self.make_dict_pillar_missions()
+            mock_client = MagicMock()
+
+            def table_side_effect(table_name):
+                table_mock = MagicMock()
+                if table_name == "classrooms":
+                    classroom_result = MagicMock()
+                    classroom_result.data = {"grade_level": 3, "current_week_topic": f"Topic for {pillar}"}
+                    (table_mock.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value) = classroom_result
+                elif table_name == "interactions":
+                    interactions_result = MagicMock()
+                    interactions_result.data = []
+                    (table_mock.select.return_value.eq.return_value.eq.return_value.order.return_value.limit.return_value.execute.return_value) = interactions_result
+                elif table_name == "student_interactions":
+                    insert_result = MagicMock()
+                    insert_result.data = [{"id": f"interaction-{pillar}"}]
+                    table_mock.insert.return_value.execute.return_value = insert_result
+                return table_mock
+
+            mock_client.table.side_effect = table_side_effect
+
+            with (
+                patch("app.api.v1.endpoints.missions.get_supabase_admin", return_value=mock_client),
+                patch("app.api.v1.endpoints.missions.generate_pillar_missions", new=AsyncMock(return_value=mock_pillar_missions)),
+                patch("app.api.v1.endpoints.interactions.get_supabase_admin", return_value=mock_client),
+            ):
+                response = await client.get(
+                    "/api/v1/missions/pillar",
+                    params={"pillar": pillar},
+                    headers={"Authorization": "Bearer fake-student-token"},
+                )
+                assert response.status_code == 200
+                data = response.json()
+                assert len(data["questions"]) == 10
+                assert data["pillar"] == pillar
+
+                results = [
+                    {"question_id": str(i), "is_correct": True, "time_remaining": 15}
+                    for i in range(10)
+                ]
+
+                log_response = await client.post(
+                    "/api/v1/interactions",
+                    json={"pillar": pillar, "results": results},
+                    headers={"Authorization": "Bearer fake-student-token"},
+                )
+                assert log_response.status_code == 201
+                assert log_response.json()["correct_count"] == 10
+                assert log_response.json()["accuracy"] == 1.0
+                assert log_response.json()["pillar"] == pillar
+
+    async def test_mission_flow_mixed_results(self, client: AsyncClient):
+        """Test accuracy calculation for various correctness rates."""
+        test_cases = [
+            (10, 1.0, "all correct"),
+            (5, 0.5, "half correct"),
+            (0, 0.0, "all incorrect"),
+        ]
+
+        for correct_count, expected_accuracy, description in test_cases:
+            mock_client = MagicMock()
+
+            def table_side_effect(table_name):
+                table_mock = MagicMock()
+                if table_name == "student_interactions":
+                    insert_result = MagicMock()
+                    insert_result.data = [{"id": "interaction-1"}]
+                    table_mock.insert.return_value.execute.return_value = insert_result
+                return table_mock
+
+            mock_client.table.side_effect = table_side_effect
+
+            results = [
+                {"question_id": str(i), "is_correct": i < correct_count, "time_remaining": 12}
+                for i in range(10)
+            ]
+
+            with patch("app.api.v1.endpoints.interactions.get_supabase_admin", return_value=mock_client):
+                log_response = await client.post(
+                    "/api/v1/interactions",
+                    json={"pillar": "reading", "results": results},
+                    headers={"Authorization": "Bearer fake-student-token"},
+                )
+
+            assert log_response.status_code == 201, f"Failed for test case: {description}"
+            log_data = log_response.json()
+            assert log_data["correct_count"] == correct_count
+            assert log_data["accuracy"] == expected_accuracy
+            assert log_data["logged_interactions"] == 10
