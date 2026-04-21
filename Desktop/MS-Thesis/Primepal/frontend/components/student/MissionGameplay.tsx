@@ -69,15 +69,15 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6 flex flex-col">
+    <div className="h-[100dvh] bg-gradient-to-br from-slate-50 to-slate-100 p-3 sm:p-6 flex flex-col overflow-hidden">
       <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col">
         {/* Progress */}
-        <div className="mb-6">
+        <div className="mb-3 sm:mb-6 flex-shrink-0">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-sm font-semibold text-gray-700">
+            <span className="text-xs sm:text-sm font-semibold text-gray-700">
               Question {currentIndex + 1} of {questions.length}
             </span>
-            <span className="text-sm text-gray-600">
+            <span className="text-xs sm:text-sm text-gray-600">
               {Math.round(((currentIndex + 1) / questions.length) * 100)}%
             </span>
           </div>
@@ -101,12 +101,12 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="bg-white rounded-2xl p-8 shadow-lg mb-8 flex-1"
+          className="bg-white rounded-lg sm:rounded-2xl p-3 sm:p-8 shadow-lg mb-3 sm:mb-6 flex-shrink-0"
         >
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">{currentQuestion.question_text}</h2>
+          <h2 className="text-base sm:text-xl lg:text-2xl font-bold text-gray-800 mb-3 sm:mb-6 leading-tight">{currentQuestion.question_text}</h2>
 
           {currentQuestion.options ? (
-            <div className="space-y-3">
+            <div className="space-y-2 sm:space-y-3">
               {currentQuestion.options.map((option, idx) => {
                 const isCorrect = option === currentQuestion.correct_answer;
                 const isSelected = option === selectedAnswer;
@@ -127,12 +127,12 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
                     whileTap={!showFeedback ? { scale: 0.98 } : {}}
                     onClick={() => !showFeedback && handleAnswer(option)}
                     disabled={showFeedback}
-                    className={`w-full p-4 rounded-lg font-semibold text-lg transition-all ${buttonClass} disabled:cursor-not-allowed`}
+                    className={`w-full p-3 sm:p-4 rounded-lg font-semibold text-sm sm:text-lg transition-all ${buttonClass} disabled:cursor-not-allowed min-h-[52px] sm:min-h-auto flex items-center justify-center`}
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2 sm:gap-3">
                       <span>{option}</span>
-                      {showFeedback && isCorrect && <Check className="text-green-600" size={24} />}
-                      {showFeedback && isSelected && !isCorrect && <X className="text-red-600" size={24} />}
+                      {showFeedback && isCorrect && <Check className="text-green-600" size={20} />}
+                      {showFeedback && isSelected && !isCorrect && <X className="text-red-600" size={20} />}
                     </div>
                   </motion.button>
                 );
@@ -140,7 +140,7 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
             </div>
           ) : (
             <div className="text-center text-gray-600">
-              <p className="mb-4">Correct answer: {currentQuestion.correct_answer}</p>
+              <p className="mb-4 text-sm sm:text-base">Correct answer: {currentQuestion.correct_answer}</p>
             </div>
           )}
         </motion.div>
@@ -151,7 +151,7 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => handleAnswer(null)}
-            className="mx-auto px-6 py-2 bg-gray-400 text-white rounded-lg font-semibold text-sm hover:bg-gray-500 transition"
+            className="mx-auto px-4 sm:px-6 py-2 bg-gray-400 text-white rounded-lg font-semibold text-xs sm:text-sm hover:bg-gray-500 transition flex-shrink-0"
           >
             Skip Question
           </motion.button>

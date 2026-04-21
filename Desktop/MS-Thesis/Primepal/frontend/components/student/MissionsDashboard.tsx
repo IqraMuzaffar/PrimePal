@@ -39,13 +39,13 @@ export default function MissionsDashboard() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 lg:p-6">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold text-gray-800 mb-2">Learning Missions</h1>
-        <p className="text-gray-600 mb-12">Choose a pillar to start practicing</p>
+        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-800 mb-2">Learning Missions</h1>
+        <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-12">Choose a pillar to start practicing</p>
 
-        {/* 2x2 Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* 2x2 Grid (responsive: 1 col mobile, 2x2 tablet+) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
           {pillars.map((pillar) => (
             <PillarCard
               key={pillar.id}

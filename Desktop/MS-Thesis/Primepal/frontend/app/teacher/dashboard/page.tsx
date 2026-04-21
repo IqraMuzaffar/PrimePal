@@ -58,7 +58,7 @@ export default function DashboardPage() {
 
   return (
     <div className="bg-gray-50 min-h-full">
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
         {/* Page heading */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Teaching Dashboard</h1>

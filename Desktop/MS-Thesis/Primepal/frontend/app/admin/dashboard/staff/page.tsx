@@ -62,14 +62,15 @@ export default function StaffDirectoryPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-white">Staff Directory</h2>
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+        <h2 className="text-xl sm:text-2xl font-bold text-white">Staff Directory</h2>
         <button
           onClick={() => setShowInviteModal(true)}
-          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition"
+          className="flex items-center gap-2 bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition whitespace-nowrap"
         >
           <Plus size={20} />
-          Invite Admin
+          <span className="hidden sm:inline">Invite Admin</span>
+          <span className="sm:hidden">Invite</span>
         </button>
       </div>
 
@@ -114,7 +115,8 @@ export default function StaffDirectoryPage() {
         <div className="text-gray-400">Loading...</div>
       ) : (
         <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
-          <table className="w-full text-sm text-gray-300">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-gray-300">
             <thead className="bg-slate-700 border-b border-slate-600">
               <tr>
                 <th className="px-6 py-3 text-left font-semibold">Name</th>
@@ -148,7 +150,8 @@ export default function StaffDirectoryPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
         </div>
       )}
     </div>

@@ -39,7 +39,7 @@ export default function ClassroomPage() {
   }
 
   return (
-    <div className="bg-gray-50 min-h-full p-6">
+    <div className="bg-gray-50 min-h-full p-4 lg:p-6">
       <div className="max-w-5xl mx-auto">
 
         {/* Page header */}

@@ -33,8 +33,8 @@ export default function QuestionTimer({ initialSeconds, onTimeUp }: QuestionTime
   const isLowTime = secondsLeft <= 5;
 
   return (
-    <div className="flex flex-col items-center gap-3 mb-6">
-      <div className="w-full bg-gray-300 rounded-full h-4 overflow-hidden">
+    <div className="flex flex-col items-center gap-2 sm:gap-3 mb-3 sm:mb-6 flex-shrink-0">
+      <div className="w-full bg-gray-300 rounded-full h-3 sm:h-4 overflow-hidden">
         <div
           className={`h-full transition-all duration-200 ${
             isLowTime ? 'bg-red-500' : 'bg-green-500'
@@ -42,7 +42,7 @@ export default function QuestionTimer({ initialSeconds, onTimeUp }: QuestionTime
           style={{ width: `${percentage}%` }}
         />
       </div>
-      <div className={`text-3xl font-bold ${isLowTime ? 'text-red-600' : 'text-green-600'}`}>
+      <div className={`text-2xl sm:text-3xl font-bold font-mono ${isLowTime ? 'text-red-600' : 'text-green-600'}`}>
         {secondsLeft}s
       </div>
     </div>
