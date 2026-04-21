@@ -85,3 +85,36 @@ def get_current_teacher(
             detail="Invalid or expired teacher session",
         )
     return {"id": str(response.user.id)}
+
+
+def get_current_admin(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer),
+) -> dict:
+    """FastAPI dependency — validates an admin JWT.
+
+    Returns {"id": "<admin_uuid>"} on success.
+    Raises 403 if user is not admin, 401 if token is invalid.
+    """
+    supabase = get_supabase()
+    response = supabase.auth.get_user(credentials.credentials)
+    if not response or not response.user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session",
+        )
+
+    # Query teachers table for role
+    try:
+        result = supabase.table("teachers").select("role").eq("id", str(response.user.id)).execute()
+        if not result.data or result.data[0]["role"] != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied — admin role required",
+            )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Failed to verify admin role",
+        )
+
+    return {"id": str(response.user.id)}
