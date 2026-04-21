@@ -158,7 +158,7 @@ async def generate_pillar_missions(
     current_week_topic: str | None,
     student_id: str,
     student_weaknesses: list[str],
-) -> list[MissionQuestion]:
+) -> list[dict]:
     """
     STUB: Generate 10 questions for a specific pillar.
 

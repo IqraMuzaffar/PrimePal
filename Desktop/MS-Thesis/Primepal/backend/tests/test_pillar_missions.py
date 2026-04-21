@@ -72,7 +72,7 @@ def _make_mock_pillar_questions():
         )
         # Add metadata as dict for testing
         questions.append({
-            **q.dict(),
+            **q.model_dump(),
             "is_weakness_focused": is_weakness_focused,
         })
     return questions
