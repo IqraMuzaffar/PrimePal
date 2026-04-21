@@ -257,3 +257,101 @@ async def list_all_teachers(current_admin: dict = Depends(get_current_admin)):
         return result.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch teachers: {str(e)}")
+
+
+# ─────────────────────────────────────────────────────────────
+# CLASSROOM MANAGEMENT
+# ─────────────────────────────────────────────────────────────
+
+class ClassroomReassignRequest(BaseModel):
+    teacher_id: str
+
+
+@router.put("/classrooms/{classroom_id}/reassign")
+async def reassign_classroom(
+    classroom_id: str,
+    req: ClassroomReassignRequest,
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Reassign a classroom to a different teacher."""
+    supabase_admin = get_supabase_admin()
+
+    try:
+        # Validate target teacher exists
+        target = supabase_admin.table("teachers").select("id").eq("id", req.teacher_id).execute()
+        if not target.data:
+            raise HTTPException(status_code=404, detail="Target teacher not found")
+
+        # Reassign classroom
+        result = supabase_admin.table("classrooms").update({
+            "teacher_id": req.teacher_id,
+        }).eq("id", classroom_id).execute()
+
+        # Log action
+        supabase_admin.table("admin_audit_log").insert({
+            "admin_id": current_admin["id"],
+            "action": "reassign_classroom",
+            "resource_type": "classroom",
+            "resource_id": classroom_id,
+            "details": {"new_teacher_id": req.teacher_id},
+        }).execute()
+
+        return result.data[0] if result.data else {}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to reassign classroom: {str(e)}")
+
+
+@router.get("/classrooms")
+async def list_all_classrooms(current_admin: dict = Depends(get_current_admin)):
+    """List all classrooms (admin only)."""
+    supabase = get_supabase()
+
+    try:
+        result = supabase.table("classrooms").select("*,teachers(full_name)").execute()
+        return result.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch classrooms: {str(e)}")
+
+
+# ─────────────────────────────────────────────────────────────
+# CURRICULUM MANAGEMENT
+# ─────────────────────────────────────────────────────────────
+
+@router.delete("/curriculum/{chunk_id}")
+async def delete_curriculum_chunk(
+    chunk_id: str,
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Delete a curriculum chunk from knowledge base."""
+    supabase_admin = get_supabase_admin()
+
+    try:
+        # Delete from snc_knowledge_base
+        supabase_admin.table("snc_knowledge_base").delete().eq("id", chunk_id).execute()
+
+        # Log action
+        supabase_admin.table("admin_audit_log").insert({
+            "admin_id": current_admin["id"],
+            "action": "delete_curriculum",
+            "resource_type": "curriculum",
+            "resource_id": chunk_id,
+            "details": {},
+        }).execute()
+
+        return {"deleted": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete curriculum: {str(e)}")
+
+
+@router.get("/curriculum")
+async def list_all_curriculum(current_admin: dict = Depends(get_current_admin)):
+    """List all curriculum chunks (admin only)."""
+    supabase = get_supabase()
+
+    try:
+        result = supabase.table("snc_knowledge_base").select("*").execute()
+        return result.data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch curriculum: {str(e)}")
