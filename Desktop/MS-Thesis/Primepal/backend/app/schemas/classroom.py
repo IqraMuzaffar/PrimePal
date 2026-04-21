@@ -13,6 +13,7 @@ class ClassroomResponse(BaseModel):
     class_name: str
     class_code: str
     grade_level: int
+    current_week_topic: str | None = None
     created_at: str
 
 
@@ -25,7 +26,12 @@ class StudentResponse(BaseModel):
 
 class ClassroomDetail(ClassroomResponse):
     students: List[StudentResponse]
+    current_week_topic: str | None = None
 
 
 class StudentBulkCreate(BaseModel):
     names: List[str]
+
+
+class ClassroomUpdate(BaseModel):
+    current_week_topic: str | None = None

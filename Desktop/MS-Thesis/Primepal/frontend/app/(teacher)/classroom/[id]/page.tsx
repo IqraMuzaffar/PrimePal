@@ -14,6 +14,7 @@ interface ClassroomDetail {
   class_name: string;
   class_code: string;
   grade_level: number;
+  current_week_topic?: string;
   students: Student[];
 }
 
@@ -72,6 +73,13 @@ export default function ClassroomDetailPage({
   const [selectedStudentName, setSelectedStudentName] = useState<string | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
 
+  // Classroom settings state
+  const [editingSettings, setEditingSettings] = useState(false);
+  const [currentWeekTopic, setCurrentWeekTopic] = useState("");
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const [settingsSaveError, setSettingsSaveError] = useState<string | null>(null);
+  const [settingsSaved, setSettingsSaved] = useState(false);
+
   async function fetchClassroom() {
     try {
       const headers = await getTeacherHeaders();
@@ -80,6 +88,7 @@ export default function ClassroomDetailPage({
         { headers }
       );
       setClassroom(data);
+      setCurrentWeekTopic(data.current_week_topic || "");
     } finally {
       setLoading(false);
     }
@@ -129,6 +138,37 @@ export default function ClassroomDetailPage({
       setSelectedStudentReport(null);
     } finally {
       setReportLoading(false);
+    }
+  }
+
+  async function saveClassroomSettings() {
+    setSettingsSaving(true);
+    setSettingsSaveError(null);
+    setSettingsSaved(false);
+    try {
+      const headers = await getTeacherHeaders();
+      await apiFetch(`/classroom/${params.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          current_week_topic: currentWeekTopic,
+        }),
+        headers,
+      });
+      setSettingsSaved(true);
+      setEditingSettings(false);
+      // Update local classroom state
+      setClassroom((prev) =>
+        prev ? { ...prev, current_week_topic: currentWeekTopic } : prev
+      );
+      setTimeout(() => {
+        setSettingsSaved(false);
+      }, 1200);
+    } catch (err: unknown) {
+      setSettingsSaveError(
+        err instanceof Error ? err.message : "Failed to save settings."
+      );
+    } finally {
+      setSettingsSaving(false);
     }
   }
 
@@ -246,6 +286,89 @@ export default function ClassroomDetailPage({
               )}
             </button>
           </div>
+        </div>
+
+        {/* Classroom Settings */}
+        <div className="bg-white rounded-2xl border border-gray-200 mb-6 p-5">
+          <div className="flex items-start justify-between mb-4">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900">Curriculum Settings</h2>
+              <p className="text-xs text-gray-500 mt-1">Configure the curriculum focus for this week</p>
+            </div>
+            {!editingSettings && (
+              <button
+                onClick={() => setEditingSettings(true)}
+                className="text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+
+          {editingSettings ? (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide mb-2">
+                  Current Week Topic
+                </label>
+                <input
+                  type="text"
+                  value={currentWeekTopic}
+                  onChange={(e) => {
+                    setCurrentWeekTopic(e.target.value);
+                    setSettingsSaveError(null);
+                    setSettingsSaved(false);
+                  }}
+                  placeholder="e.g., Week 2: Past Tense Nouns"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  This topic guides question generation for students.
+                </p>
+              </div>
+
+              {settingsSaveError && (
+                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                  {settingsSaveError}
+                </p>
+              )}
+
+              {settingsSaved && (
+                <p className="text-sm text-green-600 bg-green-50 rounded-lg px-3 py-2">
+                  ✓ Settings saved!
+                </p>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => {
+                    setEditingSettings(false);
+                    setCurrentWeekTopic(classroom.current_week_topic || "");
+                  }}
+                  className="flex-1 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={saveClassroomSettings}
+                  disabled={settingsSaving}
+                  className="flex-1 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {settingsSaving ? "Saving…" : "Save Settings"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-800">
+              {classroom.current_week_topic ? (
+                <>
+                  <span className="font-medium">{classroom.current_week_topic}</span>
+                </>
+              ) : (
+                <span className="text-gray-400">No topic set yet</span>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Tabs */}

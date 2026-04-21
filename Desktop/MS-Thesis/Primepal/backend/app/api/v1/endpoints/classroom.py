@@ -19,6 +19,7 @@ from app.schemas.classroom import (
     ClassroomCreate,
     ClassroomDetail,
     ClassroomResponse,
+    ClassroomUpdate,
     StudentBulkCreate,
     StudentResponse,  # noqa: F401 — referenced via ClassroomDetail
 )
@@ -111,6 +112,41 @@ async def get_classroom(
         .execute()
     )
     return {**classroom_res.data, "students": students_res.data or []}
+
+
+@router.patch("/{classroom_id}", response_model=ClassroomResponse)
+async def update_classroom(
+    classroom_id: str,
+    request: ClassroomUpdate,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """Updates classroom settings (e.g., current_week_topic)."""
+    supabase = get_supabase_admin()
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+
+    # Build update payload with only non-None fields
+    update_data = {}
+    if request.current_week_topic is not None:
+        update_data["current_week_topic"] = request.current_week_topic
+
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No fields to update",
+        )
+
+    result = (
+        supabase.table("classrooms")
+        .update(update_data)
+        .eq("id", classroom_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update classroom",
+        )
+    return result.data[0]
 
 
 @router.post("/{classroom_id}/students/bulk")
