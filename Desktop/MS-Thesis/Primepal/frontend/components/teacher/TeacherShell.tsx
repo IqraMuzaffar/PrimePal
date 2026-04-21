@@ -3,12 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BookOpen, LayoutDashboard, School, LogOut, Settings, X } from "lucide-react";
+import { BookOpen, LayoutDashboard, School, LogOut, Settings, X, BarChart2 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 const NAV_LINKS = [
   { href: "/teacher/dashboard",  label: "Dashboard",      icon: LayoutDashboard },
   { href: "/teacher/classroom",  label: "Classrooms",     icon: School },
+  { href: "/teacher/analytics",  label: "Analytics",      icon: BarChart2 },
   { href: "/teacher/curriculum", label: "Knowledge Base", icon: BookOpen },
 ];
 
