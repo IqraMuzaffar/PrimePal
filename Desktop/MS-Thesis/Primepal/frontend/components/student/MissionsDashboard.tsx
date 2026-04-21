@@ -3,8 +3,15 @@
 import PillarCard from '@/components/student/PillarCard';
 import { BookOpen, Edit3, Headphones, Mic } from 'lucide-react';
 
+type PillarType = 'reading' | 'writing' | 'listening' | 'speaking';
+
 export default function MissionsDashboard() {
-  const pillars = [
+  const pillars: Array<{
+    id: PillarType;
+    name: string;
+    icon: React.ReactNode;
+    bgColor: string;
+  }> = [
     {
       id: 'reading',
       name: 'Reading',
