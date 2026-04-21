@@ -11,6 +11,7 @@ os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://user:pass@localhost:5432/test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
+os.environ.setdefault("OPENAI_API_KEY", "test-openai-key")
 
 import pytest
 from httpx import ASGITransport, AsyncClient
@@ -25,3 +26,10 @@ async def client():
         transport=ASGITransport(app=app), base_url="http://testserver"
     ) as ac:
         yield ac
+
+
+@pytest.fixture
+def auth_headers():
+    """Authorization headers for tests."""
+    return {"Authorization": "Bearer test-token"}
+
