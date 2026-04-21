@@ -31,6 +31,15 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Mission generation constraints
+# ---------------------------------------------------------------------------
+MAX_WEAKNESS_ITEMS = 5
+PILLAR_QUESTIONS_COUNT = 10
+MULTIPLE_CHOICE_OPTIONS = 4
+DAILY_QUESTIONS_COUNT = 3
+
+
+# ---------------------------------------------------------------------------
 # Pydantic schemas — also serve as the structured-output target for the LLM
 # ---------------------------------------------------------------------------
 
@@ -238,8 +247,8 @@ async def generate_pillar_missions(
     # Build weakness context
     weakness_context = ""
     if student_weaknesses:
-        # Limit to first 5 weaknesses
-        limited_weaknesses = student_weaknesses[:5]
+        # Limit to first MAX_WEAKNESS_ITEMS weaknesses
+        limited_weaknesses = student_weaknesses[:MAX_WEAKNESS_ITEMS]
         weakness_context = (
             "\n\nSTUDENT'S RECENT WEAK AREAS (create 3-4 questions targeting these):\n"
             + "\n".join([f"- {w}" for w in limited_weaknesses])
@@ -262,7 +271,7 @@ TASK:
 {config["instruction"]}
 
 STRICT CONSTRAINTS:
-1. Generate EXACTLY 10 questions (no more, no less)
+1. Generate EXACTLY {PILLAR_QUESTIONS_COUNT} questions (no more, no less)
 2. Use age and SNC-appropriate vocabulary for grade {grade_level}
 3. Mix difficulty levels: aim for 4 easy, 4 medium, 2 hard
 4. At least 3 questions should target student weaknesses (mark as is_weakness_focused: true)
@@ -293,8 +302,9 @@ Each question must have this exact structure:
         f"Return ONLY the JSON array, no other text."
     )
 
+    content = ""
     try:
-        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, max_retries=3)
         response = await client.chat.completions.create(
             model=settings.CHAT_MODEL,
             messages=[
@@ -324,10 +334,10 @@ Each question must have this exact structure:
                 f"LLM response is not a JSON array. Got type: {type(questions_data)}"
             )
 
-        # Validate exactly 10 questions
-        if len(questions_data) != 10:
+        # Validate exactly PILLAR_QUESTIONS_COUNT questions
+        if len(questions_data) != PILLAR_QUESTIONS_COUNT:
             raise ValueError(
-                f"Expected exactly 10 questions, got {len(questions_data)}"
+                f"Expected exactly {PILLAR_QUESTIONS_COUNT} questions, got {len(questions_data)}"
             )
 
         # Validate and normalize each question
@@ -360,26 +370,26 @@ Each question must have this exact structure:
                     raise ValueError(
                         f"Question {i} options is not a list: {type(options)}"
                     )
-                if len(options) < 4:
+                if len(options) < MULTIPLE_CHOICE_OPTIONS:
                     # Pad with dummy options if needed
                     logger.warning(
-                        f"Question {i} has only {len(options)} options, padding to 4"
+                        f"Question {i} has only {len(options)} options, padding to {MULTIPLE_CHOICE_OPTIONS}"
                     )
-                    while len(options) < 4:
+                    while len(options) < MULTIPLE_CHOICE_OPTIONS:
                         options.append({"id": chr(97 + len(options)), "text": "Option"})
-                elif len(options) > 4:
-                    # Truncate to 4
+                elif len(options) > MULTIPLE_CHOICE_OPTIONS:
+                    # Truncate to MULTIPLE_CHOICE_OPTIONS
                     logger.warning(
-                        f"Question {i} has {len(options)} options, truncating to 4"
+                        f"Question {i} has {len(options)} options, truncating to {MULTIPLE_CHOICE_OPTIONS}"
                     )
-                    options = options[:4]
+                    options = options[:MULTIPLE_CHOICE_OPTIONS]
 
                 validated_q["options"] = [
                     {
                         "id": opt.get("id", chr(97 + j)) if isinstance(opt, dict) else chr(97 + j),
                         "text": opt.get("text", str(opt)) if isinstance(opt, dict) else str(opt),
                     }
-                    for j, opt in enumerate(options)
+                    for j, opt in enumerate(options[:MULTIPLE_CHOICE_OPTIONS])
                 ]
             else:
                 # fill_blank type doesn't have options
@@ -394,8 +404,8 @@ Each question must have this exact structure:
         return validated_questions
 
     except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse LLM response as JSON: {e}\nContent: {content}")
-        raise RuntimeError(f"Failed to parse LLM response as JSON: {e}")
+        logger.error(f"Failed to parse LLM response as JSON: {e}. Response was: {content[:100]}")
+        raise RuntimeError(f"Failed to parse LLM response as JSON: {e}. Response was: {content[:100]}")
     except ValueError as e:
         logger.error(f"Validation error in LLM response: {e}")
         raise RuntimeError(f"LLM response validation failed: {e}")
