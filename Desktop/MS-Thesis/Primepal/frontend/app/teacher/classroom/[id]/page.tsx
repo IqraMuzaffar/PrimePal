@@ -3,10 +3,11 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { Copy, Check, UserPlus, Trash2, Lock } from "lucide-react";
+import { Copy, Check, UserPlus, Trash2, Lock, Pencil } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getTeacherHeaders } from "@/lib/teacherAuth";
 import BulkAddStudentsModal from "@/components/teacher/BulkAddStudentsModal";
+import EditStudentModal from "@/components/teacher/EditStudentModal";
 import type { Student } from "@/types";
 
 interface ClassroomDetail {
@@ -65,6 +66,9 @@ export default function ClassroomDetailPage({
   const [pinSaving, setPinSaving] = useState(false);
   const [pinSaveError, setPinSaveError] = useState<string | null>(null);
   const [pinSaved, setPinSaved] = useState(false);
+
+  // Edit student state
+  const [editStudent, setEditStudent] = useState<Student | null>(null);
 
   // Analytics state
   const [analyticsData, setAnalyticsData] = useState<ClassroomReportResponse | null>(null);
@@ -441,6 +445,16 @@ export default function ClassroomDetailPage({
                     <span className="flex-1 text-sm font-medium text-gray-800">
                       {s.student_name}
                     </span>
+                    {s.roll_number && (
+                      <span className="text-xs text-gray-400 font-mono">{s.roll_number}</span>
+                    )}
+                    <button
+                      onClick={() => setEditStudent(s)}
+                      className="p-1.5 rounded text-gray-300 hover:text-indigo-500 transition-colors"
+                      title={`Edit ${s.student_name}`}
+                    >
+                      <Pencil size={15} />
+                    </button>
                     <button
                       onClick={() => {
                         setPinStudent(s);
@@ -726,6 +740,23 @@ export default function ClassroomDetailPage({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Edit Student Modal */}
+      {editStudent && (
+        <EditStudentModal
+          student={editStudent}
+          classroomId={params.id}
+          onClose={() => setEditStudent(null)}
+          onSaved={(updated) => {
+            setClassroom((prev) =>
+              prev
+                ? { ...prev, students: prev.students.map((s) => (s.id === updated.id ? updated : s)) }
+                : prev
+            );
+            setEditStudent(null);
+          }}
+        />
       )}
     </div>
   );

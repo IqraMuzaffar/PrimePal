@@ -23,6 +23,8 @@ export interface Student {
   student_name: string;
   avatar_url: string;
   secret_pin: string;
+  roll_number?: string | null;
+  email?: string | null;
 }
 
 export type Pillar = "reading" | "writing" | "listening" | "speaking";
