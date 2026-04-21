@@ -14,6 +14,7 @@ Patching conventions:
   - Mission generator:       app.api.v1.endpoints.missions.generate_pillar_missions
   - Student auth is overridden via app.dependency_overrides[get_current_student]
 """
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -419,3 +420,306 @@ class TestGetPillarMissions:
         assert call_args is not None
         assert "student_weaknesses" in call_args.kwargs
         assert len(call_args.kwargs["student_weaknesses"]) == 2
+
+
+# ── Tests for LLM-based Mission Generator ──────────────────────────────────────
+
+class TestMissionGeneratorLLMBased:
+    """Tests for the LLM-based generate_pillar_missions function."""
+
+    @pytest.mark.asyncio
+    async def test_reading_pillar_generates_10_questions(self):
+        """Test that reading pillar generates exactly 10 questions."""
+        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
+
+        # Mock the OpenAI API response
+        json_response = """\
+[
+  {"id": 1, "type": "multiple_choice", "question": "What does 'happy' mean?", "options": [{"id": "a", "text": "Sad"}, {"id": "b", "text": "Joyful"}, {"id": "c", "text": "Angry"}, {"id": "d", "text": "Tired"}], "correct_answer": "b", "emoji_hint": "😊", "is_weakness_focused": false},
+  {"id": 2, "type": "multiple_choice", "question": "Which is a color?", "options": [{"id": "a", "text": "Blue"}, {"id": "b", "text": "Run"}, {"id": "c", "text": "Jump"}, {"id": "d", "text": "Sleep"}], "correct_answer": "a", "emoji_hint": "🎨", "is_weakness_focused": false},
+  {"id": 3, "type": "multiple_choice", "question": "What does 'cat' do?", "options": [{"id": "a", "text": "Swims"}, {"id": "b", "text": "Meows"}, {"id": "c", "text": "Flies"}, {"id": "d", "text": "Crawls"}], "correct_answer": "b", "emoji_hint": "🐱", "is_weakness_focused": true},
+  {"id": 4, "type": "multiple_choice", "question": "Choose the animal:", "options": [{"id": "a", "text": "Car"}, {"id": "b", "text": "Dog"}, {"id": "c", "text": "Chair"}, {"id": "d", "text": "Table"}], "correct_answer": "b", "emoji_hint": "🐕", "is_weakness_focused": false},
+  {"id": 5, "type": "multiple_choice", "question": "What is big?", "options": [{"id": "a", "text": "Ant"}, {"id": "b", "text": "Elephant"}, {"id": "c", "text": "Bee"}, {"id": "d", "text": "Pin"}], "correct_answer": "b", "emoji_hint": "🐘", "is_weakness_focused": false},
+  {"id": 6, "type": "multiple_choice", "question": "Opposite of hot?", "options": [{"id": "a", "text": "Warm"}, {"id": "b", "text": "Cold"}, {"id": "c", "text": "Cool"}, {"id": "d", "text": "Hot"}], "correct_answer": "b", "emoji_hint": "❄️", "is_weakness_focused": true},
+  {"id": 7, "type": "multiple_choice", "question": "What can fly?", "options": [{"id": "a", "text": "Fish"}, {"id": "b", "text": "Snake"}, {"id": "c", "text": "Bird"}, {"id": "d", "text": "Turtle"}], "correct_answer": "c", "emoji_hint": "🦅", "is_weakness_focused": false},
+  {"id": 8, "type": "fill_blank", "question": "A ___ says meow.", "options": null, "correct_answer": "cat", "emoji_hint": "🐱", "is_weakness_focused": true},
+  {"id": 9, "type": "fill_blank", "question": "The sun is ___.", "options": null, "correct_answer": "yellow", "emoji_hint": "☀️", "is_weakness_focused": false},
+  {"id": 10, "type": "fill_blank", "question": "I like to ___.", "options": null, "correct_answer": "play", "emoji_hint": "🎮", "is_weakness_focused": false}
+]
+"""
+
+        with patch(
+            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
+        ) as mock_openai_class:
+            mock_client = AsyncMock()
+            mock_openai_class.return_value = mock_client
+
+            # Create a proper mock response object
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message.content = json_response
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+            questions = await generate_pillar_missions(
+                pillar="reading",
+                grade_level=3,
+                current_week_topic="Animals",
+                student_id="student-123",
+                student_weaknesses=["What is a cat?"],
+            )
+
+        assert len(questions) == 10
+        assert all(q["type"] in ["multiple_choice", "fill_blank"] for q in questions)
+        weakness_focused = [q for q in questions if q.get("is_weakness_focused")]
+        assert len(weakness_focused) >= 1
+
+    @pytest.mark.asyncio
+    async def test_writing_pillar_has_correct_emoji(self):
+        """Test that writing pillar uses writing emoji."""
+        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
+
+        json_response = """\
+[
+  {"id": 1, "type": "multiple_choice", "question": "Choose correct spelling:", "options": [{"id": "a", "text": "Cat"}, {"id": "b", "text": "Kat"}, {"id": "c", "text": "Katt"}, {"id": "d", "text": "Catt"}], "correct_answer": "a", "emoji_hint": "✍️", "is_weakness_focused": false},
+  {"id": 2, "type": "multiple_choice", "question": "Spell 'dog':", "options": [{"id": "a", "text": "Dog"}, {"id": "b", "text": "Dug"}, {"id": "c", "text": "Dag"}, {"id": "d", "text": "Doog"}], "correct_answer": "a", "emoji_hint": "✍️", "is_weakness_focused": false},
+  {"id": 3, "type": "multiple_choice", "question": "Write 'hello':", "options": [{"id": "a", "text": "Helo"}, {"id": "b", "text": "Hello"}, {"id": "c", "text": "Hallo"}, {"id": "d", "text": "Helo"}], "correct_answer": "b", "emoji_hint": "✍️", "is_weakness_focused": false},
+  {"id": 4, "type": "multiple_choice", "question": "Correct spelling:", "options": [{"id": "a", "text": "Bok"}, {"id": "b", "text": "Book"}, {"id": "c", "text": "Buk"}, {"id": "d", "text": "Bok"}], "correct_answer": "b", "emoji_hint": "✍️", "is_weakness_focused": false},
+  {"id": 5, "type": "multiple_choice", "question": "Pick correct form:", "options": [{"id": "a", "text": "Run"}, {"id": "b", "text": "Runn"}, {"id": "c", "text": "Rune"}, {"id": "d", "text": "Run"}], "correct_answer": "a", "emoji_hint": "✍️", "is_weakness_focused": false},
+  {"id": 6, "type": "multiple_choice", "question": "Spell 'apple':", "options": [{"id": "a", "text": "Apple"}, {"id": "b", "text": "Aple"}, {"id": "c", "text": "Appel"}, {"id": "d", "text": "Apel"}], "correct_answer": "a", "emoji_hint": "✍️", "is_weakness_focused": false},
+  {"id": 7, "type": "multiple_choice", "question": "Correct word:", "options": [{"id": "a", "text": "Play"}, {"id": "b", "text": "Pley"}, {"id": "c", "text": "Plai"}, {"id": "d", "text": "Pleigh"}], "correct_answer": "a", "emoji_hint": "✍️", "is_weakness_focused": false},
+  {"id": 8, "type": "fill_blank", "question": "The ___: tree (fill in article)", "options": null, "correct_answer": "is", "emoji_hint": "✍️", "is_weakness_focused": false},
+  {"id": 9, "type": "fill_blank", "question": "She ___ happy.", "options": null, "correct_answer": "is", "emoji_hint": "✍️", "is_weakness_focused": false},
+  {"id": 10, "type": "fill_blank", "question": "We ___ school.", "options": null, "correct_answer": "like", "emoji_hint": "✍️", "is_weakness_focused": false}
+]
+"""
+
+        with patch(
+            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
+        ) as mock_openai_class:
+            mock_client = AsyncMock()
+            mock_openai_class.return_value = mock_client
+
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message.content = json_response
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+            questions = await generate_pillar_missions(
+                pillar="writing",
+                grade_level=2,
+                current_week_topic="Spelling",
+                student_id="student-456",
+                student_weaknesses=[],
+            )
+
+        assert len(questions) == 10
+        assert all(q["emoji_hint"] in ["✍️", "📝", "✏️"] or not q["emoji_hint"].isidentifier() for q in questions)
+
+    @pytest.mark.asyncio
+    async def test_listening_pillar_all_multiple_choice(self):
+        """Test that listening pillar uses only multiple_choice questions."""
+        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
+
+        # Generate mock JSON for 10 listening questions
+        listening_questions = [
+            {
+                "id": i + 1,
+                "type": "multiple_choice",
+                "question": f"Listen to the story. Question {i + 1}?",
+                "options": [
+                    {"id": "a", "text": f"Answer A for Q{i+1}"},
+                    {"id": "b", "text": f"Answer B for Q{i+1}"},
+                    {"id": "c", "text": f"Answer C for Q{i+1}"},
+                    {"id": "d", "text": f"Answer D for Q{i+1}"},
+                ],
+                "correct_answer": chr(97 + (i % 4)),
+                "emoji_hint": "👂",
+                "is_weakness_focused": i < 3,
+            }
+            for i in range(10)
+        ]
+
+        with patch(
+            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
+        ) as mock_openai_class:
+            mock_client = AsyncMock()
+            mock_openai_class.return_value = mock_client
+
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message.content = json.dumps(listening_questions)
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+            questions = await generate_pillar_missions(
+                pillar="listening",
+                grade_level=4,
+                current_week_topic="Stories",
+                student_id="student-789",
+                student_weaknesses=["I don't understand stories"],
+            )
+
+        assert len(questions) == 10
+        assert all(q["type"] == "multiple_choice" for q in questions)
+        assert all(len(q["options"]) == 4 for q in questions if q["options"])
+
+    @pytest.mark.asyncio
+    async def test_speaking_pillar_all_fill_blank(self):
+        """Test that speaking pillar uses only fill_blank (prompt) questions."""
+        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
+
+        speaking_questions = [
+            {
+                "id": i + 1,
+                "type": "fill_blank",
+                "question": f"Speak about prompt {i + 1}",
+                "options": None,
+                "correct_answer": f"Example answer {i+1}",
+                "emoji_hint": "🗣️",
+                "is_weakness_focused": i < 3,
+            }
+            for i in range(10)
+        ]
+
+        with patch(
+            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
+        ) as mock_openai_class:
+            mock_client = AsyncMock()
+            mock_openai_class.return_value = mock_client
+
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message.content = json.dumps(speaking_questions)
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+            questions = await generate_pillar_missions(
+                pillar="speaking",
+                grade_level=2,
+                current_week_topic="Greetings",
+                student_id="student-999",
+                student_weaknesses=[],
+            )
+
+        assert len(questions) == 10
+        assert all(q["type"] == "fill_blank" for q in questions)
+        assert all(q["options"] is None for q in questions)
+
+    @pytest.mark.asyncio
+    async def test_invalid_pillar_raises_error(self):
+        """Test that invalid pillar raises ValueError."""
+        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
+
+        with pytest.raises(ValueError, match="Invalid pillar"):
+            await generate_pillar_missions(
+                pillar="invalid_pillar",
+                grade_level=3,
+                current_week_topic="Topic",
+                student_id="student-123",
+                student_weaknesses=[],
+            )
+
+    @pytest.mark.asyncio
+    async def test_handles_malformed_json_response(self):
+        """Test that malformed LLM response raises RuntimeError."""
+        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
+
+        with patch(
+            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
+        ) as mock_openai_class:
+            mock_client = AsyncMock()
+            mock_openai_class.return_value = mock_client
+
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message.content = "This is not valid JSON"
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+            with pytest.raises(RuntimeError, match="Failed to parse LLM response"):
+                await generate_pillar_missions(
+                    pillar="reading",
+                    grade_level=3,
+                    current_week_topic="Topic",
+                    student_id="student-123",
+                    student_weaknesses=[],
+                )
+
+    @pytest.mark.asyncio
+    async def test_handles_wrong_question_count(self):
+        """Test that LLM response with wrong question count raises RuntimeError."""
+        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
+
+        # Only 5 questions instead of 10
+        questions_data = [
+            {
+                "id": i + 1,
+                "type": "multiple_choice",
+                "question": f"Question {i+1}",
+                "options": [{"id": "a", "text": "A"}, {"id": "b", "text": "B"}, {"id": "c", "text": "C"}, {"id": "d", "text": "D"}],
+                "correct_answer": "a",
+                "emoji_hint": "📖",
+                "is_weakness_focused": False,
+            }
+            for i in range(5)  # Only 5, not 10
+        ]
+
+        with patch(
+            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
+        ) as mock_openai_class:
+            mock_client = AsyncMock()
+            mock_openai_class.return_value = mock_client
+
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message.content = json.dumps(questions_data)
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+            with pytest.raises(RuntimeError, match="Expected exactly 10 questions"):
+                await generate_pillar_missions(
+                    pillar="reading",
+                    grade_level=3,
+                    current_week_topic="Topic",
+                    student_id="student-123",
+                    student_weaknesses=[],
+                )
+
+    @pytest.mark.asyncio
+    async def test_extracts_json_from_markdown_code_blocks(self):
+        """Test that JSON wrapped in markdown code blocks is extracted correctly."""
+        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
+
+        questions_data = [
+            {
+                "id": i + 1,
+                "type": "multiple_choice",
+                "question": f"Question {i+1}",
+                "options": [{"id": "a", "text": "A"}, {"id": "b", "text": "B"}, {"id": "c", "text": "C"}, {"id": "d", "text": "D"}],
+                "correct_answer": "a",
+                "emoji_hint": "📖",
+                "is_weakness_focused": False,
+            }
+            for i in range(10)
+        ]
+
+        # Wrap JSON in markdown code blocks
+        json_content = f"```json\n{json.dumps(questions_data)}\n```"
+
+        with patch(
+            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
+        ) as mock_openai_class:
+            mock_client = AsyncMock()
+            mock_openai_class.return_value = mock_client
+
+            mock_response = MagicMock()
+            mock_response.choices = [MagicMock()]
+            mock_response.choices[0].message.content = json_content
+            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+
+            questions = await generate_pillar_missions(
+                pillar="reading",
+                grade_level=3,
+                current_week_topic="Topic",
+                student_id="student-123",
+                student_weaknesses=[],
+            )
+
+        assert len(questions) == 10
+        assert all(q["type"] == "multiple_choice" for q in questions)

@@ -8,16 +8,26 @@ Pipeline:
        - 2 multiple_choice
        - 1 fill_blank
   4. The endpoint strips correct_answer before sending to the client.
+
+Feature 3: Pillar-based Missions (LLM-based generation with weakness focus)
+  1. Receive pillar, grade_level, current_week_topic, and student weaknesses.
+  2. Call OpenAI LLM with pillar-specific prompts.
+  3. Return exactly 10 questions with weakness focus metadata.
 """
 from __future__ import annotations
 
+import json
+import logging
 from typing import Literal
 
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
+from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +114,7 @@ _PROMPT_FALLBACK = ChatPromptTemplate.from_messages(
 
 
 # ---------------------------------------------------------------------------
-# Public API
+# Public API - Daily Missions
 # ---------------------------------------------------------------------------
 
 async def generate_daily_missions(
@@ -149,7 +159,7 @@ async def generate_daily_missions(
 
 
 # ---------------------------------------------------------------------------
-# Feature 3: Pillar-based Missions (stub for Task 4 implementation)
+# Public API - Pillar-based Missions (LLM-based with weakness focus)
 # ---------------------------------------------------------------------------
 
 async def generate_pillar_missions(
@@ -160,11 +170,10 @@ async def generate_pillar_missions(
     student_weaknesses: list[str],
 ) -> list[dict]:
     """
-    STUB: Generate 10 questions for a specific pillar.
+    Generate 10 curriculum-aligned questions for a specific pillar using LLM.
 
-    This is a stub implementation for Task 3. Task 4 will implement the full
-    LLM-based mission generation with pillar-specific prompts, weakness weighting,
-    and current_week_topic integration.
+    Weaves in student weakness remediation and creates a diverse mix of
+    multiple_choice and fill_blank questions tailored to the pillar.
 
     Args:
         pillar:             One of: reading, writing, listening, speaking
@@ -174,34 +183,222 @@ async def generate_pillar_missions(
         student_weaknesses: List of recent incorrect answers or weak areas
 
     Returns:
-        A list of exactly 10 MissionQuestion objects (dicts with is_weakness_focused flag).
+        A list of exactly 10 question dicts, each with:
+          - id, type, question, options, correct_answer, emoji_hint, is_weakness_focused
         The caller (endpoint) is responsible for stripping correct_answer before
         sending the response to the client.
-    """
-    # STUB: Generate 10 mock questions
-    # - First 3 questions are marked as weakness-focused
-    # - All questions include the pillar and are grade-appropriate
-    questions: list[dict] = []
-    for i in range(10):
-        is_weakness_focused = i < 3
-        questions.append({
-            "id": i + 1,
-            "type": "multiple_choice" if i < 7 else "fill_blank",
-            "question": f"Sample {pillar} question {i + 1} for grade {grade_level}"
-                        + (f" (topic: {current_week_topic})" if current_week_topic else ""),
-            "options": (
-                [
-                    QuestionOption(id="a", text="Option A"),
-                    QuestionOption(id="b", text="Option B"),
-                    QuestionOption(id="c", text="Option C"),
-                    QuestionOption(id="d", text="Option D"),
-                ]
-                if i < 7
-                else None
-            ),
-            "correct_answer": "a" if i < 7 else "answer",
-            "emoji_hint": "📖" if pillar == "reading" else "✍️" if pillar == "writing" else "👂" if pillar == "listening" else "🗣️",
-            "is_weakness_focused": is_weakness_focused,
-        })
 
-    return questions
+    Raises:
+        ValueError:   If pillar is invalid or LLM returns wrong number of questions
+        RuntimeError: If LLM response cannot be parsed or API fails
+    """
+    # Validate pillar
+    valid_pillars = ["reading", "writing", "listening", "speaking"]
+    if pillar not in valid_pillars:
+        raise ValueError(f"Invalid pillar: {pillar}. Must be one of {valid_pillars}")
+
+    # Define pillar-specific configurations
+    pillar_configs = {
+        "reading": {
+            "emoji": "📖",
+            "instruction": (
+                "Create reading comprehension questions that test vocabulary understanding "
+                "and text interpretation. Mix multiple_choice (questions 1-7) and fill_blank (questions 8-10)."
+            ),
+            "types_distribution": ["multiple_choice"] * 7 + ["fill_blank"] * 3,
+        },
+        "writing": {
+            "emoji": "✍️",
+            "instruction": (
+                "Create writing exercises: fill-in-the-blank with correct grammar/spelling, "
+                "sentence correction tasks, or composition prompts. Mix multiple_choice (questions 1-7) and fill_blank (questions 8-10)."
+            ),
+            "types_distribution": ["multiple_choice"] * 7 + ["fill_blank"] * 3,
+        },
+        "listening": {
+            "emoji": "👂",
+            "instruction": (
+                "Create listening comprehension questions. Provide a passage or scenario that would be "
+                "spoken aloud, then ask multiple_choice questions. All 10 should be multiple_choice format."
+            ),
+            "types_distribution": ["multiple_choice"] * 10,
+        },
+        "speaking": {
+            "emoji": "🗣️",
+            "instruction": (
+                "Create speaking prompts that encourage oral response. Include a prompt phrase "
+                "and a brief example answer. All 10 should be fill_blank (prompt-based) format."
+            ),
+            "types_distribution": ["fill_blank"] * 10,
+        },
+    }
+
+    config = pillar_configs[pillar]
+
+    # Build weakness context
+    weakness_context = ""
+    if student_weaknesses:
+        # Limit to first 5 weaknesses
+        limited_weaknesses = student_weaknesses[:5]
+        weakness_context = (
+            "\n\nSTUDENT'S RECENT WEAK AREAS (create 3-4 questions targeting these):\n"
+            + "\n".join([f"- {w}" for w in limited_weaknesses])
+        )
+
+    # Build curriculum context
+    topic_text = current_week_topic or "General English skills"
+
+    # Construct the LLM system prompt
+    system_prompt = f"""\
+You are an expert ESL tutor for Pakistani primary school students (grades 1-8).
+You specialize in the SNC (Single National Curriculum) and create engaging, age-appropriate questions.
+
+STUDENT PROFILE:
+- Grade level: {grade_level}
+- Current curriculum topic: {topic_text}
+- Pillar (skill focus): {pillar}
+
+TASK:
+{config["instruction"]}
+
+STRICT CONSTRAINTS:
+1. Generate EXACTLY 10 questions (no more, no less)
+2. Use age and SNC-appropriate vocabulary for grade {grade_level}
+3. Mix difficulty levels: aim for 4 easy, 4 medium, 2 hard
+4. At least 3 questions should target student weaknesses (mark as is_weakness_focused: true)
+5. Keep language simple, clear, and encouraging
+6. Avoid religious, political, or sensitive content
+7. Use cultural context relevant to Pakistan
+8. For multiple_choice questions: always provide exactly 4 options (a, b, c, d)
+9. For fill_blank questions: correct_answer should be a single word or short phrase
+10. Each question must have an emoji_hint that relates to the topic
+
+{weakness_context}
+
+RESPONSE FORMAT:
+Return ONLY a valid JSON array with exactly 10 question objects. No explanation, no markdown.
+Each question must have this exact structure:
+{{
+  "id": <number 1-10>,
+  "type": "multiple_choice" | "fill_blank",
+  "question": "<question text>",
+  "options": [<only for multiple_choice> {{"id": "a", "text": "..."}}],
+  "correct_answer": "<answer>",
+  "emoji_hint": "<single emoji>",
+  "is_weakness_focused": true|false
+}}"""
+
+    user_message = (
+        f"Generate {pillar} questions for grade {grade_level} on topic '{topic_text}'. "
+        f"Return ONLY the JSON array, no other text."
+    )
+
+    try:
+        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+        response = await client.chat.completions.create(
+            model=settings.CHAT_MODEL,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+            temperature=0.7,
+            top_p=0.9,
+        )
+
+        # Extract and parse JSON response
+        content = response.choices[0].message.content.strip()
+        logger.debug(f"LLM response (first 200 chars): {content[:200]}")
+
+        # Try to extract JSON if it's wrapped in markdown code blocks
+        if content.startswith("```json"):
+            content = content[7:]  # remove ```json
+        if content.startswith("```"):
+            content = content[3:]  # remove ```
+        if content.endswith("```"):
+            content = content[:-3]  # remove trailing ```
+
+        questions_data = json.loads(content)
+
+        if not isinstance(questions_data, list):
+            raise ValueError(
+                f"LLM response is not a JSON array. Got type: {type(questions_data)}"
+            )
+
+        # Validate exactly 10 questions
+        if len(questions_data) != 10:
+            raise ValueError(
+                f"Expected exactly 10 questions, got {len(questions_data)}"
+            )
+
+        # Validate and normalize each question
+        validated_questions = []
+        for i, q in enumerate(questions_data):
+            if not isinstance(q, dict):
+                raise ValueError(f"Question {i} is not a dict: {type(q)}")
+
+            # Ensure all required fields are present
+            validated_q = {
+                "id": q.get("id", i + 1),
+                "type": q.get("type", config["types_distribution"][i]),
+                "question": q.get("question", ""),
+                "correct_answer": str(q.get("correct_answer", "")),
+                "emoji_hint": q.get("emoji_hint", config["emoji"]),
+                "is_weakness_focused": bool(q.get("is_weakness_focused", False)),
+            }
+
+            # Validate required fields
+            if not validated_q["question"]:
+                raise ValueError(f"Question {i} has empty question text")
+            if not validated_q["correct_answer"]:
+                raise ValueError(f"Question {i} has empty correct_answer")
+
+            # Add type-specific fields
+            if validated_q["type"] == "multiple_choice":
+                # Ensure options array with exactly 4 options
+                options = q.get("options", [])
+                if not isinstance(options, list):
+                    raise ValueError(
+                        f"Question {i} options is not a list: {type(options)}"
+                    )
+                if len(options) < 4:
+                    # Pad with dummy options if needed
+                    logger.warning(
+                        f"Question {i} has only {len(options)} options, padding to 4"
+                    )
+                    while len(options) < 4:
+                        options.append({"id": chr(97 + len(options)), "text": "Option"})
+                elif len(options) > 4:
+                    # Truncate to 4
+                    logger.warning(
+                        f"Question {i} has {len(options)} options, truncating to 4"
+                    )
+                    options = options[:4]
+
+                validated_q["options"] = [
+                    {
+                        "id": opt.get("id", chr(97 + j)) if isinstance(opt, dict) else chr(97 + j),
+                        "text": opt.get("text", str(opt)) if isinstance(opt, dict) else str(opt),
+                    }
+                    for j, opt in enumerate(options)
+                ]
+            else:
+                # fill_blank type doesn't have options
+                validated_q["options"] = None
+
+            validated_questions.append(validated_q)
+
+        logger.info(
+            f"Generated {len(validated_questions)} {pillar} questions for grade {grade_level}. "
+            f"Weakness-focused: {sum(1 for q in validated_questions if q['is_weakness_focused'])}"
+        )
+        return validated_questions
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse LLM response as JSON: {e}\nContent: {content}")
+        raise RuntimeError(f"Failed to parse LLM response as JSON: {e}")
+    except ValueError as e:
+        logger.error(f"Validation error in LLM response: {e}")
+        raise RuntimeError(f"LLM response validation failed: {e}")
+    except Exception as e:
+        logger.error(f"Mission generation failed: {e}", exc_info=True)
+        raise RuntimeError(f"Mission generation failed: {e}")
