@@ -12,18 +12,18 @@ describe('Student Missions Dashboard - 2x2 Grid', () => {
   });
 
   it('should have correct colors for each pillar', () => {
-    const { container } = render(<MissionsDashboard />);
+    render(<MissionsDashboard />);
 
-    const readingCard = screen.getByText('Reading').closest('div')?.closest('div')?.closest('div');
+    const readingCard = screen.getByTestId('pillar-card-reading');
     expect(readingCard).toHaveClass('bg-red-600');
 
-    const writingCard = screen.getByText('Writing').closest('div')?.closest('div')?.closest('div');
+    const writingCard = screen.getByTestId('pillar-card-writing');
     expect(writingCard).toHaveClass('bg-blue-600');
 
-    const listeningCard = screen.getByText('Listening').closest('div')?.closest('div')?.closest('div');
+    const listeningCard = screen.getByTestId('pillar-card-listening');
     expect(listeningCard).toHaveClass('bg-yellow-500');
 
-    const speakingCard = screen.getByText('Speaking').closest('div')?.closest('div')?.closest('div');
+    const speakingCard = screen.getByTestId('pillar-card-speaking');
     expect(speakingCard).toHaveClass('bg-green-600');
   });
 

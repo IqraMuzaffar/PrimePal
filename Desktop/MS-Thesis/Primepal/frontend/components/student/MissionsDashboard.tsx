@@ -42,7 +42,7 @@ export default function MissionsDashboard() {
           {pillars.map((pillar) => (
             <PillarCard
               key={pillar.id}
-              pillar={pillar.id as 'reading' | 'writing' | 'listening' | 'speaking'}
+              pillar={pillar.id}
               bgColor={pillar.bgColor}
               icon={pillar.icon}
             />
