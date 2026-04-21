@@ -22,6 +22,14 @@ class StudentResponse(BaseModel):
     student_name: str
     avatar_url: str
     secret_pin: str
+    roll_number: str | None = None
+    email: str | None = None
+
+
+class StudentUpdate(BaseModel):
+    student_name: str | None = None
+    roll_number: str | None = None
+    email: str | None = None
 
 
 class ClassroomDetail(ClassroomResponse):

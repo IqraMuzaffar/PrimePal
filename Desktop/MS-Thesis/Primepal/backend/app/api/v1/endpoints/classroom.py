@@ -8,6 +8,7 @@ Endpoints (all require a valid teacher Supabase session):
   GET    /api/v1/classroom/{id}                       — get classroom + roster
   POST   /api/v1/classroom/{id}/students/bulk         — bulk-add student ghost profiles
   DELETE /api/v1/classroom/{id}/students/{student_id} — remove a student
+  PATCH  /api/v1/classroom/{id}/students/{student_id} — update student (name, roll_number, email)
 """
 from typing import List
 
@@ -22,6 +23,7 @@ from app.schemas.classroom import (
     ClassroomUpdate,
     StudentBulkCreate,
     StudentResponse,  # noqa: F401 — referenced via ClassroomDetail
+    StudentUpdate,
 )
 
 router = APIRouter()
@@ -107,7 +109,7 @@ async def get_classroom(
 
     students_res = (
         supabase.table("students")
-        .select("id, student_name, avatar_url, secret_pin")
+        .select("id, student_name, avatar_url, secret_pin, roll_number, email")
         .eq("classroom_id", classroom_id)
         .execute()
     )
@@ -199,3 +201,33 @@ async def remove_student(
     # supabase-py returns deleted rows in result.data; if empty, no row matched
     if result.data is not None and len(result.data) == 0:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+
+
+@router.patch("/{classroom_id}/students/{student_id}", response_model=StudentResponse)
+async def update_student(
+    classroom_id: str,
+    student_id: str,
+    request: StudentUpdate,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """Update student identity fields (name, roll_number, email). Teacher ownership verified."""
+    supabase = get_supabase_admin()
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+
+    update_data = {k: v for k, v in request.model_dump().items() if v is not None}
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No fields to update",
+        )
+
+    result = (
+        supabase.table("students")
+        .update(update_data)
+        .eq("id", student_id)
+        .eq("classroom_id", classroom_id)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+    return result.data[0]
