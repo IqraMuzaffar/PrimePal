@@ -120,7 +120,7 @@ async def update_classroom(
     request: ClassroomUpdate,
     teacher: dict = Depends(get_current_teacher),
 ):
-    """Updates classroom settings (e.g., current_week_topic)."""
+    """Update classroom settings (e.g., current_week_topic). Teacher ownership verified."""
     supabase = get_supabase_admin()
     _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
 

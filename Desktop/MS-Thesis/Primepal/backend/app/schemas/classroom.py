@@ -26,7 +26,6 @@ class StudentResponse(BaseModel):
 
 class ClassroomDetail(ClassroomResponse):
     students: List[StudentResponse]
-    current_week_topic: str | None = None
 
 
 class StudentBulkCreate(BaseModel):
