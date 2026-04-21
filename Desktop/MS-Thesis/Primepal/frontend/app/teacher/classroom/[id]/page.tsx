@@ -8,6 +8,7 @@ import { apiFetch } from "@/lib/api";
 import { getTeacherHeaders } from "@/lib/teacherAuth";
 import BulkAddStudentsModal from "@/components/teacher/BulkAddStudentsModal";
 import EditStudentModal from "@/components/teacher/EditStudentModal";
+import SearchBar from "@/components/teacher/SearchBar";
 import type { Student } from "@/types";
 
 interface ClassroomDetail {
@@ -36,6 +37,7 @@ export default function ClassroomDetailPage({
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // PIN management state
   const [pinStudent, setPinStudent] = useState<Student | null>(null);
@@ -194,6 +196,15 @@ export default function ClassroomDetailPage({
     );
   }
 
+  // ── Filter students based on search query ──────────────────────────────────
+  const filteredStudents = classroom.students.filter((student) => {
+    const query = searchQuery.toLowerCase();
+    return (
+      student.student_name.toLowerCase().includes(query) ||
+      (student.roll_number && student.roll_number.toLowerCase().includes(query))
+    );
+  });
+
   // ── Render ──────────────────────────────────────────────────────────────────
 
   return (
@@ -330,20 +341,28 @@ export default function ClassroomDetailPage({
 
         {/* ── Roster Tab ── */}
         {activeTab === "roster" && (
-          <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
-            {/* Toolbar */}
-            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
-              <p className="text-sm font-medium text-gray-700">
-                {classroom.students.length} student
-                {classroom.students.length !== 1 ? "s" : ""}
-              </p>
-              <button
-                onClick={() => setShowBulkAdd(true)}
-                className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
-              >
-                <UserPlus size={16} /> Add Students
-              </button>
-            </div>
+          <div className="space-y-4">
+            {/* Search Bar */}
+            <SearchBar
+              value={searchQuery}
+              onChange={setSearchQuery}
+              placeholder="Search by name or roll number..."
+            />
+
+            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+              {/* Toolbar */}
+              <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
+                <p className="text-sm font-medium text-gray-700">
+                  {filteredStudents.length} of {classroom.students.length} student
+                  {filteredStudents.length !== 1 ? "s" : ""}
+                </p>
+                <button
+                  onClick={() => setShowBulkAdd(true)}
+                  className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+                >
+                  <UserPlus size={16} /> Add Students
+                </button>
+              </div>
 
             {/* Remove error banner */}
             {removeError && (
@@ -353,17 +372,18 @@ export default function ClassroomDetailPage({
             )}
 
             {/* Empty state */}
-            {classroom.students.length === 0 && (
+            {filteredStudents.length === 0 && (
               <p className="text-center text-gray-400 text-sm py-12">
-                No students yet. Click &quot;Add Students&quot; to build your
-                roster.
+                {searchQuery
+                  ? "No students match your search."
+                  : "No students yet. Click \"Add Students\" to build your roster."}
               </p>
             )}
 
             {/* Student rows */}
-            {classroom.students.length > 0 && (
+            {filteredStudents.length > 0 && (
               <ul className="divide-y divide-gray-50">
-                {classroom.students.map((s) => (
+                {filteredStudents.map((s) => (
                   <li
                     key={s.id}
                     className="flex items-center gap-3 px-5 py-3"
@@ -411,6 +431,7 @@ export default function ClassroomDetailPage({
                 ))}
               </ul>
             )}
+            </div>
           </div>
         )}
 
