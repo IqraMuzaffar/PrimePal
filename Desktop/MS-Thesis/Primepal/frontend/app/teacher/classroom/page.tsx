@@ -82,43 +82,61 @@ export default function ClassroomPage() {
           </div>
         )}
 
-        {/* Classroom card grid */}
-        {!loading && classrooms.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {classrooms.map((c) => (
-              <Link
-                key={c.id}
-                href={`/teacher/classroom/${c.id}`}
-                className="block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md hover:border-indigo-200 transition-all"
-              >
-                <div className="mb-3">
-                  <span className="text-xs font-medium bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full">
-                    Grade {c.grade_level}
-                  </span>
+        {/* Classroom card grid - grouped by grade */}
+        {!loading && classrooms.length > 0 && (() => {
+          // Group by grade_level, sort grades 1 → 5
+          const byGrade: Record<number, typeof classrooms> = {};
+          for (const c of classrooms) {
+            if (!byGrade[c.grade_level]) byGrade[c.grade_level] = [];
+            byGrade[c.grade_level].push(c);
+          }
+          const sortedGrades = Object.keys(byGrade).map(Number).sort((a, b) => a - b);
+
+          return (
+            <div className="space-y-8">
+              {sortedGrades.map((grade) => (
+                <div key={grade}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">
+                      Grade {grade}
+                    </h2>
+                    <span className="text-xs text-gray-400">
+                      {byGrade[grade].length} class{byGrade[grade].length !== 1 ? "es" : ""}
+                    </span>
+                    <div className="flex-1 h-px bg-gray-200" />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {byGrade[grade].map((c) => (
+                      <Link
+                        key={c.id}
+                        href={`/teacher/classroom/${c.id}`}
+                        className="block bg-white rounded-2xl border border-gray-200 p-5 hover:shadow-md hover:border-indigo-200 transition-all"
+                      >
+                        <h3 className="font-semibold text-gray-900 mb-4 leading-tight">{c.class_name}</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm font-bold tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg flex-1 text-center">
+                            {c.class_code}
+                          </span>
+                          <button
+                            onClick={(e) => copyCode(e, c.class_code)}
+                            className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
+                            title="Copy class code"
+                          >
+                            {copiedCode === c.class_code ? (
+                              <Check size={16} className="text-green-500" />
+                            ) : (
+                              <Copy size={16} />
+                            )}
+                          </button>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
                 </div>
-                <h3 className="font-semibold text-gray-900 mb-4 leading-tight">
-                  {c.class_name}
-                </h3>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm font-bold tracking-widest text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-lg flex-1 text-center">
-                    {c.class_code}
-                  </span>
-                  <button
-                    onClick={(e) => copyCode(e, c.class_code)}
-                    className="p-1.5 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors"
-                    title="Copy class code"
-                  >
-                    {copiedCode === c.class_code ? (
-                      <Check size={16} className="text-green-500" />
-                    ) : (
-                      <Copy size={16} />
-                    )}
-                  </button>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {showCreate && (
