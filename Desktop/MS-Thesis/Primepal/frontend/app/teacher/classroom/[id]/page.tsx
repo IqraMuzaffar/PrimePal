@@ -1,4 +1,4 @@
-// frontend/app/(teacher)/classroom/[id]/page.tsx
+// frontend/app/teacher/classroom/[id]/page.tsx
 "use client";
 
 import { useEffect, useState } from "react";
