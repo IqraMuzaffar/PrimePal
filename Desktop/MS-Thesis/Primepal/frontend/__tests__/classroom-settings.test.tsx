@@ -13,7 +13,7 @@
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import ClassroomPage from '@/app/(teacher)/classroom/[id]/page';
+import ClassroomPage from '@/app/teacher/classroom/[id]/page';
 
 // Mock the API and auth utilities
 jest.mock('@/lib/api', () => ({
