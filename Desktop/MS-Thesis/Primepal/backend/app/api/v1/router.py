@@ -1,9 +1,10 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, chat, classroom, curriculum, evaluator, interactions, missions, tutor
+from app.api.v1.endpoints import admin, auth, chat, classroom, curriculum, evaluator, interactions, missions, tutor
 
 api_router = APIRouter()
 
+api_router.include_router(admin.router)
 api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(classroom.router, prefix="/classroom", tags=["classroom"])
 api_router.include_router(curriculum.router, prefix="/curriculum", tags=["curriculum"])
