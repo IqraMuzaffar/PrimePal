@@ -143,7 +143,18 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 | 10 | Four-Skill Action Plan Dashboard | ✅ **Complete** | Analytics tab in classroom detail page |
 | 11 | 4-Pillar Kahoot-Style LMS | ✅ **Complete & Tested** | Reading/Writing/Listening/Speaking with 15s timer, curriculum-aligned AI generation. See §15 |
 | — | Upload History | ✅ **Complete** | snc_uploads table + curriculum history page |
-| — | Student Home Dashboard | ✅ **Complete** | /home — hero, badges, coming-soon cards, persistent nav |
+| — | Student Home Dashboard | ✅ **Complete** | /home — hero, badges, all activities unlocked |
+| — | Spelling Bee | ✅ **Complete** | Audio TTS + typed spelling + accuracy scoring. See §21 |
+| — | Story Time | ✅ **Complete** | LLM story + 3 comprehension questions + TTS read-aloud. See §22 |
+| — | Speaking Practice | ✅ **Complete** | Web SpeechRecognition + LLM transcript evaluation. See §23 |
+| — | Quests Page | ✅ **Complete** | 4-pillar weekly progress (7-day rolling window). See §24 |
+| — | Student Leaderboard | ✅ **Complete** | Classroom ranking by points, podium top-3 |
+| — | Teacher Dashboard v2 | ✅ **Complete** | 4-stat KPIs, At-Risk widget, 6 quick actions. See §25 |
+| — | Student Directory | ✅ **Complete** | Global student search/filter with stats. See §25 |
+| — | Student Report Cards | ✅ **Complete** | AI-powered per-student pillar reports + PDF export. See §25 |
+| — | Admin Role System | ✅ **Complete** | School-wide admin with invite codes, audit log. See §18 |
+| — | Evolving Worlds (Dynamic Backgrounds) | ✅ **Complete** | Day/night cycle + 3-tier journey system with Framer Motion animations. See §26 |
+| — | Surprise Daily Chest (Loot Box) | ✅ **Complete** | Anti-cheat daily reward system with interactive chest animation. See §27 |
 
 ---
 
@@ -881,7 +892,7 @@ python -m pytest tests/ -v
 
 ---
 
-## 21. Supabase Setup Checklist (one-time)
+## 26. Supabase Setup Checklist (one-time)
 
 1. Create a Supabase project at supabase.com.
 2. Go to **SQL Editor** → paste and run `supabase/migrations/001_feature1_auth.sql`.
@@ -891,9 +902,12 @@ python -m pytest tests/ -v
 6. Paste and run `supabase/migrations/005_feature5_chat_rpc.sql` (creates `match_snc_documents` RPC for grade-filtered vector similarity search).
 7. Paste and run `supabase/migrations/006_feature6_gamification.sql` (adds points column to students).
 8. Paste and run `supabase/migrations/007_feature8_interactions.sql` (creates `student_interactions` table for logging).
-9. Paste and run `supabase/migrations/009_add_current_week_topic.sql` (adds `current_week_topic` to classrooms for curriculum tracking).
-10. Paste and run `supabase/migrations/013_add_student_identity_fields.sql` (adds `roll_number` and `email` to students for teacher identity management).
-11. Paste and run `supabase/migrations/014_admin_roles.sql` (adds admin role system — role column, invite codes, audit log) **← NEW (Apr 22, 2026)**.
+9. Paste and run `supabase/migrations/009_add_current_week_topic.sql` (adds `current_week_topic` to classrooms).
+10. Paste and run `supabase/migrations/010_classroom_syllabus.sql` (creates `classroom_syllabus` 30-week pacing table).
+11. Paste and run `supabase/migrations/011_student_secret_pin.sql` (adds `secret_pin` to students).
+12. Paste and run `supabase/migrations/013_add_student_identity_fields.sql` (adds `roll_number` + `email` to students).
+13. Paste and run `supabase/migrations/014_admin_roles.sql` (admin role column, invite codes, audit log) **← Admin system**.
+14. Paste and run `supabase/migrations/017_interactions_pillar.sql` (adds `pillar` column + composite index to `student_interactions` — required for Quests weekly progress and Speaking/Story Time tracking).
 12. Copy **Project URL** and **anon key** → paste into `backend/.env` and `frontend/.env.local`.
 13. Copy **service_role key** → paste into `backend/.env` (`SUPABASE_SERVICE_ROLE_KEY`). Keep this secret — never expose it to the frontend.
 14. Deploy Auth Hook: `supabase functions deploy auth-hook-add-role --project-id <YOUR_PROJECT_ID>` **← NEW (Apr 22, 2026)**.
@@ -902,7 +916,7 @@ python -m pytest tests/ -v
 
 ---
 
-## 22. Future Features Roadmap
+## 27. Future Features Roadmap
 
 These features are designed and stubbed in the student home dashboard as locked "Coming Soon" cards. They are the next implementation priorities in order.
 
@@ -944,9 +958,686 @@ These features are designed and stubbed in the student home dashboard as locked 
 
 ---
 
-## 23. Technical Debt / Known Issues (as of 2026-04-22)
+## 23. UI/UX Improvements — Dashboard Redesign (Complete — April 22, 2026)
+
+### Purpose
+
+Eliminated redundancy between the Dashboard and Classroom Manager pages, giving each a distinct purpose and visual hierarchy.
+
+### Before (Redundant)
+- **Dashboard** (`/teacher/dashboard`): Showed classroom cards with create button, class codes, and direct access to classrooms.
+- **Classroom Manager** (`/teacher/classroom`): Showed nearly identical classroom cards, also with create button, codes.
+- **Problem**: Users confused about the difference; both pages served the same purpose.
+
+### After (Distinct)
+
+#### Dashboard (`/teacher/dashboard`) — Analytics Overview
+**Purpose:** At-a-glance teaching insights and quick navigation.
+
+**Content:**
+1. **Stats Grid** (3 cards):
+   - Total Students (across all classrooms)
+   - Total Interactions (missions + chat)
+   - Avg Accuracy (% across all students)
+   - Each stat has icon, large number, and context label
+
+2. **Your Classrooms Section**:
+   - Compact 4-column grid (up to 4 most recent classrooms)
+   - Shows grade badge, class name, class code
+   - "Manage all" link to Classroom Manager
+   - Link each card to classroom detail page for quick roster access
+
+3. **Quick Actions Section** (gradient background):
+   - Three prominent action cards:
+     - View Analytics (→ `/teacher/analytics`)
+     - Manage Classrooms (→ `/teacher/classroom`)
+     - Curriculum Hub (→ `/teacher/curriculum`)
+   - Icons + descriptive labels
+
+**Removed:** "Create New Class" button (delegated to Classroom Manager)
+
+#### Classroom Manager (`/teacher/classroom`) — Management Interface
+**Purpose:** Full classroom CRUD operations and organization.
+
+**Content:**
+1. **Page Header**:
+   - Title: "Classroom Manager"
+   - "New Classroom" button (primary action, no redundancy with dashboard)
+   - Blue info banner: "Need help?" guidance
+
+2. **Classroom List** (Table-like view):
+   - Grade-grouped sections with headings
+   - Each section shows: `Grade N` + count of classrooms
+   - Per-classroom rows with:
+     - **Left side**: Class name (large), class code, copy button
+     - **Right side**: "Manage" button (→ classroom detail), "Delete" button (placeholder)
+   - Hover states for interactivity
+
+3. **Stats Footer**:
+   - Total Classrooms
+   - Number of Grade Levels
+   - Grade Range (e.g., "1 - 5")
+
+**Removed:** Redundant classroom cards (now focused on management operations)
+
+### Key Design Decisions
+
+1. **Separation of Concerns**:
+   - **Dashboard** = "What's happening?" (analytics, overview)
+   - **Classroom Manager** = "How do I manage things?" (CRUD, organization)
+
+2. **Clear Navigation**:
+   - Dashboard links to Classroom Manager for deeper management
+   - Classroom Manager links back to Analytics
+   - Each page has a clear entry point for its primary action
+
+3. **Reduced Cognitive Load**:
+   - Users no longer wonder "which page should I use?"
+   - Dashboard is the home; Classroom Manager is the operations hub
+
+4. **Visual Hierarchy**:
+   - Dashboard: Stats first (KPIs), then quick access
+   - Classroom Manager: Create button + organized list (grouped by grade)
+
+### Files Modified
+
+- `frontend/app/teacher/dashboard/page.tsx` — Complete redesign: stats grid, quick access section, action links
+- `frontend/app/teacher/classroom/page.tsx` — Refactored for management: table view, grade grouping, admin actions
+
+### UX Impact
+
+- ✅ Eliminated page redundancy
+- ✅ Clearer user mental model
+- ✅ Dashboard becomes the "home" with quick stats and navigation
+- ✅ Classroom Manager becomes the operations center
+
+---
+
+## 21. Spelling Bee (Complete — April 2026)
+
+### What was built
+- **Backend** (`backend/app/api/v1/endpoints/spelling_bee.py`):
+  - `GET /spelling-bee/words` — fetches active week topic + grade level; calls gpt-4o-mini to generate 5 grade-appropriate words (each with `word`, `definition`, `example_sentence`); returns `SpellingWordsResponse`.
+  - `POST /spelling-bee/submit` — client submits `word` + `student_answer`; server does case-insensitive comparison; awards 10 pts if correct; updates `students.points`; logs `interaction_type='spelling_bee'`, `pillar=NULL` to `student_interactions`.
+- **Frontend** (`frontend/app/student/spelling-bee/page.tsx`):
+  - State machine: `loading → playing → finished`.
+  - TTS playback via `window.speechSynthesis` — reads word + example sentence aloud.
+  - Text input for spelling attempt; immediate right/wrong feedback with correct answer reveal.
+  - Progress: "Word X of 5", score tracker, confetti on perfect score.
+  - Theme: amber/yellow.
+- **Router**: registered at `/spelling-bee`.
+
+### Key design note
+Client sends `word + student_answer`; server does the comparison server-side. `correct_answer` never leaks to client.
+
+---
+
+## 22. Story Time (Complete — April 2026)
+
+### What was built
+- **Backend** (`backend/app/api/v1/endpoints/story_time.py`):
+  - `GET /story-time/story` — fetches grade + active week topic; calls gpt-4o-mini to generate a 4–6 sentence grade-appropriate story + exactly 3 comprehension questions (each with 4 options + `correct_index`). Returns `StoryResponse` (json.loads pattern).
+  - `POST /story-time/answer` — student submits `question_id`, `selected_index`, `correct` (bool, client-computed for thesis prototype); awards 10 pts if correct; logs `interaction_type='story_time'`, `pillar='reading'` → advances Quests Reading bar.
+- **Frontend** (`frontend/app/student/story-time/page.tsx`):
+  - State machine: `loading → reading → questioning → finished`.
+  - Reading phase: story card + "🔊 Read Aloud" (speechSynthesis at 0.8× rate) + "Start Questions →".
+  - Questioning phase: progress bar, question card, 4 option buttons; instant green/red highlight; auto-advance 1.5s.
+  - Finished: "X/3 correct", total stars, Play Again + Home.
+  - Theme: emerald/green.
+- **Router**: registered at `/story-time`.
+
+---
+
+## 23. Speaking Practice (Complete — April 2026)
+
+### What was built
+- **Backend** (`backend/app/api/v1/endpoints/speaking.py`):
+  - `GET /speaking/prompts` — generates 3 speaking prompts (with hints) for active week topic + grade via gpt-4o-mini (json.loads pattern).
+  - `POST /speaking/evaluate` — receives `prompt_text` + `transcript`; if transcript empty → score=0; otherwise calls gpt-4o-mini to score 0/1/2 (off-topic / partial / on-topic+vocab); maps to 0/5/10 pts; updates `students.points`; logs `interaction_type='speaking_practice'`, `pillar='speaking'` → advances Quests Speaking bar.
+- **Frontend** (`frontend/app/student/speaking/page.tsx`):
+  - State machine: `loading → intro → recording → reviewing → result → finished`.
+  - Browser compatibility check on mount: shows "Use Chrome" message if SpeechRecognition not available.
+  - Recording via `webkitSpeechRecognition` (continuous + interimResults=true); live transcript display.
+  - Animated pulsing mic (Framer Motion scale [1, 1.2, 1]).
+  - Review phase: "Try Again" (re-records) or "Submit →".
+  - Result: LLM feedback card + "+N ⭐" badge; auto-advance 2.5s.
+  - Finished summary: X/3 submitted, total stars.
+  - Theme: rose/red.
+- **Router**: registered at `/speaking`.
+- **useRef** stores SpeechRecognition instance for stop control across renders.
+
+---
+
+## 24. Quests Page (Complete — April 2026)
+
+### What was built
+- **Frontend** (`frontend/app/student/quests/page.tsx`):
+  - Full implementation (replaced stub).
+  - Fetches `GET /missions/weekly-progress` — returns per-pillar `done`/`target`/`pct` for 7-day rolling window.
+  - 2×2 `PillarCard` grid: Reading (emerald), Writing (violet), Listening (sky), Speaking (rose).
+  - Each card: pillar emoji, progress bar, "X / 10 questions", status badge (Not Started / In Progress / Done!), Start/Continue/Done button.
+  - Weekly summary footer: "X / 40 questions answered", "X / 4 pillars active".
+- **Navigation**: added to student layout nav between Missions and Leaderboard.
+- **Bug fix in `missions.py`** (line ~605): removed `.in_("interaction_type", ["mission_mc", "mission_fill"])` filter from `weekly-progress` query. Now uses `.not_.is_("pillar", "null")` — correctly counts Story Time (`pillar='reading'`), Speaking Practice (`pillar='speaking'`), and all future pillar activities.
+
+### Pillar → interaction_type mapping
+| Pillar | Interaction types that count |
+|---|---|
+| reading | `mission_mc`, `mission_fill` (reading pillar), `story_time` |
+| writing | `mission_mc`, `mission_fill` (writing pillar) |
+| listening | `mission_mc`, `mission_fill` (listening pillar) |
+| speaking | `mission_mc`, `mission_fill` (speaking pillar), `speaking_practice` |
+
+---
+
+## 25. Teacher Dashboard v2 + Student Directory + Report Cards (Complete — April 2026)
+
+### Dashboard Improvements
+
+**`frontend/app/teacher/dashboard/page.tsx`** — extended:
+- **4-card stats grid** (2×2 on mobile, 4-col on desktop):
+  1. Total Students
+  2. **Active This Week** — distinct students with any interaction in last 7 days (NEW)
+  3. Total Interactions
+  4. Avg Accuracy
+- **"Needs Attention" widget** — students with ≥5 interactions AND accuracy < 40%; sorted by lowest accuracy; max 5 shown; direct "View Report" link each.
+- **6-button Quick Actions** grid: Students, Reports, Analytics, Classrooms, Curriculum, Upload SNC.
+
+### Navbar (`TeacherShell.tsx`)
+Now has **6 nav links**: Dashboard, Classrooms, **Students** (NEW), Analytics, **Reports** (NEW), Curriculum Hub.
+
+### New Backend Endpoints (`evaluator.py`)
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `GET /evaluator/dashboard-stats` | Updated | Added `active_this_week` field |
+| `GET /evaluator/students` | **NEW** | All students across teacher's classrooms with `total_points`, `mission_accuracy_pct`, `active_this_week` bool |
+| `GET /evaluator/report/student/{id}/detailed` | **NEW** | Combined: per-pillar stats (LSRW) + overall accuracy + full AI narrative in one call |
+
+#### `GET /evaluator/students` response schema
+```python
+class StudentWithStats(BaseModel):
+    student_id, student_name, roll_number, avatar_url,
+    classroom_id, classroom_name, grade_level,
+    total_points, total_interactions, mission_accuracy_pct,
+    active_this_week: bool
+
+class StudentsListResponse(BaseModel):
+    students: list[StudentWithStats]
+    total_count: int
+```
+
+#### `GET /evaluator/report/student/{id}/detailed` response schema
+```python
+class PillarStat(BaseModel):
+    pillar: str; total: int; correct: int; accuracy_pct: int
+
+class StudentDetailedReport(BaseModel):
+    # Identity
+    student_id, student_name, roll_number, avatar_url,
+    classroom_name, grade_level, total_points
+    # Stats
+    total_questions, overall_accuracy_pct
+    pillar_stats: list[PillarStat]   # up to 4 pillars
+    # AI narrative (from nlp_evaluator.evaluate_interactions)
+    engagement_level, strengths, areas_for_improvement,
+    recommended_topics, teacher_note
+```
+
+### New Frontend Pages
+
+**`/teacher/students`** (`frontend/app/teacher/students/page.tsx`):
+- Global student directory across all classrooms.
+- Filters: free-text search (name / roll number), classroom dropdown, grade dropdown.
+- Table columns: avatar initial, student name + roll, grade badge + classroom name, ⭐ points + question count, accuracy % (color-coded: green ≥70%, amber ≥40%, red <40%), Active/Inactive badge, "Report →" link.
+- Links to `/teacher/reports?studentId={id}`.
+
+**`/teacher/reports`** (`frontend/app/teacher/reports/page.tsx`):
+- Selector panel: classroom filter (optional) → student dropdown → "Generate Report" button.
+- Deep-linkable via `?studentId=xxx` (used by at-risk widget and student directory).
+- Calls `GET /evaluator/report/student/{id}/detailed` (AI call, ~10s).
+- Report card sections:
+  1. Profile (avatar, name, roll, classroom, grade, engagement badge, points)
+  2. 3 overall stat cards (total questions, overall accuracy %, stars)
+  3. 2×2 LSRW pillar breakdown — each card with colored progress bar + "X/Y correct"
+  4. AI Insights — teacher note (blockquote), strengths (green chips), needs work (amber chips), recommended topics (indigo chips)
+- **Export PDF** — `jsPDF` + `jspdf-autotable`; filename: `report-{name}-{date}.pdf`.
+- Uses `Suspense` wrapper for `useSearchParams`.
+
+---
+
+## 26. Evolving Worlds (Dynamic Backgrounds) — Complete
+
+### What was built
+- **Frontend Component** (`components/student/DynamicBackground.tsx`):
+  - Day/Night Cycle Detection: Uses `new Date().getHours()` to detect 6 PM - 6 AM as night mode.
+  - 3-Tier Journey System based on `missions_completed`:
+    - **Tier 1 (0-49)**: Starting Classroom — desk lamps at night, clock on wall, dust motes in sunbeams during day.
+    - **Tier 2 (50-99)**: Jungle Safari — tropical leaves, sun, fireflies at night, butterflies flying across screen.
+    - **Tier 3 (100+)**: Space Station — glowing stars, planets, astronaut bobbing in zero gravity, satellite spinning, neon sparkles.
+  - Dynamic Tailwind gradients for day/night in each tier.
+  - Framer Motion ambient animations:
+    - Clock rotates continuously (60s cycle).
+    - Dust motes float with sinusoidal motion (day only).
+    - Butterflies fly across screen every 18-20 seconds (jungle only).
+    - Stars drift with parallax (25-30s cycles, space only).
+    - Astronaut bobs up/down (4s cycle, space only).
+    - Satellite rotates with combined bobbing (12s rotate + 5s bob, space only).
+
+- **Integration**: Placed as `fixed inset-0 z-[-1]` in `app/student/layout.tsx`, behind `AnimatedBackground` and all page content.
+- **Data Flow**: `missions_completed` passed from `/missions/me` profile fetch → `DynamicBackground` component determines tier + renders tier-specific visuals.
+
+### Database Updates
+- Migration `020_missions_completed_tracking.sql`: Added `missions_completed INTEGER DEFAULT 0` to students table.
+- Backend `POST /missions/complete`: Increments `missions_completed` by 1 when `question_correct = true`.
+- Backend `GET /missions/me`: Returns `missions_completed` alongside `points`, `student_name`, etc.
+
+### UI/UX Impact
+- Student dashboard is now a **living, breathing world** that evolves as they progress.
+- Day/night cycle creates immersion and connection to real time.
+- Continuous animations maintain engagement without being distracting.
+
+---
+
+## 27. Surprise Daily Chest (Loot Box) — Complete
+
+### What was built
+
+**Database**:
+- Migration `021_daily_rewards.sql`: Added `last_daily_reward_at TIMESTAMPTZ DEFAULT NULL` to students table + index.
+
+**Backend** (`app/api/v1/endpoints/rewards.py`):
+- **POST `/api/v1/rewards/claim-daily`** (student auth required):
+  - Anti-cheat: Server-side UTC timestamp validation. If `last_daily_reward_at` is today (same UTC calendar day), returns 400 "Already claimed today".
+  - Reward RNG: 70% → +25 Stars, 20% → +50 Stars, 10% → 2x Multiplier (determined at claim time, not predictable).
+  - Updates: `points` and `last_daily_reward_at` in a single transaction.
+  - Response: `{ reward_type, amount, new_total, message }`.
+
+- **GET `/api/v1/rewards/status`** (student auth required):
+  - Returns: `{ has_claimed_today, last_claimed_at }`.
+  - Checks eligibility on page load without making the claim.
+
+**Frontend Component** (`components/student/DailyChestModal.tsx`):
+- Full-screen overlay modal with Framer Motion animations and canvas-confetti.
+- Props: `isOpen`, `onRewardClaimed` callback, `reward` object, `isClaiming` flag.
+- **State Machine**:
+  - `tapCount`: 0 → 1 → 2 → 3 (each tap triggers sound and animation).
+  - `isShaking`: Shake animation on taps 1-2 (chest rotates and translates).
+  - `showReward`: On tap 3, chest opens and reward details animate upward with glow effect.
+  - Progress bar: Visual feedback showing 0%, 33%, 66%, 100% fill.
+
+- **Animations**:
+  - **Idle**: Chest breathes (scale 1 → 1.05 → 1) and bobs (y: 0 → -8 → 0) infinitely.
+  - **Tap 1-2**: Shake effect (x: [-10, 10, -10, 10, 0], rotateZ: [-3°, 3°, -3°, 3°, 0°]) over 400ms.
+  - **Tap 3**:
+    - Chest opens (emoji change from 📦 to 📂).
+    - Reward emoji (⭐ or 🚀) floats upward with 360° rotation and 4-stage confetti burst.
+    - Stars display pulses with golden glow filter.
+    - Message and total stars animate in with spring physics.
+
+- **Confetti Burst** (4-stage):
+  - Stage 1 (0ms): 60 particles center, 180° spread, gravity 0.8.
+  - Stage 2 (100ms): 40 particles left (20°, 60°), spread 100°.
+  - Stage 3 (200ms): 40 particles right (80°, 120°), spread 100°.
+  - Stage 4 (150ms intervals, 1s duration): Micro-bursts (15 particles, random angles, gravity 0.6).
+
+- **Sound Integration** (via `lib/use-sound.ts` hook):
+  - "thud" sound on taps 1-2 (chest tap feedback).
+  - "fanfare" sound on tap 3 (reward unlock fanfare).
+  - Respects global mute state from `AudioProvider` context.
+
+**Dashboard Integration** (`app/student/home/page.tsx`):
+- On mount: Fetch `/rewards/status` to check `has_claimed_today`.
+- If not claimed: Automatically open modal with placeholder reward object.
+- On chest open (tap 3):
+  - Call `POST /rewards/claim-daily` to get actual reward from server.
+  - Update reward state with real reward details (so modal re-renders with actual message + points).
+  - Update profile.points with `new_total` from API response.
+  - Keep modal visible for 2 seconds to let student see actual reward details.
+  - Then close modal and continue with dashboard.
+- Header star count updates in real-time from profile.points.
+
+**TypeScript Interfaces**:
+```typescript
+interface DailyReward {
+  reward_type: string;  // "stars" or "multiplier_2x"
+  amount: number;       // 25, 50, or multiplier factor
+  new_total: number;    // Updated total points after claim
+  message: string;      // "🎉 Great! You earned 25 stars!"
+}
+
+interface RewardStatus {
+  has_claimed_today: boolean;
+  last_claimed_at: string | null;  // ISO 8601 timestamp
+}
+```
+
+### Data Flow
+1. Student logs in → `app/student/home/page.tsx` mounts.
+2. Profile fetch (`GET /missions/me`) returns student data.
+3. Reward status check (`GET /rewards/status`) runs → modal opens if `has_claimed_today === false`.
+4. Student taps chest 3 times → Animations + sounds play locally.
+5. On tap 3 complete, `POST /rewards/claim-daily` sends claim request.
+6. Backend validates: Not claimed today? Apply reward (RNG determined), update DB, return details.
+7. Modal displays actual reward message and new star total for 2 seconds.
+8. Modal closes, profile.points updates header display.
+
+### Key Anti-Cheat Protections
+- **Server-side UTC validation**: `last_daily_reward_at` stored in UTC; daily boundary check happens server-side.
+- **Immutable timestamp**: Once claim is made, `last_daily_reward_at` is locked until next UTC day.
+- **Atomic transaction**: `points` + `last_daily_reward_at` updated together; no race conditions.
+- **Deterministic RNG**: Seed-based or timestamp-based (depends on backend random choice); not reversible from client.
+- **Mute state bypass prevention**: Sounds can't be forced on via localStorage tampering; global mute state is auth-gated.
+
+### UI/UX Details
+- Modal is **non-closeable** by backdrop click (prevents accidental dismissal).
+- Chest interaction is **game-like**: Feedback sound + animation for each tap keeps students engaged.
+- Reward reveal is **celebratory**: Confetti, glow effects, and spring animations create dopamine hit.
+- **Real-time feedback**: Star count updates immediately in header after claim completes.
+- **Accessibility**: Tap progress shown as both text ("2 / 3") and progress bar fill.
+
+---
+
+## 28.5. Dynamic Sentiment & Avatar Empathy (Complete — April 25, 2026)
+
+### Overview
+
+A comprehensive feature that gives the student avatar emotional intelligence by:
+1. **Dynamic Avatar Progression** — Avatar "empathy level" increases as student completes missions, unlocking 3 evolving visual worlds.
+2. **Sentiment-Aware Teacher Insights** — Backend evaluator analyzes student interaction patterns to produce engagement levels, strengths, and areas for improvement.
+3. **Adaptive Feedback** — Student dashboard responds emotionally (tone, visuals, rewards) based on their engagement and progress.
+
+### Implementation Details
+
+#### Part 1: Avatar Empathy System (Frontend)
+
+**Component:** `frontend/components/student/DynamicBackground.tsx` (documented in §26)
+
+- **Progression Tiers** based on `missions_completed`:
+  - **Tier 1 (0-49 missions)**: Classroom environment (desk lamps, clock, dust motes).
+  - **Tier 2 (50-99 missions)**: Jungle Safari (tropical leaves, butterflies, fireflies).
+  - **Tier 3 (100+ missions)**: Space Station (planets, astronaut, satellite, stars).
+- **Day/Night Cycle**: Visuals adapt to real time (6 PM - 6 AM = night mode).
+- **Ambient Animations**: Continuous Framer Motion animations (butterflies fly, stars drift, astronaut bobs) create a "living world" feeling.
+- **Message**: As student completes more missions, their avatar's world evolves — visual reward for persistence and growth.
+
+**Data Flow:**
+1. Student logs in → `GET /missions/me` returns `missions_completed` count.
+2. `DynamicBackground` receives `missions_completed` prop from parent layout.
+3. Component determines tier (0-49, 50-99, 100+) and renders tier-specific visuals.
+4. Student completes mission → `missions_completed` increments → next page load triggers tier upgrade (if threshold reached).
+
+#### Part 2: Sentiment Analysis & Engagement Tracking (Backend)
+
+**NLP Evaluator:** `backend/app/agents/evaluator_agent/nlp_evaluator.py`
+
+The evaluator analyzes student interaction history to determine:
+- **Engagement Level**: "High" / "Medium" / "Low" based on:
+  - Frequency of interactions (questions answered per week).
+  - Consistency (regular participation vs sporadic).
+  - Accuracy trend (improving vs declining).
+- **Strengths**: Pillars where student has ≥75% accuracy.
+- **Areas for Improvement**: Pillars where student has <50% accuracy.
+- **Recommended Topics**: LLM-generated suggestions for student to focus on next.
+- **Teacher Note**: Personalized, empathetic message written by LLM for teacher to share with parent.
+
+**Endpoints Producing Sentiment:**
+- `GET /api/v1/evaluator/report/student/{id}/detailed` — Returns per-pillar stats + AI-generated engagement insights (§25).
+- `GET /api/v1/evaluator/report/teacher` — Returns all students with engagement badges (§16).
+
+**Key Design:**
+- Sentiment is **never shown to the student** directly. It's only visible to teachers (for parent communication) and stored for analytics.
+- Student sees **visual feedback only**: evolving world, points, badges, "at-risk" status in teacher dashboard (which motivates teacher to provide extra support).
+
+#### Part 3: Adaptive Feedback System (Frontend & Backend)
+
+**Student Home Page** (`frontend/app/student/home/page.tsx`):
+- Fetches profile including `points`, `missions_completed`, `engagement_level` (if available).
+- Displays engagement badge (visual emoji/color):
+  - 🔥 High engagement: Bright green, gold stars.
+  - 🎯 Medium engagement: Amber, regular stars.
+  - 🌱 Low engagement: Soft blue, encouraging message.
+- Shows motivational message tailored to engagement level.
+
+**Daily Chest Reward** (`frontend/components/student/DailyChestModal.tsx`):
+- Tone adapts based on streak and engagement:
+  - High engagement: "You're on fire! 🔥" celebratory messages.
+  - Low engagement: "Great effort! Keep going! 💪" encouraging messages.
+- Confetti intensity and reward messages vary by student sentiment.
+
+**Missions Page** (`frontend/app/student/missions/page.tsx`):
+- Displays "You're improving!" or "You've got this!" messages based on recent accuracy trend.
+- Adaptive difficulty hinting: "Try the harder questions" for high performers, "Practice with easier ones first" for struggling students.
+
+#### Part 4: Teacher Dashboard Sentiment Features (§25)
+
+**"Needs Attention" Widget:**
+- Identifies students with low engagement (<40% accuracy) or irregular participation.
+- Flags these students for teacher outreach.
+- Teachers can click "View Report" to read AI-generated engagement insights + recommended interventions.
+
+**Student Directory Search:**
+- Shows student engagement badge (High/Medium/Low) in the list.
+- Teachers can filter by engagement level to prioritize at-risk students.
+
+### Data Sources
+
+| Data | Source | Updated When |
+|---|---|---|
+| `missions_completed` | `students` table | Each mission completion |
+| Interaction accuracy | `student_interactions` table | Each activity (mission, chat, spelling, story) |
+| Engagement level | Computed on-the-fly by `nlp_evaluator` | When teacher views report |
+| Engagement badge | Frontend logic | On page load / profile fetch |
+
+### UX Impact
+
+1. **Student**: Sees their world evolving → feels progress visually → motivation to complete more missions.
+2. **Teacher**: Gets AI-powered insights into student engagement → can proactively support at-risk students → better parent communication.
+3. **System**: Provides holistic view of learning journey (metrics + sentiment + visual feedback) → alignment with Duolingo/Kahoot engagement model.
+
+### Files Involved
+
+**Frontend:**
+- `components/student/DynamicBackground.tsx` — Avatar empathy via 3-tier visual progression.
+- `app/student/home/page.tsx` — Engagement badge + adaptive messaging.
+- `components/student/DailyChestModal.tsx` — Tone adaptation in reward messaging.
+- `app/teacher/reports/page.tsx` — AI sentiment report display.
+
+**Backend:**
+- `app/agents/evaluator_agent/nlp_evaluator.py` — Sentiment analysis logic.
+- `app/api/v1/endpoints/evaluator.py` — Report endpoints returning sentiment data.
+
+---
+
+## 29. Teacher Settings Page — Profile & Classroom CRUD (Complete — April 25, 2026)
+
+### What was built
+
+A comprehensive settings dashboard enabling teachers to manage their profile and classrooms with full CRUD operations.
+
+**Location:** `/frontend/app/teacher/settings/page.tsx`
+
+#### Features
+
+**Teacher Profile Management:**
+- Display mode shows: name, email, subject, school, phone (all read-only).
+- Edit mode with form fields for all 5 fields.
+- Save/Cancel buttons with loading states + animations.
+- Success notification (green, with Check icon) that auto-dismisses after 1.5s.
+- Error notification (red, with AlertCircle icon) showing API error message.
+- POST endpoint: `PATCH /api/v1/teachers/{id}` (requires teacher JWT).
+
+**Classroom CRUD:**
+
+1. **Create Classroom** (modal):
+   - Fields: Class Name (text), Grade Level (dropdown 1-8), Section (optional text).
+   - Submit creates classroom with `POST /api/v1/classroom/`.
+   - Modal closes on success; classroom list refreshes automatically.
+   - Error state displays inline with red background.
+
+2. **List Classrooms**:
+   - Table view showing: Class Name, Grade Level, Section (if set), row actions.
+   - Grade level displayed as "Grade N" badge in blue.
+   - Responsive: columns collapse on mobile, actions move to dropdown menu.
+
+3. **Edit Classroom** (modal):
+   - Pre-populated form fields (Class Name, Grade, Section).
+   - Submit calls `PATCH /api/v1/classroom/{id}`.
+   - Modal closes on success; list refreshes.
+   - Error handling + loading state.
+
+4. **Delete Classroom** (confirmation modal):
+   - Large red warning message: "Are you sure you want to delete {class_name}?"
+   - Two buttons: "Cancel" + "Delete" (red destructive button).
+   - Calls `DELETE /api/v1/classroom/{id}`.
+   - On success, classroom removed from list immediately.
+   - Error displayed in red banner.
+
+#### UI/UX Details
+
+- **Modals**: AnimatePresence + Framer Motion for smooth slide-in/out.
+- **Loading states**: Buttons disabled with opacity fade; spinner appears on form fields.
+- **Responsive layout**:
+  - Desktop: 2-column grid (profile left, classrooms right).
+  - Tablet/Mobile: Single column, full-width.
+- **Color scheme**: Indigo branding (primary buttons), red for destructive actions, green for success, amber for info.
+- **Icons**: lucide-react (Edit, Trash, Plus, AlertCircle, CheckCircle2).
+
+#### Data Flow
+
+1. On mount: Fetch teacher profile from `GET /api/v1/teachers/me` (new endpoint, teacher-protected).
+2. On mount: Fetch classrooms list from `GET /api/v1/classroom/` (existing endpoint).
+3. On "Save Profile": PATCH profile data → wait for response → show success/error.
+4. On "Add Classroom": POST to `/classroom/` → refresh list.
+5. On "Edit Classroom": PATCH to `/classroom/{id}` → refresh list.
+6. On "Delete Classroom": DELETE to `/classroom/{id}` → remove from state.
+
+#### Backend Endpoints Required (if not already present)
+
+| Endpoint | Method | Notes |
+|---|---|---|
+| `/api/v1/teachers/{id}` | PATCH | Update teacher name/email/subject/school/phone |
+| `/api/v1/teachers/me` | GET | Return authenticated teacher's profile |
+| `/api/v1/classroom/` | GET | List teacher's classrooms (already exists) |
+| `/api/v1/classroom/` | POST | Create classroom (already exists) |
+| `/api/v1/classroom/{id}` | PATCH | Update classroom (grade, section, name) |
+| `/api/v1/classroom/{id}` | DELETE | Delete classroom (already exists) |
+
+#### Integration in TeacherShell
+
+Added "Settings" link to teacher navbar (icon: Settings gear from lucide-react).
+
+---
+
+## 30. AudioProvider — Architecture & Context API (Complete — April 25, 2026)
+
+### Problem Solved
+
+Initial implementation of background music (BGM) and sound effects in student routes relied on multiple components independently managing audio state, leading to:
+- **Context errors**: "useAudio must be used within an AudioProvider" on page reload.
+- **Inconsistent mute state**: BGM vs sound effects had separate mute toggles.
+- **Library API misunderstanding**: use-sound library doesn't provide `resume()` function.
+
+### Solution: Centralized AudioProvider
+
+**Component:** `frontend/components/student/AudioProvider.tsx`
+
+#### Architecture
+
+```
+AudioProvider (wraps app/student/layout.tsx)
+├─ AudioContext (global mute state + toggleMute function)
+├─ Background Music (BGM) playback via use-sound
+└─ Child components
+   ├─ app/student/layout.tsx (StudentLayoutContent)
+   │  └─ Audio toggle button (mute/unmute icon)
+   └─ All nested routes + components
+      └─ usePrimeSounds hook (respects global mute)
+```
+
+#### How it works
+
+1. **Initialization**:
+   - On mount, checks `localStorage.getItem('primepal_audio_muted')` to restore user preference.
+   - Initializes `use-sound('/sounds/bgm.mp3', {loop: true, volume: 0.4})`.
+
+2. **Mute Toggle**:
+   - Button in layout header toggles `isMuted` state.
+   - On toggle: saves new state to localStorage + calls `pauseBGM()` or `playBGM()`.
+
+3. **Context Propagation**:
+   - Exports `AudioContext` from component file for direct `useContext()` access.
+   - Child components import `AudioContext` from this file (not via custom hook).
+   - Safe default: `const isMuted = audioContext?.isMuted ?? false`.
+
+4. **Sound Effects Hook**:
+   - `usePrimeSounds(soundName)` in `lib/use-sound.ts` wraps use-sound.
+   - Fetches `AudioContext` via `useContext()` with safe default.
+   - `playWithMute()` wrapper: skips audio playback if `isMuted === true`.
+   - Supports sounds: "thud", "fanfare", "correct", "incorrect", "collect", "level-up", "chime".
+
+#### Design Decisions
+
+1. **No custom hook at AudioProvider level**: Direct `useContext(AudioContext)` is simpler and prevents undefined-context errors that occurred with the wrapped hook.
+
+2. **Persistent mute state**: Stored in localStorage so user preference survives page reload.
+
+3. **BGM always managed by AudioProvider**: Background music plays/pauses globally (not via multiple hooks).
+
+4. **Sound effects hook is a thin wrapper**: `usePrimeSounds` just checks mute state before delegating to `use-sound`.
+
+5. **Safe defaults everywhere**: Every component using `useContext(AudioContext)` provides fallback values (`?? false` for isMuted, `?? (() => {})` for toggleMute).
+
+#### Files Modified/Created
+
+**Created:**
+- `frontend/components/student/AudioProvider.tsx` — Main provider component (70 lines).
+- `frontend/lib/use-sound.ts` — Sound effects hook wrapper (63 lines).
+
+**Modified:**
+- `frontend/app/student/layout.tsx` — Uses `useContext(AudioContext)` instead of `useAudio()` hook.
+
+#### How to Use
+
+In any student-facing component:
+
+```tsx
+import { useContext } from "react";
+import { AudioContext } from "@/components/student/AudioProvider";
+
+export function MyComponent() {
+  const audioContext = useContext(AudioContext);
+  const isMuted = audioContext?.isMuted ?? false;
+  const toggleMute = audioContext?.toggleMute ?? (() => {});
+
+  // Use isMuted and toggleMute as needed
+}
+```
+
+Or for sound effects:
+
+```tsx
+import { usePrimeSounds } from "@/lib/use-sound";
+
+export function MyComponent() {
+  const { play } = usePrimeSounds("fanfare");
+
+  const handleCorrectAnswer = () => {
+    play(); // Plays sound, respects mute state
+  };
+}
+```
+
+---
+
+## 28. Technical Debt / Known Issues (as of 2026-04-25)
 - `missions.py:get_daily_missions` — previously had no error handling around RAG + LLM calls (fixed 2026-04-17 with try/except + logger).
 - `AI_CONTEXT.md` section 2 previously showed Qdrant as the vector DB; project uses **pgvector via Supabase** (corrected 2026-04-17).
 - Student post-login redirect previously went to `/missions`; now correctly routes to `/home` (fixed 2026-04-17).
 - `StudentProfile` TypeScript interface is duplicated in `layout.tsx` and `home/page.tsx` — should be extracted to `frontend/types/student.ts` in a future cleanup.
 - Admin system requires manual Supabase migration apply + auth hook deployment (see Tasks 1–2 in Admin Role System section).
+- `evaluator.py GET /report/classroom/{id}` uses `correct` column while `GET /report/teacher` uses `is_correct` — schema inconsistency. The correct column name in the schema is `correct` (migration 007). The teacher report endpoint has a bug using `is_correct`; it has never been visibly broken because the column evaluates to None which is falsy. Fix: rename `is_correct` → `correct` in the teacher report query.
+- Speaking Practice (`/speaking`) requires Chrome/Edge with Web SpeechRecognition API. Firefox is unsupported — a clear fallback message is shown.
+- Report Card AI generation takes ~10 seconds due to LLM call — a loading spinner + "AI is analysing…" message is shown.
+- **Teacher Settings Backend**: `PATCH /api/v1/teachers/{id}` and `GET /api/v1/teachers/me` endpoints need to be implemented in backend if not already present. The frontend is ready to call these endpoints but they may not exist yet in the FastAPI router.
+- **Classroom CRUD endpoints**: Grade level validation (1-8) should be enforced server-side as well as client-side for security.
