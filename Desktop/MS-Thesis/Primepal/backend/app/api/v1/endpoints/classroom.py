@@ -32,6 +32,7 @@ from app.schemas.classroom import (
     StudentResponse,  # noqa: F401 — referenced via ClassroomDetail
     StudentUpdate,
 )
+from app.utils.code_generation import generate_memorable_code
 
 router = APIRouter()
 
@@ -87,21 +88,45 @@ async def create_classroom(
             detail=f"You already have a '{class_name}' classroom in Grade {request.grade_level}. Each section can only exist once per grade."
         )
 
-    result = (
-        supabase.table("classrooms")
-        .insert({
-            "teacher_id": teacher["id"],
-            "class_name": class_name,
-            "grade_level": request.grade_level,
-            "section": request.section,
-        })
-        .execute()
-    )
-    if not result.data:
-        # Check if error is due to unique constraint violation
+    # Generate memorable class code with retry for uniqueness
+    max_retries = 10
+    result = None
+    for attempt in range(max_retries):
+        # Generate a new memorable code
+        class_code = generate_memorable_code(request.grade_level, class_name)
+
+        # Check if this code already exists
+        code_check = (
+            supabase.table("classrooms")
+            .select("id")
+            .eq("class_code", class_code)
+            .execute()
+        )
+
+        # If code doesn't exist, try to insert
+        if not code_check.data:
+            try:
+                result = (
+                    supabase.table("classrooms")
+                    .insert({
+                        "teacher_id": teacher["id"],
+                        "class_name": class_name,
+                        "grade_level": request.grade_level,
+                        "section": request.section,
+                        "class_code": class_code,
+                    })
+                    .execute()
+                )
+                if result.data:
+                    break  # Success, exit retry loop
+            except Exception:
+                # Continue to next attempt if insert fails
+                continue
+
+    if not result or not result.data:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create classroom. This section may already exist for this grade.",
+            detail="Failed to create classroom. Could not generate a unique class code.",
         )
 
     classroom_id = result.data[0]["id"]
