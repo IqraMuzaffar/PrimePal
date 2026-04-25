@@ -300,7 +300,7 @@ export default function AnnouncementsPage() {
                       className="w-full text-sm border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
                     >
                       <option value="">-- Choose a grade --</option>
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map((grade) => (
+                      {[1, 2, 3, 4, 5].map((grade) => (
                         <option key={grade} value={grade}>
                           Grade {grade}
                         </option>

@@ -19,7 +19,7 @@ from langchain.prompts import ChatPromptTemplate
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/announcements", tags=["announcements"])
+router = APIRouter()
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Pydantic Models
@@ -194,10 +194,10 @@ async def create_announcement(
                 detail="You do not have permission to post announcements to this classroom"
             )
     elif body.scope == "grade_level":
-        if body.target_grade_level is None or body.target_grade_level < 1 or body.target_grade_level > 8:
+        if body.target_grade_level is None or body.target_grade_level < 1 or body.target_grade_level > 5:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="target_grade_level must be between 1 and 8"
+                detail="target_grade_level must be between 1 and 5"
             )
     elif body.scope == "school_wide":
         # No additional validation needed for school-wide
