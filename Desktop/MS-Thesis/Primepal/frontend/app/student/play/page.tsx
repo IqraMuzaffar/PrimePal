@@ -106,12 +106,12 @@ export default function StudentPlayPage() {
 
               <motion.button
                 type="submit"
-                disabled={loading || classCode.trim().length === 0}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                disabled={loading || classCode.trim().length !== 6}
+                whileHover={{ scale: classCode.trim().length === 6 ? 1.02 : 1 }}
+                whileTap={{ scale: classCode.trim().length === 6 ? 0.98 : 1 }}
                 className="w-full bg-indigo-600 text-white font-extrabold text-2xl py-5 rounded-2xl
                            shadow-[0_5px_0_#3730a3]
-                           disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none
+                           disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:brightness-100
                            transition-all duration-100 flex items-center justify-center gap-2"
               >
                 {loading ? <Loader2 size={28} className="animate-spin" /> : "Let's Go! 🚀"}
