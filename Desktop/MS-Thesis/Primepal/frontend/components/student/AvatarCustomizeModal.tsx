@@ -72,6 +72,7 @@ export default function AvatarCustomizeModal({
       onSave(selectedStyle, selectedColor);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Could not save. Try again.");
+    } finally {
       setSaving(false);
     }
   }
