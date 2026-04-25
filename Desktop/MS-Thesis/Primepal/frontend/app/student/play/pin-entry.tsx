@@ -31,13 +31,8 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
 
-  // Auto-submit when 4 digits entered
-  useEffect(() => {
-    if (digits.length === 4 && !loading) {
-      submitPin(digits.join(""));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [digits]);
+  // Remove auto-submit — user must click "Let's Go" button
+  // (Keeping digits state and effect structure for clarity)
 
   async function submitPin(pin: string) {
     setLoading(true);
@@ -197,6 +192,24 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
           );
         })}
       </div>
+
+      {/* Let's Go Button — Enabled only when 4 digits entered */}
+      <button
+        onClick={() => submitPin(digits.join(""))}
+        disabled={digits.length !== 4 || loading}
+        className="w-full h-14 rounded-2xl bg-green-500 text-white font-extrabold text-lg
+                   shadow-[0_4px_0_#15803d] hover:brightness-110
+                   active:translate-y-[4px] active:shadow-none
+                   disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0 disabled:brightness-100
+                   transition-all duration-75"
+        aria-label="Enter classroom"
+      >
+        {loading ? (
+          <Loader2 size={20} className="animate-spin mx-auto" />
+        ) : (
+          "Let's Go! 🚀"
+        )}
+      </button>
     </div>
   );
 }
