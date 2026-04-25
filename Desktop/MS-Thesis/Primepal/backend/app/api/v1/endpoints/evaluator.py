@@ -8,6 +8,11 @@ Endpoints:
   GET /api/v1/evaluator/report/classroom/{classroom_id}
       → Return a summary roster of all students with their interaction counts
         and accuracy rates (teacher-protected). No LLM call — pure DB aggregation.
+
+  GET /api/v1/evaluator/dashboard-stats
+      → Return aggregate statistics for the teacher's dashboard: total students,
+        total interactions, and average accuracy across all their classrooms.
+        Teacher-protected, computed from real database data.
 """
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -30,6 +35,8 @@ class StudentSummary(BaseModel):
     student_id: str
     student_name: str
     avatar_url: str | None
+    roll_number: str | None = None
+    email: str | None = None
     total_interactions: int
     mission_accuracy_pct: int   # 0-100
 
@@ -148,7 +155,7 @@ async def classroom_report(
     # ------------------------------------------------------------------
     students_resp = (
         supabase.table("students")
-        .select("id, student_name, avatar_url")
+        .select("id, student_name, avatar_url, roll_number, email")
         .eq("classroom_id", classroom_id)
         .execute()
     )
@@ -177,6 +184,8 @@ async def classroom_report(
                 student_id=sid,
                 student_name=s["student_name"],
                 avatar_url=s.get("avatar_url"),
+                roll_number=s.get("roll_number"),
+                email=s.get("email"),
                 total_interactions=total,
                 mission_accuracy_pct=accuracy,
             )
@@ -220,7 +229,7 @@ async def get_teacher_report(teacher: dict = Depends(get_current_teacher)):
     # 2. Fetch all students in these classrooms
     stu_res = (
         supabase.table("students")
-        .select("id, student_name, avatar_url, classroom_id")
+        .select("id, student_name, avatar_url, classroom_id, roll_number, email")
         .in_("classroom_id", classroom_ids)
         .execute()
     )
@@ -261,6 +270,8 @@ async def get_teacher_report(teacher: dict = Depends(get_current_teacher)):
             "student_id": s["id"],
             "student_name": s["student_name"],
             "avatar_url": s["avatar_url"],
+            "roll_number": s.get("roll_number"),
+            "email": s.get("email"),
             "total_interactions": stats[s["id"]]["total"],
             "mission_accuracy_pct": accuracy(s["id"]),
         })
@@ -276,3 +287,359 @@ async def get_teacher_report(teacher: dict = Depends(get_current_teacher)):
         for c in classrooms
     ]
     return {"classrooms": result_classrooms}
+
+
+# ---------------------------------------------------------------------------
+# GET /dashboard-stats
+# ---------------------------------------------------------------------------
+
+class DashboardStatsResponse(BaseModel):
+    total_students: int
+    total_interactions: int
+    avg_accuracy: float
+    active_this_week: int  # students with any interaction in the last 7 days
+
+
+@router.get(
+    "/dashboard-stats",
+    response_model=DashboardStatsResponse,
+    summary="Teacher dashboard statistics (real data)",
+)
+async def get_dashboard_stats(teacher: dict = Depends(get_current_teacher)):
+    """
+    Returns aggregate statistics for the teacher's dashboard:
+    - total_students: Count of all students in this teacher's classrooms
+    - total_interactions: Count of all student interactions in this teacher's classrooms
+    - avg_accuracy: Percentage of correct interactions across all students
+    - active_this_week: Count of students with at least one interaction in the last 7 days
+
+    Teacher authentication required (Supabase GoTrue JWT).
+    """
+    from datetime import datetime, timedelta, timezone
+    supabase = get_supabase_admin()
+    teacher_id: str = teacher["id"]
+
+    cls_res = (
+        supabase.table("classrooms")
+        .select("id")
+        .eq("teacher_id", teacher_id)
+        .execute()
+    )
+    classrooms = cls_res.data or []
+
+    if not classrooms:
+        return DashboardStatsResponse(
+            total_students=0,
+            total_interactions=0,
+            avg_accuracy=0.0,
+            active_this_week=0,
+        )
+
+    classroom_ids = [c["id"] for c in classrooms]
+
+    stu_res = (
+        supabase.table("students")
+        .select("id")
+        .in_("classroom_id", classroom_ids)
+        .execute()
+    )
+    students = stu_res.data or []
+    total_students = len(students)
+
+    if students:
+        student_ids = [s["id"] for s in students]
+        int_res = (
+            supabase.table("student_interactions")
+            .select("student_id, correct")
+            .in_("student_id", student_ids)
+            .execute()
+        )
+        interactions = int_res.data or []
+        total_interactions = len(interactions)
+
+        if total_interactions > 0:
+            correct_count = sum(1 for r in interactions if r.get("correct") is True)
+            avg_accuracy = round((correct_count / total_interactions) * 100, 2)
+        else:
+            avg_accuracy = 0.0
+
+        # Active this week: distinct students with any interaction in last 7 days
+        seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        week_res = (
+            supabase.table("student_interactions")
+            .select("student_id")
+            .in_("student_id", student_ids)
+            .gte("created_at", seven_days_ago)
+            .execute()
+        )
+        active_this_week = len({r["student_id"] for r in (week_res.data or [])})
+    else:
+        total_interactions = 0
+        avg_accuracy = 0.0
+        active_this_week = 0
+
+    return DashboardStatsResponse(
+        total_students=total_students,
+        total_interactions=total_interactions,
+        avg_accuracy=avg_accuracy,
+        active_this_week=active_this_week,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /students  — global student directory with stats
+# ---------------------------------------------------------------------------
+
+class StudentWithStats(BaseModel):
+    student_id: str
+    student_name: str
+    roll_number: str | None
+    avatar_url: str | None
+    classroom_id: str
+    classroom_name: str
+    grade_level: int
+    total_points: int
+    total_interactions: int
+    mission_accuracy_pct: int  # 0-100
+    active_this_week: bool
+
+
+class StudentsListResponse(BaseModel):
+    students: list[StudentWithStats]
+    total_count: int
+
+
+@router.get(
+    "/students",
+    response_model=StudentsListResponse,
+    summary="All students across teacher's classrooms with stats",
+)
+async def list_all_students(teacher: dict = Depends(get_current_teacher)):
+    """
+    Returns every student across all the teacher's classrooms with aggregated
+    stats: total_points, total_interactions, mission_accuracy_pct, active_this_week.
+    Used by the global Students directory and At-Risk widget.
+    """
+    from datetime import datetime, timedelta, timezone
+    from collections import defaultdict
+
+    supabase = get_supabase_admin()
+    teacher_id: str = teacher["id"]
+
+    # 1. Fetch teacher's classrooms
+    cls_res = (
+        supabase.table("classrooms")
+        .select("id, class_name, grade_level")
+        .eq("teacher_id", teacher_id)
+        .execute()
+    )
+    classrooms = cls_res.data or []
+    if not classrooms:
+        return StudentsListResponse(students=[], total_count=0)
+
+    classroom_map = {c["id"]: c for c in classrooms}
+    classroom_ids = list(classroom_map.keys())
+
+    # 2. Fetch all students
+    stu_res = (
+        supabase.table("students")
+        .select("id, student_name, roll_number, avatar_url, classroom_id, points")
+        .in_("classroom_id", classroom_ids)
+        .order("student_name")
+        .execute()
+    )
+    student_rows = stu_res.data or []
+    if not student_rows:
+        return StudentsListResponse(students=[], total_count=0)
+
+    student_ids = [s["id"] for s in student_rows]
+
+    # 3. Fetch all interactions (type + correct only — no pillar needed here)
+    int_res = (
+        supabase.table("student_interactions")
+        .select("student_id, interaction_type, correct, created_at")
+        .in_("student_id", student_ids)
+        .execute()
+    )
+    all_interactions = int_res.data or []
+
+    seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+
+    # 4. Aggregate per student
+    stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "mission_total": 0, "mission_correct": 0, "active": False})
+    for row in all_interactions:
+        sid = row["student_id"]
+        stats[sid]["total"] += 1
+        if row["interaction_type"] in ("mission_mc", "mission_fill"):
+            stats[sid]["mission_total"] += 1
+            if row.get("correct") is True:
+                stats[sid]["mission_correct"] += 1
+        if row.get("created_at", "") >= seven_days_ago:
+            stats[sid]["active"] = True
+
+    # 5. Build result
+    result: list[StudentWithStats] = []
+    for s in student_rows:
+        sid = s["id"]
+        st = stats[sid]
+        mt = st["mission_total"]
+        accuracy = round(st["mission_correct"] / mt * 100) if mt > 0 else 0
+        cls = classroom_map[s["classroom_id"]]
+        result.append(StudentWithStats(
+            student_id=sid,
+            student_name=s["student_name"],
+            roll_number=s.get("roll_number"),
+            avatar_url=s.get("avatar_url"),
+            classroom_id=s["classroom_id"],
+            classroom_name=cls["class_name"],
+            grade_level=cls["grade_level"],
+            total_points=s.get("points") or 0,
+            total_interactions=st["total"],
+            mission_accuracy_pct=accuracy,
+            active_this_week=st["active"],
+        ))
+
+    return StudentsListResponse(students=result, total_count=len(result))
+
+
+# ---------------------------------------------------------------------------
+# GET /report/student/{student_id}/detailed  — full pillar + AI report
+# ---------------------------------------------------------------------------
+
+class PillarStat(BaseModel):
+    pillar: str
+    total: int
+    correct: int
+    accuracy_pct: int  # 0-100
+
+
+class StudentDetailedReport(BaseModel):
+    student_id: str
+    student_name: str
+    roll_number: str | None
+    avatar_url: str | None
+    classroom_name: str
+    grade_level: int
+    total_points: int
+    total_questions: int
+    overall_accuracy_pct: int
+    pillar_stats: list[PillarStat]
+    # AI narrative (from nlp_evaluator)
+    engagement_level: str
+    strengths: list[str]
+    areas_for_improvement: list[str]
+    recommended_topics: list[str]
+    teacher_note: str
+
+
+@router.get(
+    "/report/student/{student_id}/detailed",
+    response_model=StudentDetailedReport,
+    summary="Full student report: pillar stats + AI insights (teacher only)",
+)
+async def get_student_detailed_report(
+    student_id: str,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """
+    Returns a complete student report card:
+    - Identity: name, roll number, classroom, grade level, total points
+    - Overall stats: total questions, overall accuracy
+    - Per-pillar breakdown: reading / writing / listening / speaking counts + accuracy
+    - AI narrative: engagement level, strengths, improvements, teacher note
+
+    Teacher must own the student's classroom.
+    """
+    from collections import defaultdict
+
+    supabase = get_supabase_admin()
+    teacher_id: str = teacher["id"]
+
+    # 1. Verify ownership
+    student_resp = (
+        supabase.table("students")
+        .select("student_name, roll_number, avatar_url, classroom_id, points")
+        .eq("id", student_id)
+        .maybe_single()
+        .execute()
+    )
+    if not student_resp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
+
+    s = student_resp.data
+    classroom_resp = (
+        supabase.table("classrooms")
+        .select("class_name, grade_level, teacher_id")
+        .eq("id", s["classroom_id"])
+        .maybe_single()
+        .execute()
+    )
+    if not classroom_resp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
+    if str(classroom_resp.data["teacher_id"]) != str(teacher_id):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
+
+    grade_level: int = classroom_resp.data["grade_level"]
+    classroom_name: str = classroom_resp.data["class_name"]
+
+    # 2. Fetch ALL interactions for this student (lifetime stats)
+    int_resp = (
+        supabase.table("student_interactions")
+        .select("interaction_type, correct, pillar")
+        .eq("student_id", student_id)
+        .execute()
+    )
+    interactions = int_resp.data or []
+
+    # 3. Per-pillar stats
+    pillar_data: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
+    total_questions = 0
+    total_correct = 0
+
+    for row in interactions:
+        pillar = row.get("pillar")
+        correct = row.get("correct") is True
+        if pillar:
+            pillar_data[pillar]["total"] += 1
+            if correct:
+                pillar_data[pillar]["correct"] += 1
+        total_questions += 1
+        if correct:
+            total_correct += 1
+
+    pillar_stats = [
+        PillarStat(
+            pillar=p,
+            total=d["total"],
+            correct=d["correct"],
+            accuracy_pct=round(d["correct"] / d["total"] * 100) if d["total"] > 0 else 0,
+        )
+        for p, d in pillar_data.items()
+    ]
+
+    overall_accuracy_pct = round(total_correct / total_questions * 100) if total_questions > 0 else 0
+
+    # 4. AI narrative
+    ai_report = await evaluate_interactions(
+        student_id=student_id,
+        grade_level=grade_level,
+        supabase_admin_client=supabase,
+    )
+
+    return StudentDetailedReport(
+        student_id=student_id,
+        student_name=s["student_name"],
+        roll_number=s.get("roll_number"),
+        avatar_url=s.get("avatar_url"),
+        classroom_name=classroom_name,
+        grade_level=grade_level,
+        total_points=s.get("points") or 0,
+        total_questions=total_questions,
+        overall_accuracy_pct=overall_accuracy_pct,
+        pillar_stats=pillar_stats,
+        engagement_level=ai_report.engagement_level,
+        strengths=ai_report.strengths,
+        areas_for_improvement=ai_report.areas_for_improvement,
+        recommended_topics=ai_report.recommended_topics,
+        teacher_note=ai_report.teacher_note,
+    )
