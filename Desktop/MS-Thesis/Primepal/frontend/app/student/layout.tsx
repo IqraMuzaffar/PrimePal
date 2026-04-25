@@ -2,10 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useContext } from "react";
 import Image from "next/image";
+import { Volume2, VolumeX } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { usePrimeSounds } from "@/lib/use-sound";
 import AnimatedBackground from "@/components/student/AnimatedBackground";
+import DynamicBackground from "@/components/student/DynamicBackground";
+import { AudioProvider, AudioContext } from "@/components/student/AudioProvider";
 
 interface StudentProfile {
   student_id: string;
@@ -14,17 +18,24 @@ interface StudentProfile {
   avatar_style: string;
   theme_color: string;
   points: number;
+  missions_completed: number;
 }
 
 const NAV_LINKS = [
-  { href: "/student/home",     label: "Home",     icon: "🏠" },
-  { href: "/student/chat",     label: "Chat",     icon: "💬" },
-  { href: "/student/missions", label: "Missions", icon: "🎯" },
+  { href: "/student/home",        label: "Home",        icon: "🏠" },
+  { href: "/student/chat",        label: "Chat",        icon: "💬" },
+  { href: "/student/missions",    label: "Missions",    icon: "🎯" },
+  { href: "/student/quests",      label: "Quests",      icon: "📋" },
+  { href: "/student/leaderboard", label: "Leaderboard", icon: "🏆" },
 ];
 
-export default function StudentLayout({ children }: { children: React.ReactNode }) {
+function StudentLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const audioContext = useContext(AudioContext);
+  const isMuted = audioContext?.isMuted ?? false;
+  const toggleMute = audioContext?.toggleMute ?? (() => {});
+  const { play: playClick } = usePrimeSounds("pop");
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -42,16 +53,28 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
   }, []);
 
   function handleLogout() {
+    playClick();
     localStorage.removeItem("primepal_student_token");
     localStorage.removeItem("primepal_student_name");
     localStorage.removeItem("primepal_student_avatar");
     router.push("/student/play");
   }
 
+  function handleNavClick() {
+    playClick();
+  }
+
+  function handleMuteToggle() {
+    playClick();
+    toggleMute();
+  }
+
   return (
-    <AnimatedBackground>
-      {/* ── Top bar ── */}
-      <header className="sticky top-0 z-20 bg-white border-b border-slate-100 shadow-sm">
+    <>
+      <DynamicBackground missionsCompleted={profile?.missions_completed ?? 0} />
+      <AnimatedBackground>
+        {/* ── Top bar ── */}
+        <header className="sticky top-0 z-20 bg-white border-b border-slate-100 shadow-sm">
         <div className="flex items-center justify-between px-4 py-2 gap-2 max-w-2xl mx-auto">
           {/* Logo */}
           <Link href="/student/home" className="flex items-center gap-1.5 shrink-0">
@@ -69,6 +92,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
                 <Link
                   key={href}
                   href={href}
+                  onClick={handleNavClick}
                   className={[
                     "flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
                     active
@@ -83,7 +107,7 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
             })}
           </nav>
 
-          {/* Right: avatar + points + logout */}
+          {/* Right: avatar + points + audio toggle + logout */}
           <div className="flex items-center gap-2 shrink-0">
             {loading && (
               <div className="flex items-center gap-2 animate-pulse">
@@ -113,6 +137,20 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
               </>
             )}
 
+            {/* Audio Toggle Button */}
+            <button
+              onClick={handleMuteToggle}
+              className="text-slate-600 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all duration-150"
+              title={isMuted ? "Unmute sounds" : "Mute sounds"}
+              aria-label={isMuted ? "Unmute" : "Mute"}
+            >
+              {isMuted ? (
+                <VolumeX size={18} className="text-red-500" />
+              ) : (
+                <Volume2 size={18} className="text-indigo-600" />
+              )}
+            </button>
+
             <button
               onClick={handleLogout}
               className="bg-indigo-600 text-white text-xs font-bold px-3 py-1.5 rounded-full
@@ -128,6 +166,15 @@ export default function StudentLayout({ children }: { children: React.ReactNode 
       </header>
 
       <main className="p-4 max-w-2xl mx-auto">{children}</main>
-    </AnimatedBackground>
+      </AnimatedBackground>
+    </>
+  );
+}
+
+export default function StudentLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AudioProvider>
+      <StudentLayoutContent>{children}</StudentLayoutContent>
+    </AudioProvider>
   );
 }

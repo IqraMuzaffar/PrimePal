@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { usePrimeSounds } from '@/lib/use-sound';
 
 interface PillarCardProps {
   pillar: 'reading' | 'writing' | 'listening' | 'speaking';
@@ -11,9 +12,14 @@ interface PillarCardProps {
 
 export default function PillarCard({ pillar, bgColor, icon }: PillarCardProps) {
   const pillarName = pillar.charAt(0).toUpperCase() + pillar.slice(1);
+  const { play: playClick } = usePrimeSounds("pop");
+
+  const handleClick = () => {
+    playClick();
+  };
 
   return (
-    <Link href={`/student/missions/${pillar}`} aria-label={`Start ${pillar} mission`}>
+    <Link href={`/student/missions/${pillar}`} onClick={handleClick} aria-label={`Start ${pillar} mission`}>
       <motion.div
         data-testid={`pillar-card-${pillar}`}
         whileHover={{ scale: 1.05 }}

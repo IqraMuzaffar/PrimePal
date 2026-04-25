@@ -129,6 +129,7 @@ function LockedCard({ icon, label, tagline }: { icon: string; label: string; tag
 export default function HomePage() {
   const router = useRouter();
   const { play: playPop } = usePrimeSounds("pop");
+  const { play: playNotification } = usePrimeSounds("chime");
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
@@ -177,7 +178,11 @@ export default function HomePage() {
         `/announcements/${classroomId}/active`,
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      setAnnouncement(ann);
+      if (ann) {
+        setAnnouncement(ann);
+        // Play notification sound when announcement appears
+        setTimeout(() => playNotification(), 100);
+      }
     } catch (err) {
       // Silently fail - announcements are optional
       console.debug("Could not fetch announcement:", err);
