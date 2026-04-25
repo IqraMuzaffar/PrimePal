@@ -6,13 +6,19 @@ Endpoints (all require a valid teacher Supabase session):
   POST   /api/v1/classroom/                           — create classroom
   GET    /api/v1/classroom/                           — list teacher's classrooms
   GET    /api/v1/classroom/{id}                       — get classroom + roster
-  POST   /api/v1/classroom/{id}/students/bulk         — bulk-add student ghost profiles
+  POST   /api/v1/classroom/{id}/students/bulk         — bulk-add students (names only)
+  POST   /api/v1/classroom/{id}/students/bulk-v2      — bulk-add students (name + roll_number + email)
   DELETE /api/v1/classroom/{id}/students/{student_id} — remove a student
   PATCH  /api/v1/classroom/{id}/students/{student_id} — update student (name, roll_number, email)
+
+Feature 15: SNC Pacing Calendar
+  GET    /api/v1/classroom/{id}/syllabus              — list 30-week syllabus
+  PATCH  /api/v1/classroom/{id}/syllabus/{week}      — update week status
 """
-from typing import List
+from typing import List, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
 from app.core.security import get_current_teacher
 from app.core.supabase_client import get_supabase_admin
@@ -22,6 +28,7 @@ from app.schemas.classroom import (
     ClassroomResponse,
     ClassroomUpdate,
     StudentBulkCreate,
+    StudentBulkCreateV2,
     StudentResponse,  # noqa: F401 — referenced via ClassroomDetail
     StudentUpdate,
 )
@@ -54,22 +61,64 @@ async def create_classroom(
     request: ClassroomCreate,
     teacher: dict = Depends(get_current_teacher),
 ):
-    """Creates a new classroom. The PostgreSQL trigger auto-generates class_code."""
+    """Creates a new classroom. Auto-generates class_code and section-based class_name if omitted.
+
+    Validates that each grade can only have one classroom per section.
+    Example: Grade 3 can have one 3A, one 3B, one 3C, but NOT two 3A classrooms.
+    """
     supabase = get_supabase_admin()
+
+    # Auto-generate class_name if not provided: "Grade X - Section Y"
+    class_name = request.class_name or f"Grade {request.grade_level} - Section {request.section}"
+
+    # Validate: Check if this teacher already has a classroom with this grade + class_name combination
+    existing_check = (
+        supabase.table("classrooms")
+        .select("id, class_name, grade_level")
+        .eq("teacher_id", teacher["id"])
+        .eq("grade_level", request.grade_level)
+        .eq("class_name", class_name)
+        .execute()
+    )
+
+    if existing_check.data and len(existing_check.data) > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"You already have a '{class_name}' classroom in Grade {request.grade_level}. Each section can only exist once per grade."
+        )
+
     result = (
         supabase.table("classrooms")
         .insert({
             "teacher_id": teacher["id"],
-            "class_name": request.class_name,
+            "class_name": class_name,
             "grade_level": request.grade_level,
+            "section": request.section,
         })
         .execute()
     )
     if not result.data:
+        # Check if error is due to unique constraint violation
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create classroom",
+            detail="Failed to create classroom. This section may already exist for this grade.",
         )
+
+    classroom_id = result.data[0]["id"]
+
+    # Auto-generate 30 weekly syllabus slots
+    default_topics = [f"Week {i}: Topic {i}" for i in range(1, 31)]
+    syllabus_rows = [
+        {
+            "classroom_id": classroom_id,
+            "week_number": i,
+            "topic_title": default_topics[i - 1],
+            "status": "active" if i == 1 else "locked",
+        }
+        for i in range(1, 31)
+    ]
+    supabase.table("classroom_syllabus").insert(syllabus_rows).execute()
+
     return result.data[0]
 
 
@@ -114,6 +163,43 @@ async def get_classroom(
         .execute()
     )
     return {**classroom_res.data, "students": students_res.data or []}
+
+
+@router.delete("/{classroom_id}", status_code=204)
+async def delete_classroom(
+    classroom_id: str,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """
+    Deletes a classroom. Protection: classroom must have 0 students.
+    Returns 400 Bad Request if students are present.
+    """
+    supabase = get_supabase_admin()
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+
+    # Check if classroom has students
+    students_res = (
+        supabase.table("students")
+        .select("id")
+        .eq("classroom_id", classroom_id)
+        .execute()
+    )
+    student_count = len(students_res.data or [])
+    if student_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Cannot delete classroom with {student_count} student(s). Remove all students first.",
+        )
+
+    # Delete classroom
+    result = (
+        supabase.table("classrooms")
+        .delete()
+        .eq("id", classroom_id)
+        .execute()
+    )
+    if result.data is not None and len(result.data) == 0:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
 
 
 @router.patch("/{classroom_id}", response_model=ClassroomResponse)
@@ -181,6 +267,38 @@ async def bulk_add_students(
     return {"added": added}
 
 
+@router.post("/{classroom_id}/students/bulk-v2")
+async def bulk_add_students_v2(
+    classroom_id: str,
+    request: StudentBulkCreateV2,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """Bulk-creates student profiles with name, roll_number, and email fields."""
+    supabase = get_supabase_admin()
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+
+    students = [s for s in request.students if s.student_name and s.student_name.strip()]
+    if not students:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="No valid student data provided",
+        )
+
+    rows = [
+        {
+            "classroom_id": classroom_id,
+            "student_name": s.student_name.strip(),
+            "roll_number": s.roll_number.strip() if s.roll_number else None,
+            "email": s.email.strip() if s.email else None,
+            "avatar_url": f"https://api.dicebear.com/8.x/adventurer/svg?seed={s.student_name}",
+        }
+        for s in students
+    ]
+    result = supabase.table("students").insert(rows).execute()
+    added = len(result.data) if result.data else len(rows)
+    return {"added": added}
+
+
 @router.delete("/{classroom_id}/students/{student_id}", status_code=204)
 async def remove_student(
     classroom_id: str,
@@ -231,3 +349,64 @@ async def update_student(
     if not result.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student not found")
     return result.data[0]
+
+
+# ---------------------------------------------------------------------------
+# Syllabus (Pacing Calendar) endpoints
+# ---------------------------------------------------------------------------
+
+class SyllabusWeekResponse(BaseModel):
+    id: str
+    week_number: int
+    topic_title: str
+    status: Literal["locked", "active", "completed"]
+
+
+class SyllabusListResponse(BaseModel):
+    weeks: list[SyllabusWeekResponse]
+
+
+@router.get("/{classroom_id}/syllabus", response_model=SyllabusListResponse)
+async def get_syllabus(
+    classroom_id: str,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """Returns the 30-week pacing calendar for a classroom."""
+    supabase = get_supabase_admin()
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+
+    result = (
+        supabase.table("classroom_syllabus")
+        .select("id, week_number, topic_title, status")
+        .eq("classroom_id", classroom_id)
+        .order("week_number")
+        .execute()
+    )
+    return {"weeks": result.data or []}
+
+
+class UpdateWeekStatusRequest(BaseModel):
+    status: Literal["locked", "active", "completed"]
+
+
+@router.patch("/{classroom_id}/syllabus/{week_number}")
+async def update_syllabus_week(
+    classroom_id: str,
+    week_number: int,
+    request: UpdateWeekStatusRequest,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """Update the status of a specific week in the pacing calendar."""
+    supabase = get_supabase_admin()
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+
+    result = (
+        supabase.table("classroom_syllabus")
+        .update({"status": request.status})
+        .eq("classroom_id", classroom_id)
+        .eq("week_number", week_number)
+        .execute()
+    )
+    if not result.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Week not found")
+    return {"ok": True}

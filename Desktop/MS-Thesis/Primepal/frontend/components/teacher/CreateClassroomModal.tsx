@@ -3,8 +3,6 @@
 
 import { useState } from "react";
 import { X, Loader2 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
-import { getTeacherHeaders } from "@/lib/teacherAuth";
 import type { Classroom } from "@/types";
 
 interface Props {
@@ -13,6 +11,7 @@ interface Props {
 }
 
 export default function CreateClassroomModal({ onClose, onCreated }: Props) {
+  const [section, setSection] = useState("A");
   const [className, setClassName] = useState("");
   const [gradeLevel, setGradeLevel] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -21,19 +20,28 @@ export default function CreateClassroomModal({ onClose, onCreated }: Props) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (!className.trim()) {
-      setError("Class name cannot be empty.");
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     try {
-      const headers = await getTeacherHeaders();
-      const classroom = await apiFetch<Classroom>("/classroom/", {
+      const { data: { session } } = await (await import("@/lib/supabase/client")).supabase.auth.getSession();
+      if (!session) throw new Error("Not authenticated — please sign in again.");
+
+      const res = await fetch("http://localhost:8000/api/v1/classroom/", {
         method: "POST",
-        headers,
-        body: JSON.stringify({ class_name: className, grade_level: gradeLevel }),
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          section,
+          class_name: className.trim() || null,
+          grade_level: gradeLevel,
+        }),
       });
+      if (!res.ok) {
+        const errBody = await res.json().catch(() => ({}));
+        throw new Error(errBody?.detail ?? `Server error ${res.status}`);
+      }
+      const classroom: Classroom = await res.json();
       onCreated(classroom);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
@@ -56,35 +64,59 @@ export default function CreateClassroomModal({ onClose, onCreated }: Props) {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Class Name
-            </label>
-            <input
-              type="text"
-              required
-              value={className}
-              onChange={(e) => setClassName(e.target.value)}
-              placeholder="e.g. Grade 3 — Blue Section"
-              className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Grade Level
+              </label>
+              <select
+                value={gradeLevel}
+                onChange={(e) => setGradeLevel(Number(e.target.value))}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                {[1, 2, 3, 4, 5].map((g) => (
+                  <option key={g} value={g}>
+                    Grade {g}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Section
+              </label>
+              <select
+                value={section}
+                onChange={(e) => setSection(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              >
+                {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].map((s) => (
+                  <option key={s} value={s}>
+                    Section {s}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Grade Level
+              Class Name <span className="text-gray-400 text-xs font-normal">(optional)</span>
             </label>
-            <select
-              value={gradeLevel}
-              onChange={(e) => setGradeLevel(Number(e.target.value))}
+            <input
+              type="text"
+              value={className}
+              onChange={(e) => setClassName(e.target.value)}
+              placeholder="e.g. Blue Section, Morning Batch"
               className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-            >
-              {[1, 2, 3, 4, 5].map((g) => (
-                <option key={g} value={g}>
-                  Grade {g}
-                </option>
-              ))}
-            </select>
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              Leave empty to auto-generate as "Grade X - Section Y"
+            </p>
+            <p className="text-xs text-amber-600 mt-2 bg-amber-50 px-2 py-1 rounded">
+              ℹ️ Each section (e.g., 3A, 3B) can only exist once per grade
+            </p>
           </div>
 
           {error && (
