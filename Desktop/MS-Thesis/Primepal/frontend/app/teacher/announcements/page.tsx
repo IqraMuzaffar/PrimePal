@@ -8,10 +8,12 @@ import { getTeacherHeaders } from "@/lib/teacherAuth";
 
 interface Announcement {
   id: string;
-  classroom_id: string;
+  classroom_id: string | null;
   teacher_id: string;
   message_en: string;
   message_ur: string;
+  scope: "classroom" | "grade_level" | "school_wide";
+  target_grade_level: number | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -28,6 +30,8 @@ export default function AnnouncementsPage() {
   const [selectedClassroom, setSelectedClassroom] = useState<string>("");
   const [messageEn, setMessageEn] = useState("");
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [scope, setScope] = useState<"classroom" | "grade_level" | "school_wide">("classroom");
+  const [targetGrade, setTargetGrade] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [loadingClassrooms, setLoadingClassrooms] = useState(false);
@@ -57,12 +61,17 @@ export default function AnnouncementsPage() {
     loadClassrooms();
   }, []);
 
-  // Load announcements when classroom is selected
+  // Load announcements when classroom is selected (or on component mount)
   useEffect(() => {
     if (selectedClassroom) {
       loadAnnouncements(selectedClassroom);
     }
   }, [selectedClassroom]);
+
+  // Reset target grade when scope changes
+  useEffect(() => {
+    setTargetGrade(null);
+  }, [scope]);
 
   async function loadAnnouncements(classroomId: string) {
     try {
@@ -82,8 +91,19 @@ export default function AnnouncementsPage() {
   }
 
   async function handlePostAnnouncement() {
-    if (!selectedClassroom || !messageEn.trim()) {
-      setErrorMessage("Please select a classroom and enter a message");
+    if (!messageEn.trim()) {
+      setErrorMessage("Please enter a message");
+      return;
+    }
+
+    // Validate scope-specific parameters
+    if (scope === "classroom" && !selectedClassroom) {
+      setErrorMessage("Please select a classroom");
+      return;
+    }
+
+    if (scope === "grade_level" && targetGrade === null) {
+      setErrorMessage("Please select a grade level");
       return;
     }
 
@@ -93,23 +113,45 @@ export default function AnnouncementsPage() {
 
     try {
       const headers = await getTeacherHeaders();
+      const payload: any = {
+        message_en: messageEn.trim(),
+        scope: scope,
+      };
+
+      if (scope === "classroom") {
+        payload.classroom_id = selectedClassroom;
+      } else if (scope === "grade_level") {
+        payload.target_grade_level = targetGrade;
+      }
+
       const response = await apiFetch<Announcement>(
         "/announcements",
         {
           method: "POST",
           headers,
-          body: JSON.stringify({
-            classroom_id: selectedClassroom,
-            message_en: messageEn.trim(),
-          }),
+          body: JSON.stringify(payload),
         }
       );
 
-      setSuccessMessage("✓ Announcement posted successfully! Translating to Urdu...");
+      const scopeLabel =
+        scope === "classroom"
+          ? `Grade ${classrooms.find((c) => c.id === selectedClassroom)?.grade_level} class`
+          : scope === "grade_level"
+            ? `Grade ${targetGrade}`
+            : "all classes";
+
+      setSuccessMessage(
+        `✓ Announcement posted to ${scopeLabel}! Translating to Urdu...`
+      );
       setMessageEn("");
+      setTargetGrade(null);
 
       // Reload announcements
-      await loadAnnouncements(selectedClassroom);
+      if (scope === "classroom") {
+        await loadAnnouncements(selectedClassroom);
+      } else {
+        await loadAnnouncements(selectedClassroom);
+      }
 
       // Clear success message after 3 seconds
       setTimeout(() => setSuccessMessage(""), 3000);
@@ -175,29 +217,7 @@ export default function AnnouncementsPage() {
           </p>
         </div>
 
-        {/* Classroom Selector */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-2xl border border-gray-200 p-6"
-        >
-          <label className="block text-sm font-semibold text-gray-900 mb-3">
-            Select Classroom
-          </label>
-          <select
-            value={selectedClassroom}
-            onChange={(e) => setSelectedClassroom(e.target.value)}
-            className="w-full text-sm border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-          >
-            {classrooms.map((c) => (
-              <option key={c.id} value={c.id}>
-                Grade {c.grade_level} - {c.class_name}
-              </option>
-            ))}
-          </select>
-        </motion.div>
-
-        {selectedClassroom && (
+        {classrooms.length > 0 && (
           <>
             {/* Announcement Composer */}
             <motion.div
@@ -211,6 +231,92 @@ export default function AnnouncementsPage() {
               </h2>
 
               <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide mb-2">
+                    📢 Broadcast Scope
+                  </label>
+                  <div className="grid grid-cols-3 gap-3">
+                    <button
+                      onClick={() => setScope("classroom")}
+                      className={`p-3 rounded-lg border-2 transition-all text-sm font-medium ${
+                        scope === "classroom"
+                          ? "bg-indigo-50 border-indigo-500 text-indigo-700"
+                          : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
+                      }`}
+                    >
+                      🏫 Specific Class
+                    </button>
+                    <button
+                      onClick={() => setScope("grade_level")}
+                      className={`p-3 rounded-lg border-2 transition-all text-sm font-medium ${
+                        scope === "grade_level"
+                          ? "bg-indigo-50 border-indigo-500 text-indigo-700"
+                          : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
+                      }`}
+                    >
+                      📚 All Grade
+                    </button>
+                    <button
+                      onClick={() => setScope("school_wide")}
+                      className={`p-3 rounded-lg border-2 transition-all text-sm font-medium ${
+                        scope === "school_wide"
+                          ? "bg-indigo-50 border-indigo-500 text-indigo-700"
+                          : "bg-white border-gray-200 text-gray-600 hover:border-gray-300"
+                      }`}
+                    >
+                      🌍 School-Wide
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scope-specific selector */}
+                {scope === "classroom" && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide mb-2">
+                      Select Classroom
+                    </label>
+                    <select
+                      value={selectedClassroom}
+                      onChange={(e) => setSelectedClassroom(e.target.value)}
+                      className="w-full text-sm border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                    >
+                      {classrooms.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          Grade {c.grade_level} - {c.class_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {scope === "grade_level" && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide mb-2">
+                      Select Grade
+                    </label>
+                    <select
+                      value={targetGrade || ""}
+                      onChange={(e) => setTargetGrade(e.target.value ? parseInt(e.target.value) : null)}
+                      className="w-full text-sm border border-gray-200 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+                    >
+                      <option value="">-- Choose a grade --</option>
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((grade) => (
+                        <option key={grade} value={grade}>
+                          Grade {grade}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {scope === "school_wide" && (
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <p className="text-sm text-blue-700 font-medium">
+                      📢 This announcement will be sent to all classrooms you teach.
+                    </p>
+                  </div>
+                )}
+
                 <div>
                   <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide mb-2">
                     Message (English)
@@ -360,8 +466,9 @@ export default function AnnouncementsPage() {
                           </button>
                         </div>
 
-                        {/* Active Badge */}
-                        <div className="mt-3 flex items-center gap-2">
+                        {/* Badges */}
+                        <div className="mt-3 flex items-center gap-2 flex-wrap">
+                          {/* Status Badge */}
                           {ann.is_active ? (
                             <span className="inline-block text-xs font-medium bg-green-100 text-green-700 px-2.5 py-0.5 rounded">
                               ✓ Active
@@ -369,6 +476,23 @@ export default function AnnouncementsPage() {
                           ) : (
                             <span className="inline-block text-xs font-medium bg-gray-200 text-gray-700 px-2.5 py-0.5 rounded">
                               ✕ Inactive
+                            </span>
+                          )}
+
+                          {/* Scope Badge */}
+                          {ann.scope === "classroom" && (
+                            <span className="inline-block text-xs font-medium bg-blue-100 text-blue-700 px-2.5 py-0.5 rounded">
+                              🏫 Class
+                            </span>
+                          )}
+                          {ann.scope === "grade_level" && (
+                            <span className="inline-block text-xs font-medium bg-purple-100 text-purple-700 px-2.5 py-0.5 rounded">
+                              📚 Grade {ann.target_grade_level}
+                            </span>
+                          )}
+                          {ann.scope === "school_wide" && (
+                            <span className="inline-block text-xs font-medium bg-orange-100 text-orange-700 px-2.5 py-0.5 rounded">
+                              🌍 School-Wide
                             </span>
                           )}
                         </div>
