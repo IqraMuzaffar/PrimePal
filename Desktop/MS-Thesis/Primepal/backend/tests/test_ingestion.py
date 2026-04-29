@@ -6,7 +6,7 @@ Covers:
   - clean_snc_text()                (unit — text cleaning)
   - chunk_documents()               (unit — chunking + metadata)
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
@@ -62,8 +62,12 @@ class TestUploadSNCTextbook:
                 return_value=_make_mock_admin(),
             ),
             patch(
-                "app.api.v1.endpoints.curriculum.PyMuPDFLoader",
+                "app.api.v1.endpoints.curriculum.PyPDFLoader",
                 _make_mock_loader(),
+            ),
+            patch(
+                "app.api.v1.endpoints.curriculum.embed_and_store_chunks",
+                new=AsyncMock(return_value=2),
             ),
         ):
             resp = await client.post(
@@ -76,6 +80,7 @@ class TestUploadSNCTextbook:
         body = resp.json()
         assert body["status"] == "success"
         assert body["total_chunks"] >= 1
+        assert body["embedded_count"] == 2
         assert body["sample_chunk"] is not None
         assert "content" in body["sample_chunk"]
         assert "metadata" in body["sample_chunk"]
@@ -88,8 +93,12 @@ class TestUploadSNCTextbook:
                 return_value=_make_mock_admin(),
             ),
             patch(
-                "app.api.v1.endpoints.curriculum.PyMuPDFLoader",
+                "app.api.v1.endpoints.curriculum.PyPDFLoader",
                 _make_mock_loader(),
+            ),
+            patch(
+                "app.api.v1.endpoints.curriculum.embed_and_store_chunks",
+                new=AsyncMock(return_value=2),
             ),
         ):
             resp = await client.post(
@@ -134,8 +143,12 @@ class TestUploadSNCTextbook:
                 return_value=_make_mock_admin(),
             ),
             patch(
-                "app.api.v1.endpoints.curriculum.PyMuPDFLoader",
+                "app.api.v1.endpoints.curriculum.PyPDFLoader",
                 _make_mock_loader(documents=tiny_docs),
+            ),
+            patch(
+                "app.api.v1.endpoints.curriculum.embed_and_store_chunks",
+                new=AsyncMock(return_value=0),
             ),
         ):
             resp = await client.post(
@@ -147,6 +160,7 @@ class TestUploadSNCTextbook:
         assert resp.status_code == 200
         body = resp.json()
         assert body["total_chunks"] == 0
+        assert body["embedded_count"] == 0
         assert body["sample_chunk"] is None
 
 

@@ -17,25 +17,30 @@ asyncpg==0.29.0
 alembic==1.13.1
 
 # Settings
-pydantic-settings==2.2.1
+pydantic-settings==2.4.0
 python-dotenv==1.0.1
 
 # Vector DB
 qdrant-client==1.9.1
 
 # LLM / Embeddings
-openai==1.30.1
-langchain==0.2.1
-langchain-openai==0.1.8
-langchain-community==0.2.1
+openai==1.58.1
+langchain==0.3.25
+langchain-openai==0.2.14
+langchain-community==0.3.25
+langchain-huggingface==0.1.2
+sentence-transformers==3.0.1
+tf-keras
 
 # RAG / Document Processing
 pypdf==4.2.0
-pymupdf==1.24.3
 tiktoken==0.7.0
 
 # Speech-to-Text
 httpx==0.27.0
+
+# Caching
+redis==5.0.1
 
 # Testing
 pytest==8.2.1

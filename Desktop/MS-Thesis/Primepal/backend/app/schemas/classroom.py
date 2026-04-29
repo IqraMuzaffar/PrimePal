@@ -4,7 +4,8 @@ from pydantic import BaseModel, Field
 
 
 class ClassroomCreate(BaseModel):
-    class_name: str
+    section: str = Field(default="A", description="Section letter, e.g. A, B, C")
+    class_name: str | None = None  # Optional custom title; auto-generated if omitted
     grade_level: int = Field(ge=1, le=5)
 
 
@@ -13,6 +14,7 @@ class ClassroomResponse(BaseModel):
     class_name: str
     class_code: str
     grade_level: int
+    section: str | None = None
     current_week_topic: str | None = None
     created_at: str
 
@@ -32,12 +34,22 @@ class StudentUpdate(BaseModel):
     email: str | None = None
 
 
+class StudentCreate(BaseModel):
+    student_name: str
+    roll_number: str | None = None
+    email: str | None = None
+
+
 class ClassroomDetail(ClassroomResponse):
     students: List[StudentResponse]
 
 
 class StudentBulkCreate(BaseModel):
     names: List[str]
+
+
+class StudentBulkCreateV2(BaseModel):
+    students: List[StudentCreate]
 
 
 class ClassroomUpdate(BaseModel):

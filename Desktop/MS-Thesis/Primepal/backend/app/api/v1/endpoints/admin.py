@@ -100,6 +100,7 @@ async def validate_invite_code(code: str):
 class TeacherCreateRequest(BaseModel):
     email: str
     full_name: str
+    password: str
     invite_code: str
 
 
@@ -123,10 +124,10 @@ async def create_teacher_via_invite(req: TeacherCreateRequest):
         raise HTTPException(status_code=400, detail="Invite code expired")
 
     try:
-        # Create Supabase Auth user
+        # Create Supabase Auth user with provided password
         auth_result = supabase_admin.auth.admin_create_user({
             "email": req.email,
-            "password": secrets.token_urlsafe(16),
+            "password": req.password,
             "email_confirm": True,
         })
 
