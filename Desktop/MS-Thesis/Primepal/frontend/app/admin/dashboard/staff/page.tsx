@@ -26,7 +26,8 @@ export default function StaffDirectoryPage() {
   const fetchTeachers = async () => {
     try {
       const headers = await getAdminHeaders();
-      const response = await fetch("/api/v1/admin/teachers", { headers });
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const response = await fetch(`${API_BASE}/admin/teachers`, { headers });
       const data = await response.json();
       setTeachers(data);
     } catch (err) {
@@ -40,7 +41,8 @@ export default function StaffDirectoryPage() {
     setInviting(true);
     try {
       const headers = await getAdminHeaders();
-      const response = await fetch("/api/v1/admin/invite-code", {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const response = await fetch(`${API_BASE}/admin/invite-code`, {
         method: "POST",
         headers: { ...headers, "Content-Type": "application/json" },
         body: JSON.stringify({ email: inviteEmail, expires_in_days: 7 }),

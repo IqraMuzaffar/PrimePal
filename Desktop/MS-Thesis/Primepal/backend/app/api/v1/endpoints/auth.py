@@ -8,7 +8,6 @@ Endpoints:
   PATCH /api/v1/auth/student/{student_id}/pin        — teacher-only PIN reset
 """
 import re
-import logging
 from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -16,8 +15,6 @@ from pydantic import BaseModel, field_validator
 
 from app.core.security import create_student_token, get_current_student, get_current_teacher
 from app.core.supabase_client import get_supabase, get_supabase_admin
-
-logger = logging.getLogger(__name__)
 
 router = APIRouter()
 

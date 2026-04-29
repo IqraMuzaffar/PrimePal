@@ -1,101 +1,208 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { motion } from "framer-motion";
+import {
+  GraduationCap,
+  Gamepad2,
+  BookOpen,
+  Mic,
+  PenLine,
+} from "lucide-react";
+import Link from "next/link";
+
+const floatingItems = [
+  { emoji: "📚", x: "8%", y: "18%", delay: 0, dur: 6 },
+  { emoji: "⭐", x: "88%", y: "14%", delay: 1.2, dur: 5.5 },
+  { emoji: "🎯", x: "12%", y: "78%", delay: 2, dur: 7 },
+  { emoji: "💬", x: "82%", y: "72%", delay: 0.6, dur: 6.2 },
+  { emoji: "✏️", x: "52%", y: "8%", delay: 1.8, dur: 5.8 },
+  { emoji: "🌟", x: "92%", y: "48%", delay: 2.8, dur: 6.5 },
+  { emoji: "🎮", x: "4%", y: "48%", delay: 0.3, dur: 7.2 },
+  { emoji: "📖", x: "72%", y: "88%", delay: 1.5, dur: 6.8 },
+  { emoji: "🇵🇰", x: "35%", y: "85%", delay: 3.2, dur: 5.2 },
+];
+
+const pillars = [
+  { icon: BookOpen, label: "Reading" },
+  { icon: PenLine, label: "Writing" },
+  { icon: Mic, label: "Speaking" },
+];
+
+const stagger = {
+  container: {
+    animate: { transition: { staggerChildren: 0.12 } },
+  },
+  item: {
+    initial: { opacity: 0, y: 24 },
+    animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
+  },
+};
+
+export default function LandingPage() {
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              app/page.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="h-screen bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 relative overflow-hidden flex flex-col items-center justify-center px-4 selection:bg-white/20">
+      {/* ── ambient background ── */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute top-[15%] left-[20%] w-[28rem] h-[28rem] bg-indigo-400/15 rounded-full blur-[100px]" />
+        <div className="absolute bottom-[10%] right-[15%] w-[34rem] h-[34rem] bg-violet-400/15 rounded-full blur-[120px]" />
+        <div className="absolute top-[60%] left-[55%] w-[20rem] h-[20rem] bg-fuchsia-400/10 rounded-full blur-[80px]" />
+      </div>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      {/* ── floating emoji ── */}
+      {floatingItems.map((f, i) => (
+        <motion.span
+          key={i}
+          aria-hidden
+          className="absolute text-2xl sm:text-3xl opacity-[0.15] pointer-events-none select-none"
+          style={{ left: f.x, top: f.y }}
+          animate={{ y: [-8, 8, -8], rotate: [-4, 4, -4] }}
+          transition={{
+            duration: f.dur,
+            repeat: Infinity,
+            delay: f.delay,
+            ease: "easeInOut",
+          }}
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          {f.emoji}
+        </motion.span>
+      ))}
+
+      {/* ── hero ── */}
+      <motion.div
+        variants={stagger.container}
+        initial="initial"
+        animate="animate"
+        className="text-center mb-8 relative z-10 max-w-lg"
+      >
+        <motion.div
+          variants={stagger.item}
+          className="inline-flex items-center justify-center w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl mb-4 border border-white/20 shadow-lg shadow-black/10"
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          <span className="text-3xl leading-none">⭐</span>
+        </motion.div>
+
+        <motion.h1
+          variants={stagger.item}
+          className="text-5xl sm:text-7xl font-black text-white tracking-tight leading-none"
         >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+          PrimePal
+        </motion.h1>
+
+        <motion.p
+          variants={stagger.item}
+          className="text-indigo-200 text-lg sm:text-xl font-semibold mt-4"
+        >
+          Learn English the fun way!
+        </motion.p>
+
+        <motion.div variants={stagger.item} className="flex items-center justify-center gap-4 mt-4">
+          {pillars.map(({ icon: Icon, label }) => (
+            <span
+              key={label}
+              className="flex items-center gap-1.5 text-indigo-300/70 text-xs font-bold uppercase tracking-wider"
+            >
+              <Icon size={14} strokeWidth={2.5} />
+              {label}
+            </span>
+          ))}
+        </motion.div>
+      </motion.div>
+
+      {/* ── role cards ── */}
+      <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 w-full max-w-2xl relative z-10">
+        {/* student */}
+        <motion.div
+          initial={{ opacity: 0, x: -36 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.55, delay: 0.5, ease: "easeOut" }}
+          className="flex-1"
+        >
+          <Link href="/student/play" className="block group">
+            <motion.div
+              whileHover={{ scale: 1.03, y: -5 }}
+              whileTap={{ scale: 0.97 }}
+              className="relative bg-gradient-to-br from-amber-400 to-orange-500 rounded-[1.5rem] p-6 sm:p-7 shadow-2xl shadow-orange-600/20 border border-amber-300/30 overflow-hidden"
+            >
+              <div className="absolute -right-6 -bottom-6 text-[8rem] opacity-[0.08] leading-none select-none pointer-events-none">
+                🎮
+              </div>
+
+              <div className="flex items-center gap-3 mb-5">
+                <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-xl">
+                  <Gamepad2 size={28} className="text-white" strokeWidth={2.5} />
+                </div>
+                <span className="bg-white/20 text-white text-[0.65rem] font-extrabold px-3 py-1 rounded-full uppercase tracking-wide">
+                  Let&apos;s Play!
+                </span>
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl font-black text-white mb-1.5 leading-tight">
+                I&apos;m a Student
+              </h2>
+              <p className="text-amber-100/90 text-sm font-medium leading-relaxed">
+                Enter your class code and start your English adventure with fun missions and games!
+              </p>
+
+              <div className="mt-6 flex items-center gap-2 text-white font-bold text-sm group-hover:gap-3 transition-all duration-200">
+                <span>Enter Class Code</span>
+                <span className="text-base transition-transform duration-200 group-hover:translate-x-0.5">→</span>
+              </div>
+            </motion.div>
+          </Link>
+        </motion.div>
+
+        {/* teacher */}
+        <motion.div
+          initial={{ opacity: 0, x: 36 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.55, delay: 0.6, ease: "easeOut" }}
+          className="flex-1"
+        >
+          <Link href="/teacher/login" className="block group">
+            <motion.div
+              whileHover={{ scale: 1.03, y: -5 }}
+              whileTap={{ scale: 0.97 }}
+              className="relative bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[1.5rem] p-6 sm:p-7 shadow-2xl shadow-teal-600/20 border border-emerald-400/30 overflow-hidden"
+            >
+              <div className="absolute -right-6 -bottom-6 text-[8rem] opacity-[0.08] leading-none select-none pointer-events-none">
+                📊
+              </div>
+
+              <div className="flex items-center gap-3 mb-5">
+                <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-xl">
+                  <GraduationCap size={28} className="text-white" strokeWidth={2.5} />
+                </div>
+                <span className="bg-white/20 text-white text-[0.65rem] font-extrabold px-3 py-1 rounded-full uppercase tracking-wide">
+                  Dashboard
+                </span>
+              </div>
+
+              <h2 className="text-2xl sm:text-3xl font-black text-white mb-1.5 leading-tight">
+                I&apos;m a Teacher
+              </h2>
+              <p className="text-emerald-100/90 text-sm font-medium leading-relaxed">
+                Manage classrooms, track student progress, and view AI-powered insights across all four skills.
+              </p>
+
+              <div className="mt-6 flex items-center gap-2 text-white font-bold text-sm group-hover:gap-3 transition-all duration-200">
+                <span>Sign In</span>
+                <span className="text-base transition-transform duration-200 group-hover:translate-x-0.5">→</span>
+              </div>
+            </motion.div>
+          </Link>
+        </motion.div>
+      </div>
+
+      {/* ── footer tagline ── */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.2, duration: 0.6 }}
+        className="text-indigo-300/40 text-xs font-medium mt-8 relative z-10 text-center"
+      >
+        AI-powered English learning for Pakistan&apos;s future &mdash; tackling the
+        &ldquo;Mute English&rdquo; phenomenon
+      </motion.p>
     </div>
   );
 }

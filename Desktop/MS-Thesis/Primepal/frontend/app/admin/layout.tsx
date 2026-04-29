@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { isCurrentUserAdmin } from "@/lib/adminAuth";
 import Link from "next/link";
@@ -13,6 +13,7 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [adminName, setAdminName] = useState("");
@@ -56,9 +57,7 @@ export default function AdminLayout({
     return null;
   }
 
-  const currentPath = typeof window !== "undefined" ? window.location.pathname : "";
-
-  const isActive = (path: string) => currentPath.includes(path);
+  const isActive = (path: string) => pathname.includes(path);
 
   return (
     <div className="min-h-screen bg-slate-900">

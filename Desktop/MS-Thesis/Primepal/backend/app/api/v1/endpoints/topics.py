@@ -5,17 +5,11 @@ Returns all predefined SNC English topics for the specified grade level.
 No auth required — topics are public reference data.
 """
 from fastapi import APIRouter, HTTPException, Query, status
-from pydantic import BaseModel
 
 from app.core.supabase_client import get_supabase_admin
+from app.schemas.topic import SncTopicOut
 
 router = APIRouter()
-
-
-class SncTopicOut(BaseModel):
-    id: int
-    grade_level: int
-    topic_name: str
 
 
 @router.get("/", response_model=list[SncTopicOut], summary="List SNC topics for a grade")

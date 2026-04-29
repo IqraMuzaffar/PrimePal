@@ -10,7 +10,7 @@ Anti-Cheat:
 - Compares last_daily_reward_at against server's current time, not client time.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from random import random
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -52,7 +52,7 @@ def is_today(timestamp: datetime | None) -> bool:
     if timestamp is None:
         return False
 
-    now_utc = datetime.utcnow().replace(tzinfo=None)
+    now_utc = datetime.now(timezone.utc)
     return timestamp.replace(tzinfo=None).date() == now_utc.date()
 
 
@@ -139,7 +139,7 @@ async def claim_daily_reward(
     # ------------------------------------------------------------------
     # Step 4: Update student record with new points and timestamp
     # ------------------------------------------------------------------
-    now_utc = datetime.utcnow()
+    now_utc = datetime.now(timezone.utc)
     update_data = {
         "points": new_total,
         "last_daily_reward_at": now_utc.isoformat() + "Z",  # ISO format with Z for UTC
