@@ -377,6 +377,118 @@ async def update_student(
 
 
 # ---------------------------------------------------------------------------
+# Active Topics endpoints
+# ---------------------------------------------------------------------------
+
+class SncTopicOut(BaseModel):
+    id: int
+    grade_level: int
+    topic_name: str
+
+
+class ActiveTopicsUpdate(BaseModel):
+    topic_ids: list[int]
+
+
+class ActiveTopicsResponse(BaseModel):
+    active_count: int
+
+
+async def get_active_topics(
+    classroom_id: str,
+    grade_level: int,
+    supabase,
+) -> list[dict]:
+    """
+    Returns active topics for a classroom.
+    If no rows in classroom_active_topics → returns ALL topics for the grade (default all active).
+    """
+    saved = (
+        supabase.table("classroom_active_topics")
+        .select("topic_id")
+        .eq("classroom_id", classroom_id)
+        .execute()
+    )
+    saved_ids = [row["topic_id"] for row in (saved.data or [])]
+
+    if saved_ids:
+        resp = (
+            supabase.table("snc_topics")
+            .select("id, grade_level, topic_name")
+            .in_("id", saved_ids)
+            .order("id")
+            .execute()
+        )
+    else:
+        resp = (
+            supabase.table("snc_topics")
+            .select("id, grade_level, topic_name")
+            .eq("grade_level", grade_level)
+            .order("id")
+            .execute()
+        )
+    return resp.data or []
+
+
+async def save_active_topics(
+    classroom_id: str,
+    topic_ids: list[int],
+    supabase,
+) -> dict:
+    """Delete-then-insert replacement of active topic selections."""
+    supabase.table("classroom_active_topics").delete().eq(
+        "classroom_id", classroom_id
+    ).execute()
+
+    if topic_ids:
+        rows = [{"classroom_id": classroom_id, "topic_id": tid} for tid in topic_ids]
+        supabase.table("classroom_active_topics").insert(rows).execute()
+
+    return {"active_count": len(topic_ids)}
+
+
+@router.get("/{classroom_id}/active-topics", response_model=list[SncTopicOut])
+async def get_classroom_active_topics(
+    classroom_id: str,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """
+    Returns active SNC topics for this classroom.
+    If no topics have been saved, returns ALL topics for the classroom's grade (default all active).
+    """
+    supabase = get_supabase_admin()
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+
+    classroom_resp = (
+        supabase.table("classrooms")
+        .select("grade_level")
+        .eq("id", classroom_id)
+        .maybe_single()
+        .execute()
+    )
+    if not classroom_resp.data:
+        raise HTTPException(status_code=404, detail="Classroom not found")
+
+    grade_level: int = classroom_resp.data["grade_level"]
+    return await get_active_topics(classroom_id, grade_level, supabase)
+
+
+@router.put("/{classroom_id}/active-topics", response_model=ActiveTopicsResponse)
+async def update_classroom_active_topics(
+    classroom_id: str,
+    body: ActiveTopicsUpdate,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """
+    Replaces all active topic selections for this classroom.
+    Send topic_ids: [] to reset to default (all active).
+    """
+    supabase = get_supabase_admin()
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+    return await save_active_topics(classroom_id, body.topic_ids, supabase)
+
+
+# ---------------------------------------------------------------------------
 # Syllabus (Pacing Calendar) endpoints
 # ---------------------------------------------------------------------------
 
