@@ -16,6 +16,7 @@ Feature 3: Pillar-based Missions (LLM-based generation with weakness focus)
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import Literal
@@ -72,6 +73,9 @@ You are an ESL mission designer for Pakistani primary school Grade {grade_level}
 Generate exactly 3 interactive English language questions using ONLY the vocabulary \
 in the SNC context provided below.
 
+ACTIVE TOPICS: Generate questions STRICTLY based on these topics only: {active_topics}
+Do NOT generate questions about any topic not in this list.
+
 RULES — follow every rule strictly:
 1. FORMAT: Question 1 and Question 2 must be multiple_choice (4 options: a, b, c, d). \
    Question 3 must be fill_blank (correct_answer is the missing word, no options needed).
@@ -86,6 +90,8 @@ RULES — follow every rule strictly:
 
 SNC CURRICULUM CONTEXT (Grade {grade_level}):
 {context}
+
+{confidence_builder_override}
 """
 
 _SYSTEM_PROMPT_FALLBACK = """\
@@ -94,15 +100,19 @@ You are an ESL mission designer for Pakistani primary school Grade {grade_level}
 No curriculum context is available right now. Generate exactly 3 basic English language \
 questions suitable for Grade {grade_level} students.
 
+ACTIVE TOPICS: Generate questions STRICTLY based on these topics only: {active_topics}
+Do NOT generate questions about any topic not in this list.
+
 RULES — follow every rule strictly:
 1. FORMAT: Question 1 and Question 2 must be multiple_choice (4 options: a, b, c, d). \
    Question 3 must be fill_blank (correct_answer is the missing word, no options needed).
-2. VOCABULARY: Use only simple, common Grade {grade_level} English vocabulary \
-   (colours, animals, numbers, family, daily objects).
+2. VOCABULARY: Use only simple, common Grade {grade_level} English vocabulary.
 3. SIMPLICITY: Keep questions short and easy to read. These are young children (ages 6-12).
 4. ENCOURAGEMENT: Frame questions in a positive, game-like tone.
 5. EMOJI: Add a single relevant emoji as emoji_hint for each question.
 6. TOPIC: Set the topic field to a short 1-3 word label that describes all 3 questions.
+
+{confidence_builder_override}
 """
 
 _USER_TURN = "Generate the 3 daily mission questions now."
@@ -129,42 +139,83 @@ _PROMPT_FALLBACK = ChatPromptTemplate.from_messages(
 async def generate_daily_missions(
     grade_level: int,
     context_chunks: list[str],
+    active_topics: list[str],
+    is_frustrated: bool = False,
 ) -> DailyMissions:
     """
     Generate 3 grade-appropriate English questions grounded in SNC context chunks.
+
+    Supports Affective Filter management: if is_frustrated is True, the LLM is instructed
+    to create a "Confidence Builder" question that boosts student morale.
 
     Args:
         grade_level:    The student's classroom grade (1-8). Used in the prompt as a
                         hard vocabulary guardrail.
         context_chunks: SNC passages retrieved via match_snc_documents RPC.
                         An empty list is handled gracefully via the fallback prompt.
+        is_frustrated:  If True, override question generation to create a "Confidence Builder"
+                        with reduced vocabulary complexity and obvious distractors. Default False.
 
     Returns:
         A DailyMissions object with exactly 3 MissionQuestion items.
         The caller (endpoint) is responsible for stripping correct_answer before
         sending the response to the client.
     """
+    # Confidence Builder override for students experiencing cognitive load
+    confidence_builder_override = ""
+    if is_frustrated:
+        confidence_builder_override = """\
+CRITICAL OVERRIDE — STUDENT IS EXPERIENCING HIGH COGNITIVE LOAD:
+The student is currently frustrated (3 consecutive incorrect answers or high time pressure).
+The next set of questions MUST be "Confidence Builders" to recover their affective state.
+
+CONFIDENCE BUILDER RULES:
+- Reduce vocabulary complexity by 1-2 grade levels BELOW the student's current grade.
+- Make the correct answer OBVIOUS (eliminate ambiguous distractors).
+- Focus on concepts the student has demonstrated understanding of in past correct answers.
+- Frame all questions with extra encouragement ("You're doing great!", "Nice work!", etc.).
+- Use simpler sentence structures and shorter questions.
+- Ensure at least 2 of the 3 questions are easy wins (>90% success probability).
+"""
+
     llm = ChatOpenAI(
         model=settings.CHAT_MODEL,
         temperature=0.7,          # slight creativity for varied questions each day
         openai_api_key=settings.OPENAI_API_KEY,
         max_retries=3,            # auto-retry on rate limit (429) errors
+        timeout=10.0,             # 10 second timeout for LLM calls
     ).with_structured_output(DailyMissions)
 
-    if context_chunks:
-        context = "\n\n---\n\n".join(context_chunks)
-        chain = _PROMPT_WITH_CONTEXT | llm
-        result = await chain.ainvoke(
-            {
-                "grade_level": grade_level,
-                "context": context,
-            }
-        )
-    else:
-        chain = _PROMPT_FALLBACK | llm
-        result = await chain.ainvoke({"grade_level": grade_level})
-
-    return result
+    try:
+        active_topics_str = ", ".join(active_topics) if active_topics else "General English"
+        if context_chunks:
+            context = "\n\n---\n\n".join(context_chunks)
+            chain = _PROMPT_WITH_CONTEXT | llm
+            result = await asyncio.wait_for(
+                chain.ainvoke(
+                    {
+                        "grade_level": grade_level,
+                        "context": context,
+                        "active_topics": active_topics_str,
+                        "confidence_builder_override": confidence_builder_override,
+                    }
+                ),
+                timeout=12.0  # 12 second timeout for entire chain
+            )
+        else:
+            chain = _PROMPT_FALLBACK | llm
+            result = await asyncio.wait_for(
+                chain.ainvoke({
+                    "grade_level": grade_level,
+                    "active_topics": active_topics_str,
+                    "confidence_builder_override": confidence_builder_override,
+                }),
+                timeout=12.0
+            )
+        return result
+    except asyncio.TimeoutError:
+        logger.error(f"LLM generation timeout for grade_level={grade_level}")
+        raise RuntimeError("Mission generation timed out. Please try again.")
 
 
 # ---------------------------------------------------------------------------
@@ -174,9 +225,10 @@ async def generate_daily_missions(
 async def generate_pillar_missions(
     pillar: str,
     grade_level: int,
-    current_week_topic: str | None,
+    active_topics: list[str],
     student_id: str,
     student_weaknesses: list[str],
+    is_frustrated: bool = False,
 ) -> list[dict]:
     """
     Generate 10 curriculum-aligned questions for a specific pillar using LLM.
@@ -184,12 +236,17 @@ async def generate_pillar_missions(
     Weaves in student weakness remediation and creates a diverse mix of
     multiple_choice and fill_blank questions tailored to the pillar.
 
+    Supports Affective Filter management: if is_frustrated is True, the LLM is instructed
+    to create "Confidence Builder" questions with reduced complexity.
+
     Args:
         pillar:             One of: reading, writing, listening, speaking
         grade_level:        The student's classroom grade (1-8)
-        current_week_topic: Teacher-configured topic for this week (e.g., "Animals", "Weather")
+        active_topics:      List of active SNC topic names for this classroom (e.g., ["Animals", "Weather"])
         student_id:         UUID of the student
         student_weaknesses: List of recent incorrect answers or weak areas
+        is_frustrated:      If True, override to generate "Confidence Builder" questions
+                            with reduced vocabulary complexity and obvious distractors. Default False.
 
     Returns:
         A list of exactly 10 question dicts, each with:
@@ -255,7 +312,25 @@ async def generate_pillar_missions(
         )
 
     # Build curriculum context
-    topic_text = current_week_topic or "General English skills"
+    topic_text = ", ".join(active_topics) if active_topics else "General English skills"
+
+    # Confidence Builder override for students experiencing cognitive load
+    confidence_builder_section = ""
+    if is_frustrated:
+        confidence_builder_section = f"""\
+
+CRITICAL OVERRIDE — STUDENT IS EXPERIENCING HIGH COGNITIVE LOAD:
+The student is currently frustrated (3 consecutive incorrect answers or high time pressure).
+The next set of questions MUST be "Confidence Builders" to recover their affective state.
+
+CONFIDENCE BUILDER RULES:
+- Reduce vocabulary complexity by 1-2 grade levels BELOW the student's current grade (effective grade: {max(1, grade_level - 2)}).
+- Make the correct answer OBVIOUS (eliminate ambiguous or tricky distractors).
+- Focus on concepts and topics the student has demonstrated understanding of in past correct answers.
+- Frame all questions with extra encouragement ("You're doing great!", "Nice work!", etc.).
+- Use simpler sentence structures and shorter questions (max 10 words per question).
+- Ensure at least 7 of the 10 questions are easy wins (>90% success probability).
+- Ignore the weakness focus constraint — ALL 10 questions should be confidence builders this round."""
 
     # Construct the LLM system prompt
     system_prompt = f"""\
@@ -274,7 +349,9 @@ STRICT CONSTRAINTS:
 1. Generate EXACTLY {PILLAR_QUESTIONS_COUNT} questions (no more, no less)
 2. Use age and SNC-appropriate vocabulary for grade {grade_level}
 3. Mix difficulty levels: aim for 4 easy, 4 medium, 2 hard
-4. At least 3 questions should target student weaknesses (mark as is_weakness_focused: true)
+4. Exactly 7 questions (70%) must be based on the current weekly topic.
+   Exactly 3 questions (30%) must target the student's weakness areas listed above
+   (mark those as is_weakness_focused: true). If no weaknesses are provided, all 10 questions target the current topic.
 5. Keep language simple, clear, and encouraging
 6. Avoid religious, political, or sensitive content
 7. Use cultural context relevant to Pakistan
@@ -282,7 +359,7 @@ STRICT CONSTRAINTS:
 9. For fill_blank questions: correct_answer should be a single word or short phrase
 10. Each question must have an emoji_hint that relates to the topic
 
-{weakness_context}
+{weakness_context}{confidence_builder_section}
 
 RESPONSE FORMAT:
 Return ONLY a valid JSON array with exactly 10 question objects. No explanation, no markdown.
