@@ -61,3 +61,9 @@ export interface ClassroomReport {
   pillar_averages: Record<Pillar, number>;
   incomplete_students: string[];
 }
+
+export interface SncTopic {
+  id: number;
+  grade_level: number;
+  topic_name: string;
+}
