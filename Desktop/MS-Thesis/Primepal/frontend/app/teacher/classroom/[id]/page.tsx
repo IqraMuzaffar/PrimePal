@@ -9,7 +9,7 @@ import { getTeacherHeaders } from "@/lib/teacherAuth";
 import BulkAddStudentsModal from "@/components/teacher/BulkAddStudentsModal";
 import EditStudentModal from "@/components/teacher/EditStudentModal";
 import SearchBar from "@/components/teacher/SearchBar";
-import type { Student } from "@/types";
+import type { SncTopic, Student } from "@/types";
 
 interface ClassroomDetail {
   id: string;
@@ -49,14 +49,15 @@ export default function ClassroomDetailPage({
   // Edit student state
   const [editStudent, setEditStudent] = useState<Student | null>(null);
 
-  // Classroom settings state
-  const [editingSettings, setEditingSettings] = useState(false);
-  const [currentWeekTopic, setCurrentWeekTopic] = useState("");
-  const [settingsSaving, setSettingsSaving] = useState(false);
-  const [settingsSaveError, setSettingsSaveError] = useState<string | null>(null);
-  const [settingsSaved, setSettingsSaved] = useState(false);
+  // Active Topics state
+  const [allTopics, setAllTopics] = useState<SncTopic[]>([]);
+  const [activeTopicIds, setActiveTopicIds] = useState<Set<number>>(new Set());
+  const [topicsLoaded, setTopicsLoaded] = useState(false);
+  const [topicsSaving, setTopicsSaving] = useState(false);
+  const [topicsSaved, setTopicsSaved] = useState(false);
+  const [topicsSaveError, setTopicsSaveError] = useState<string | null>(null);
 
-  async function fetchClassroom() {
+  async function fetchClassroom(): Promise<ClassroomDetail | null> {
     try {
       const headers = await getTeacherHeaders();
       const data = await apiFetch<ClassroomDetail>(
@@ -64,14 +65,33 @@ export default function ClassroomDetailPage({
         { headers }
       );
       setClassroom(data);
-      setCurrentWeekTopic(data.current_week_topic || "");
+      return data;
     } finally {
       setLoading(false);
+    }
+    return null;
+  }
+
+  async function fetchTopics(gradeLevel: number) {
+    try {
+      const headers = await getTeacherHeaders();
+      const [allTopicsData, activeTopicsData] = await Promise.all([
+        apiFetch<SncTopic[]>(`/topics?grade_level=${gradeLevel}`, { headers }),
+        apiFetch<SncTopic[]>(`/classroom/${params.id}/active-topics`, { headers }),
+      ]);
+      setAllTopics(allTopicsData);
+      setActiveTopicIds(new Set(activeTopicsData.map((t) => t.id)));
+    } finally {
+      setTopicsLoaded(true);
     }
   }
 
   useEffect(() => {
-    fetchClassroom();
+    async function init() {
+      const data = await fetchClassroom();
+      if (data) await fetchTopics(data.grade_level);
+    }
+    init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id]);
 
@@ -83,34 +103,22 @@ export default function ClassroomDetailPage({
   }
 
 
-  async function saveClassroomSettings() {
-    setSettingsSaving(true);
-    setSettingsSaveError(null);
-    setSettingsSaved(false);
+  async function saveActiveTopics() {
+    setTopicsSaving(true);
+    setTopicsSaveError(null);
     try {
       const headers = await getTeacherHeaders();
-      await apiFetch(`/classroom/${params.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({
-          current_week_topic: currentWeekTopic,
-        }),
+      await apiFetch(`/classroom/${params.id}/active-topics`, {
+        method: "PUT",
+        body: JSON.stringify({ topic_ids: Array.from(activeTopicIds) }),
         headers,
       });
-      setSettingsSaved(true);
-      setEditingSettings(false);
-      // Update local classroom state
-      setClassroom((prev) =>
-        prev ? { ...prev, current_week_topic: currentWeekTopic } : prev
-      );
-      setTimeout(() => {
-        setSettingsSaved(false);
-      }, 1200);
+      setTopicsSaved(true);
+      setTimeout(() => setTopicsSaved(false), 1500);
     } catch (err: unknown) {
-      setSettingsSaveError(
-        err instanceof Error ? err.message : "Failed to save settings."
-      );
+      setTopicsSaveError(err instanceof Error ? err.message : "Failed to save topics.");
     } finally {
-      setSettingsSaving(false);
+      setTopicsSaving(false);
     }
   }
 
@@ -239,86 +247,67 @@ export default function ClassroomDetailPage({
           </div>
         </div>
 
-        {/* Classroom Settings */}
+        {/* Active Topics */}
         <div className="bg-white rounded-2xl border border-gray-200 mb-6 p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900">Curriculum Settings</h2>
-              <p className="text-xs text-gray-500 mt-1">Configure the curriculum focus for this week</p>
+              <h2 className="text-sm font-semibold text-gray-900">Active Topics</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Toggle topics to control what the AI generates questions about. All topics are active by default.
+              </p>
             </div>
-            {!editingSettings && (
-              <button
-                onClick={() => setEditingSettings(true)}
-                className="text-xs font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors"
-              >
-                Edit
-              </button>
-            )}
+            <button
+              onClick={saveActiveTopics}
+              disabled={topicsSaving || !topicsLoaded}
+              className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+            >
+              {topicsSaving ? "Saving…" : "Save Changes"}
+            </button>
           </div>
 
-          {editingSettings ? (
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 uppercase tracking-wide mb-2">
-                  Current Week Topic
-                </label>
-                <input
-                  type="text"
-                  value={currentWeekTopic}
-                  onChange={(e) => {
-                    setCurrentWeekTopic(e.target.value);
-                    setSettingsSaveError(null);
-                    setSettingsSaved(false);
-                  }}
-                  placeholder="e.g., Week 2: Past Tense Nouns"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  This topic guides question generation for students.
-                </p>
-              </div>
-
-              {settingsSaveError && (
-                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
-                  {settingsSaveError}
-                </p>
-              )}
-
-              {settingsSaved && (
-                <p className="text-sm text-green-600 bg-green-50 rounded-lg px-3 py-2">
-                  ✓ Settings saved!
-                </p>
-              )}
-
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setEditingSettings(false);
-                    setCurrentWeekTopic(classroom.current_week_topic || "");
-                  }}
-                  className="flex-1 py-2 text-sm font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveClassroomSettings}
-                  disabled={settingsSaving}
-                  className="flex-1 py-2 text-sm font-semibold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  {settingsSaving ? "Saving…" : "Save Settings"}
-                </button>
-              </div>
+          {!topicsLoaded ? (
+            <div className="flex flex-wrap gap-2">
+              {[1, 2, 3, 4, 5].map((i) => (
+                <div key={i} className="h-8 w-20 bg-gray-200 rounded-full animate-pulse" />
+              ))}
             </div>
           ) : (
-            <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-800">
-              {classroom.current_week_topic ? (
-                <>
-                  <span className="font-medium">{classroom.current_week_topic}</span>
-                </>
-              ) : (
-                <span className="text-gray-400">No topic set yet</span>
-              )}
+            <div className="flex flex-wrap gap-2">
+              {allTopics.map((topic) => {
+                const isActive = activeTopicIds.has(topic.id);
+                return (
+                  <button
+                    key={topic.id}
+                    onClick={() => {
+                      setActiveTopicIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(topic.id)) next.delete(topic.id);
+                        else next.add(topic.id);
+                        return next;
+                      });
+                    }}
+                    className={`px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all ${
+                      isActive
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-white text-gray-500 border-gray-300 hover:border-indigo-400"
+                    }`}
+                  >
+                    {topic.topic_name}
+                  </button>
+                );
+              })}
             </div>
+          )}
+
+          {topicsSaveError && (
+            <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mt-3">
+              {topicsSaveError}
+            </p>
+          )}
+          {topicsSaved && (
+            <p className="text-sm text-green-600 bg-green-50 rounded-lg px-3 py-2 mt-3">
+              ✓ Topics saved!
+            </p>
           )}
         </div>
 
