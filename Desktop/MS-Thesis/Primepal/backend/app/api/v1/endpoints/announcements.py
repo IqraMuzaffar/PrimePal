@@ -6,10 +6,10 @@ Students see active announcements on their home dashboard.
 """
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.core.security import get_current_teacher
 from app.core.supabase_client import get_supabase, get_supabase_admin
@@ -31,7 +31,8 @@ class AnnouncementCreate(BaseModel):
     classroom_id: Optional[str] = None  # Required if scope="classroom"
     target_grade_level: Optional[int] = None  # Required if scope="grade_level"
 
-    @validator("scope")
+    @field_validator("scope")
+    @classmethod
     def validate_scope(cls, v):
         if v not in ["classroom", "grade_level", "school_wide"]:
             raise ValueError("scope must be 'classroom', 'grade_level', or 'school_wide'")
@@ -505,7 +506,7 @@ async def update_announcement(
         update_result = supabase_admin.table("announcements") \
             .update({
                 "is_active": body.is_active,
-                "updated_at": datetime.utcnow().isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
             }) \
             .eq("id", announcement_id) \
             .execute()

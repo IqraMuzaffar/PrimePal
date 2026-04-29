@@ -179,7 +179,8 @@ export default function SpeakingPage() {
       formData.append('prompt_text', currentPrompt.prompt);
 
       // Send to new /speaking/evaluate-pro endpoint
-      const response = await fetch('http://localhost:8000/api/v1/speaking/evaluate-pro', {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const response = await fetch(`${API_BASE}/speaking/evaluate-pro`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,

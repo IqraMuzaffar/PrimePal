@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { getAdminHeaders } from "@/lib/adminAuth";
-import { ChevronDown } from "lucide-react";
 
 interface Classroom {
   id: string;
@@ -32,11 +31,12 @@ export default function SchoolHierarchyPage() {
     try {
       const headers = await getAdminHeaders();
 
-      const classroomsRes = await fetch("/api/v1/admin/classrooms", { headers });
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const classroomsRes = await fetch(`${API_BASE}/admin/classrooms`, { headers });
       const classroomsData = await classroomsRes.json();
       setClassrooms(classroomsData);
 
-      const teachersRes = await fetch("/api/v1/admin/teachers", { headers });
+      const teachersRes = await fetch(`${API_BASE}/admin/teachers`, { headers });
       const teachersData = await teachersRes.json();
       setTeachers(teachersData);
     } catch (err) {
@@ -51,7 +51,8 @@ export default function SchoolHierarchyPage() {
 
     try {
       const headers = await getAdminHeaders();
-      const response = await fetch(`/api/v1/admin/classrooms/${reassignModal.classroom_id}/reassign`, {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const response = await fetch(`${API_BASE}/admin/classrooms/${reassignModal.classroom_id}/reassign`, {
         method: "PUT",
         headers: { ...headers, "Content-Type": "application/json" },
         body: JSON.stringify({ teacher_id: selectedTeacher }),

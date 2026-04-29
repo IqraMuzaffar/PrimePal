@@ -32,6 +32,7 @@ from app.schemas.classroom import (
     StudentResponse,  # noqa: F401 — referenced via ClassroomDetail
     StudentUpdate,
 )
+from app.schemas.topic import SncTopicOut
 from app.utils.code_generation import generate_memorable_code
 
 router = APIRouter()
@@ -379,12 +380,6 @@ async def update_student(
 # ---------------------------------------------------------------------------
 # Active Topics endpoints
 # ---------------------------------------------------------------------------
-
-class SncTopicOut(BaseModel):
-    id: int
-    grade_level: int
-    topic_name: str
-
 
 class ActiveTopicsUpdate(BaseModel):
     topic_ids: list[int]

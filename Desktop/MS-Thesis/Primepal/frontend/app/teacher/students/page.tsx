@@ -98,7 +98,7 @@ export default function StudentsPage() {
       await apiFetch(`/classroom/${filterClassroom}/students/${studentId}`, {
         headers,
         method: "PATCH",
-        body: { secret_pin: pin },
+        body: JSON.stringify({ secret_pin: pin }),
       });
       setPinSaved(true);
       setTimeout(() => {

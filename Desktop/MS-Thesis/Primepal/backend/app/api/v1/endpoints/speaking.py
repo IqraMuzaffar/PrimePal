@@ -198,23 +198,19 @@ async def evaluate_response(
 
     # If transcript is empty, automatic 0
     if not request.transcript or not request.transcript.strip():
+        points_resp = (
+            supabase.table("students")
+            .select("points")
+            .eq("id", student_id)
+            .maybe_single()
+            .execute()
+        )
+        current_points = points_resp.data.get("points", 0) if points_resp.data else 0
         return EvaluateFeedback(
             score=0,
             feedback="It looks like nothing was recorded. Try again!",
             points_awarded=0,
-            new_total=(
-                supabase.table("students")
-                .select("points")
-                .eq("id", student_id)
-                .maybe_single()
-                .execute()
-            ).data.get("points") if (
-                supabase.table("students")
-                .select("points")
-                .eq("id", student_id)
-                .maybe_single()
-                .execute()
-            ).data else 0,
+            new_total=current_points,
         )
 
     # Fetch grade level for evaluation context
@@ -378,9 +374,9 @@ async def evaluate_pronunciation(
 
         # Extract words from Whisper's verbose response
         # Structure: {text: "...", words: [{word: "I", start: 0.5, end: 0.8}, ...]}
-        whisper_text: str = transcript_response.get("text", "").strip()
-        whisper_words_raw = transcript_response.get("words", [])
-        spoken_words = [w.get("word", "").lower() for w in whisper_words_raw if w.get("word")]
+        whisper_text: str = (transcript_response.text or "").strip()
+        whisper_words_raw = transcript_response.words or []
+        spoken_words = [w.word.lower() for w in whisper_words_raw if w.word]
 
         if not spoken_words and whisper_text:
             # Fallback: if no word-level data, split text

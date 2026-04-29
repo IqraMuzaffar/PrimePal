@@ -17,7 +17,7 @@ The pillar endpoint (Feature 3) generates missions weighted by student weaknesse
 the teacher-configured current_week_topic.
 """
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -238,7 +238,7 @@ async def get_daily_missions(
 
     # Cache the response for future requests
     if not is_frustrated:
-        await cache_set(cache_key, response.dict(), ttl=3600)
+        await cache_set(cache_key, response.model_dump(), ttl=3600)
 
     return response
 
@@ -373,7 +373,7 @@ async def get_student_profile(
     )
 
     # Cache for 5 minutes
-    await cache_set(cache_key, response.dict(), ttl=300)
+    await cache_set(cache_key, response.model_dump(), ttl=300)
     return response
 
 
@@ -537,7 +537,7 @@ async def get_pillar_missions(
 
     # Cache the response for future requests
     if not is_frustrated:
-        await cache_set(cache_key, response.dict(), ttl=3600)
+        await cache_set(cache_key, response.model_dump(), ttl=3600)
 
     return response
 
@@ -625,7 +625,7 @@ async def get_leaderboard(student: dict = Depends(get_current_student)):
     )
 
     # Cache for 10 minutes
-    await cache_set(cache_key, response.dict(), ttl=600)
+    await cache_set(cache_key, response.model_dump(), ttl=600)
     return response
 
 
@@ -681,7 +681,7 @@ async def get_weekly_progress(student: dict = Depends(get_current_student)):
     # ------------------------------------------------------------------
     # Step 2: Fetch this week's pillar interactions (rolling 7-day window)
     # ------------------------------------------------------------------
-    seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+    seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
     interactions_resp = (
         supabase.table("student_interactions")
         .select("pillar")
@@ -718,5 +718,5 @@ async def get_weekly_progress(student: dict = Depends(get_current_student)):
     response = WeeklyProgressResponse(week_topic=week_topic, pillars=pillars)
 
     # Cache for 5 minutes
-    await cache_set(cache_key, response.dict(), ttl=300)
+    await cache_set(cache_key, response.model_dump(), ttl=300)
     return response

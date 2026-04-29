@@ -22,7 +22,8 @@ export default function GlobalCurriculumPage() {
   const fetchCurriculum = async () => {
     try {
       const headers = await getAdminHeaders();
-      const response = await fetch("/api/v1/admin/curriculum", { headers });
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const response = await fetch(`${API_BASE}/admin/curriculum`, { headers });
       const data = await response.json();
       setCurriculum(data);
     } catch (err) {
@@ -38,7 +39,8 @@ export default function GlobalCurriculumPage() {
     setDeletingId(chunkId);
     try {
       const headers = await getAdminHeaders();
-      const response = await fetch(`/api/v1/admin/curriculum/${chunkId}`, {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const response = await fetch(`${API_BASE}/admin/curriculum/${chunkId}`, {
         method: "DELETE",
         headers,
       });

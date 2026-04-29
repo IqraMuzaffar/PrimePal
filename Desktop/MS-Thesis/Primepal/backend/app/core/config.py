@@ -30,9 +30,6 @@ class Settings(BaseSettings):
     # Student JWT (custom, separate from Supabase auth)
     STUDENT_JWT_SECRET: str = "change-student-secret-in-production"
 
-    # Auth
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24  # 24 hours
-
     # CORS
     ALLOWED_ORIGINS: List[str] = ["http://localhost:3000"]
 

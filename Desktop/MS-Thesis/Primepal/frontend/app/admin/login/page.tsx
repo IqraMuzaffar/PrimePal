@@ -25,7 +25,8 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/v1/admin/validate-invite-code", {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const response = await fetch(`${API_BASE}/admin/validate-invite-code`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: inviteCode }),
@@ -58,12 +59,14 @@ export default function AdminLoginPage() {
     }
 
     try {
-      const response = await fetch("/api/v1/admin/teachers", {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const response = await fetch(`${API_BASE}/admin/teachers`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           email,
           full_name: fullName,
+          password,
           invite_code: inviteCode,
         }),
       });

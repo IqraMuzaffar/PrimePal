@@ -85,6 +85,15 @@ async def log_mission_results(
 
     supabase = get_supabase_admin()
 
+    classroom_resp = (
+        supabase.table("classrooms")
+        .select("grade_level")
+        .eq("id", classroom_id)
+        .maybe_single()
+        .execute()
+    )
+    grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
+
     # Insert each result as a student_interactions record
     for result in request.results:
         time_spent = 15 - result.time_remaining
@@ -93,7 +102,7 @@ async def log_mission_results(
         response = supabase.table("student_interactions").insert({
             "student_id": student_id,
             "classroom_id": classroom_id,
-            "grade_level": 0,  # Will be fetched if needed; for now, fetch from classroom
+            "grade_level": grade_level,
             "interaction_type": "mission_mc",  # Assuming multiple choice; can be enhanced
             "original_message": None,
             "translated_message": None,

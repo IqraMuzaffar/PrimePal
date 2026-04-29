@@ -43,7 +43,8 @@ export default function CurriculumPage() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-      const res = await fetch("http://localhost:8000/api/v1/curriculum/uploads", {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const res = await fetch(`${API_BASE}/curriculum/uploads`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (res.ok) {
@@ -104,7 +105,8 @@ export default function CurriculumPage() {
                     try {
                       const { data: { session } } = await supabase.auth.getSession();
                       if (!session) return;
-                      const res = await fetch(`http://localhost:8000/api/v1/topics?grade_level=${grade}`, {
+                      const topicsBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+                      const res = await fetch(`${topicsBase}/topics?grade_level=${grade}`, {
                         headers: { Authorization: `Bearer ${session.access_token}` },
                       });
                       if (res.ok) setGradeTopics(await res.json());

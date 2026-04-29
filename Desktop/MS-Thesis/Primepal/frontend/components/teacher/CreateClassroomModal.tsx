@@ -25,7 +25,8 @@ export default function CreateClassroomModal({ onClose, onCreated }: Props) {
       const { data: { session } } = await (await import("@/lib/supabase/client")).supabase.auth.getSession();
       if (!session) throw new Error("Not authenticated — please sign in again.");
 
-      const res = await fetch("http://localhost:8000/api/v1/classroom/", {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const res = await fetch(`${API_BASE}/classroom/`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

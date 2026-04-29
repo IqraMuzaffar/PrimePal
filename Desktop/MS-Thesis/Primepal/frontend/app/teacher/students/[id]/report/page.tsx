@@ -4,8 +4,7 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { ArrowLeft, Download, TrendingUp } from "lucide-react";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import type jsPDFType from "jspdf";
 import { apiFetch } from "@/lib/api";
 
 interface PillarStat {
@@ -77,9 +76,11 @@ export default function StudentReportPage() {
     fetchReport();
   }, [params.id]);
 
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (!report) return;
 
+    const { default: jsPDF } = await import("jspdf");
+    const { default: autoTable } = await import("jspdf-autotable");
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
     const margin = 15;

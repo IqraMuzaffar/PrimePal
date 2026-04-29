@@ -162,18 +162,27 @@ async def classroom_report(
     student_rows = students_resp.data or []
 
     # ------------------------------------------------------------------
-    # Step 3: Fetch interaction counts + accuracy for each student
+    # Step 3: Batch-fetch all interactions for classroom students
     # ------------------------------------------------------------------
+    student_ids = [s["id"] for s in student_rows]
+    all_interactions: list[dict] = []
+    if student_ids:
+        interactions_resp = (
+            supabase.table("student_interactions")
+            .select("student_id, interaction_type, correct")
+            .in_("student_id", student_ids)
+            .execute()
+        )
+        all_interactions = interactions_resp.data or []
+
+    interactions_by_student: dict[str, list[dict]] = {}
+    for row in all_interactions:
+        interactions_by_student.setdefault(row["student_id"], []).append(row)
+
     summaries: list[StudentSummary] = []
     for s in student_rows:
         sid = s["id"]
-        interactions_resp = (
-            supabase.table("student_interactions")
-            .select("interaction_type, correct")
-            .eq("student_id", sid)
-            .execute()
-        )
-        interactions = interactions_resp.data or []
+        interactions = interactions_by_student.get(sid, [])
         total = len(interactions)
         missions = [r for r in interactions if r["interaction_type"] in ("mission_mc", "mission_fill")]
         correct = sum(1 for r in missions if r.get("correct") is True)
@@ -240,7 +249,7 @@ async def get_teacher_report(teacher: dict = Depends(get_current_teacher)):
     if student_ids:
         int_res = (
             supabase.table("student_interactions")
-            .select("student_id, is_correct")
+            .select("student_id, correct")
             .in_("student_id", student_ids)
             .execute()
         )
@@ -254,7 +263,7 @@ async def get_teacher_report(teacher: dict = Depends(get_current_teacher)):
     for row in interactions:
         sid = row["student_id"]
         stats[sid]["total"] += 1
-        if row["is_correct"]:
+        if row["correct"]:
             stats[sid]["correct"] += 1
 
     def accuracy(sid: str) -> int:

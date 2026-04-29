@@ -19,7 +19,6 @@ export default function QuestionTimer({ initialSeconds, onTimeUp }: QuestionTime
     const interval = setInterval(() => {
       setSecondsLeft((prev) => {
         if (prev <= 1) {
-          onTimeUp();
           return 0;
         }
         return prev - 1;

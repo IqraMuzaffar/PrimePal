@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { ChevronDown, ChevronLeft, ChevronRight, Eye } from "lucide-react";
 import SearchBar from "@/components/teacher/SearchBar";
 import type { AnalyticsDashboardData } from "@/types/analytics";
@@ -148,10 +149,12 @@ export default function AnalyticsByStudent({
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         {student.avatarUrl ? (
-                          <img
+                          <Image
                             src={student.avatarUrl}
                             alt={student.name}
-                            className="w-8 h-8 rounded-full bg-gray-100"
+                            width={32}
+                            height={32}
+                            className="rounded-full bg-gray-100"
                           />
                         ) : (
                           <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">

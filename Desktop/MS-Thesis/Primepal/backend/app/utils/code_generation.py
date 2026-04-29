@@ -8,7 +8,6 @@ students to enter classroom join codes.
 
 import random
 import re
-from typing import Tuple
 
 
 def generate_memorable_code(grade: int, classroom_name: str) -> str:
@@ -63,36 +62,3 @@ def generate_memorable_code(grade: int, classroom_name: str) -> str:
     return memorable_code
 
 
-def validate_code_format(code: str) -> bool:
-    """
-    Validate that a code matches the memorable format.
-
-    Expected format: {1-digit-grade}{3-letters}{2-3-digits}
-    Examples: '1YEL42', '5BLU93'
-
-    Args:
-        code: Code string to validate
-
-    Returns:
-        True if valid format, False otherwise
-    """
-    pattern = r'^\d[A-Z]{3}\d+$'
-    return bool(re.match(pattern, code))
-
-
-def extract_code_info(code: str) -> Tuple[int, str]:
-    """
-    Extract grade and identifier from a memorable code.
-
-    Args:
-        code: Memorable code (e.g., '1YEL42')
-
-    Returns:
-        Tuple of (grade, identifier) where grade is int and identifier is str
-        Example: (1, 'YEL')
-    """
-    if len(code) >= 4:
-        grade = int(code[0])
-        identifier = code[1:4]
-        return grade, identifier
-    raise ValueError(f"Invalid code format: {code}")
