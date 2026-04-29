@@ -3,6 +3,7 @@
 import { useRef, useState } from "react";
 import { X, Loader2 } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import type { SncTopic } from "@/types";
 
 interface UploadResult {
   status: string;
@@ -12,6 +13,7 @@ interface UploadResult {
 
 interface Props {
   gradeLevel: number;
+  topics: SncTopic[];
   onClose: () => void;
   onSuccess: (result: UploadResult) => void;
 }
@@ -26,8 +28,9 @@ const STATE_LABELS: Record<UploadState, string> = {
   done: "",
 };
 
-export default function UploadBookModal({ gradeLevel, onClose, onSuccess }: Props) {
+export default function UploadBookModal({ gradeLevel, topics, onClose, onSuccess }: Props) {
   const [bookTitle, setBookTitle] = useState("");
+  const [selectedTopicId, setSelectedTopicId] = useState<number | null>(null);
   const [uploadState, setUploadState] = useState<UploadState>("idle");
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -57,6 +60,9 @@ export default function UploadBookModal({ gradeLevel, onClose, onSuccess }: Prop
       formData.append("file", file);
       formData.append("grade_level", String(gradeLevel));
       formData.append("book_title", bookTitle.trim());
+      if (selectedTopicId !== null) {
+        formData.append("topic_id", String(selectedTopicId));
+      }
 
       const res = await fetch("http://localhost:8000/api/v1/curriculum/upload", {
         method: "POST",
@@ -126,6 +132,29 @@ export default function UploadBookModal({ gradeLevel, onClose, onSuccess }: Prop
               className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50"
             />
           </div>
+
+          {/* Topic tag (optional) */}
+          {topics.length > 0 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Topic Tag <span className="text-gray-400 font-normal">(optional)</span>
+              </label>
+              <select
+                value={selectedTopicId ?? ""}
+                onChange={(e) => setSelectedTopicId(e.target.value ? Number(e.target.value) : null)}
+                disabled={isLoading}
+                className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent disabled:opacity-50"
+              >
+                <option value="">— No specific topic —</option>
+                {topics.map((t) => (
+                  <option key={t.id} value={t.id}>{t.topic_name}</option>
+                ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                Tag this document to a specific topic for better AI retrieval.
+              </p>
+            </div>
+          )}
 
           {/* File picker */}
           <div

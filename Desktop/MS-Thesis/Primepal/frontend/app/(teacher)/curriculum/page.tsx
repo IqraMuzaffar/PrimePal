@@ -135,6 +135,7 @@ export default function CurriculumPage() {
       {modalGrade !== null && (
         <UploadBookModal
           gradeLevel={modalGrade}
+          topics={[]}
           onClose={() => setModalGrade(null)}
           onSuccess={() => {
             setModalGrade(null);

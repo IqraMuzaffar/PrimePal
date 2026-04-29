@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Upload, BookOpen } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 import UploadBookModal from "@/components/teacher/UploadBookModal";
+import type { SncTopic } from "@/types";
 
 interface UploadRecord {
   id: string;
@@ -36,6 +37,7 @@ export default function CurriculumPage() {
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalGrade, setModalGrade] = useState<number | null>(null);
+  const [gradeTopics, setGradeTopics] = useState<SncTopic[]>([]);
 
   const fetchUploads = useCallback(async () => {
     try {
@@ -97,7 +99,20 @@ export default function CurriculumPage() {
                   Grade {grade}
                 </span>
                 <button
-                  onClick={() => setModalGrade(grade)}
+                  onClick={async () => {
+                    setModalGrade(grade);
+                    try {
+                      const { data: { session } } = await supabase.auth.getSession();
+                      if (!session) return;
+                      const res = await fetch(`http://localhost:8000/api/v1/topics?grade_level=${grade}`, {
+                        headers: { Authorization: `Bearer ${session.access_token}` },
+                      });
+                      if (res.ok) setGradeTopics(await res.json());
+                      else setGradeTopics([]);
+                    } catch {
+                      setGradeTopics([]);
+                    }
+                  }}
                   className={`flex items-center gap-1.5 text-xs font-medium text-white px-3 py-1.5 rounded-lg transition-colors ${colors.button}`}
                 >
                   <Upload size={12} />
@@ -147,6 +162,7 @@ export default function CurriculumPage() {
       {modalGrade !== null && (
         <UploadBookModal
           gradeLevel={modalGrade}
+          topics={gradeTopics}
           onClose={() => setModalGrade(null)}
           onSuccess={() => {
             setModalGrade(null);
