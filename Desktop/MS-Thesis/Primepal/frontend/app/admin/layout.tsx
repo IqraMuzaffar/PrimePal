@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { isCurrentUserAdmin } from "@/lib/adminAuth";
 import Link from "next/link";
-import { LogOut, Menu, X } from "lucide-react";
+import { Download, LogOut, Menu, X } from "lucide-react";
 
 export default function AdminLayout({
   children,
@@ -133,6 +133,17 @@ export default function AdminLayout({
             >
               Global Curriculum
             </Link>
+            <Link
+              href="/admin/dashboard/export"
+              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
+                isActive("/export")
+                  ? "border-indigo-500 text-white"
+                  : "border-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              <Download size={14} />
+              Data Export
+            </Link>
           </div>
         </div>
       </div>
@@ -192,6 +203,18 @@ export default function AdminLayout({
                 }`}
               >
                 Global Curriculum
+              </Link>
+              <Link
+                href="/admin/dashboard/export"
+                onClick={() => setShowMobileMenu(false)}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
+                  isActive("/export")
+                    ? "bg-indigo-600 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                <Download size={14} />
+                Data Export
               </Link>
             </div>
           </nav>

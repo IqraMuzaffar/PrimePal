@@ -3,12 +3,16 @@ Admin endpoints for managing teachers, classrooms, students, and curriculum.
 All endpoints require admin role verification via get_current_admin dependency.
 """
 
+import csv
+import io
 import os
 import tempfile
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
-from pydantic import BaseModel
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 import random
 import secrets
 import string
@@ -888,6 +892,280 @@ async def reset_student_pin(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to reset PIN: {str(e)}")
+
+
+# ─────────────────────────────────────────────────────────────
+# RAW DATA EXPORT (A04)
+# ─────────────────────────────────────────────────────────────
+
+def _csv_response(rows: list[dict], fieldnames: list[str], filename: str) -> StreamingResponse:
+    """Build a StreamingResponse for CSV download."""
+    output = io.StringIO()
+    writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction="ignore")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(row)
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+
+@router.get("/export/students")
+async def export_students(
+    grade_level: Optional[int] = Query(None),
+    format: str = Query("csv"),
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Export student roster as CSV or JSON."""
+    supabase = get_supabase_admin()
+
+    try:
+        query = supabase.table("students").select(
+            "id, student_name, roll_number, email, points, current_streak, created_at, "
+            "classrooms(class_name, grade_level)"
+        )
+        result = query.execute()
+        students = result.data or []
+
+        # Apply grade_level filter from joined classroom
+        if grade_level is not None:
+            students = [
+                s for s in students
+                if s.get("classrooms") and s["classrooms"].get("grade_level") == grade_level
+            ]
+
+        # Flatten
+        rows = []
+        for s in students:
+            classroom = s.get("classrooms") or {}
+            rows.append({
+                "student_id": s.get("id", ""),
+                "student_name": s.get("student_name", ""),
+                "roll_number": s.get("roll_number", ""),
+                "grade_level": classroom.get("grade_level", ""),
+                "classroom_name": classroom.get("class_name", ""),
+                "email": s.get("email", ""),
+                "total_points": s.get("points", 0),
+                "current_streak": s.get("current_streak", 0),
+                "created_at": s.get("created_at", ""),
+            })
+
+        if format == "json":
+            return rows
+
+        fieldnames = [
+            "student_id", "student_name", "roll_number", "grade_level",
+            "classroom_name", "email", "total_points", "current_streak", "created_at",
+        ]
+        return _csv_response(rows, fieldnames, f"students_{date.today().isoformat()}.csv")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/export/interactions")
+async def export_interactions(
+    grade_level: Optional[int] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    student_id: Optional[str] = Query(None),
+    pillar: Optional[str] = Query(None),
+    format: str = Query("csv"),
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Export interaction logs as CSV or JSON."""
+    supabase = get_supabase_admin()
+
+    try:
+        query = supabase.table("student_interactions").select(
+            "id, student_id, interaction_type, pillar, correct, score, "
+            "original_message, grade_level, created_at, "
+            "students(student_name, classrooms(class_name, grade_level))"
+        )
+
+        if student_id:
+            query = query.eq("student_id", student_id)
+        if pillar:
+            query = query.eq("pillar", pillar)
+        if grade_level is not None:
+            query = query.eq("grade_level", grade_level)
+        if date_from:
+            query = query.gte("created_at", date_from)
+        if date_to:
+            query = query.lte("created_at", date_to)
+
+        query = query.limit(50000)
+        result = query.execute()
+        interactions = result.data or []
+
+        rows = []
+        for i in interactions:
+            student = i.get("students") or {}
+            classroom = student.get("classrooms") or {}
+            rows.append({
+                "id": i.get("id", ""),
+                "student_id": i.get("student_id", ""),
+                "student_name": student.get("student_name", ""),
+                "grade_level": i.get("grade_level", ""),
+                "classroom_name": classroom.get("class_name", ""),
+                "interaction_type": i.get("interaction_type", ""),
+                "pillar": i.get("pillar", ""),
+                "correct": i.get("correct", ""),
+                "score": i.get("score", ""),
+                "original_message": i.get("original_message", ""),
+                "created_at": i.get("created_at", ""),
+            })
+
+        if format == "json":
+            return rows
+
+        fieldnames = [
+            "id", "student_id", "student_name", "grade_level", "classroom_name",
+            "interaction_type", "pillar", "correct", "score", "original_message", "created_at",
+        ]
+        return _csv_response(rows, fieldnames, f"interactions_{date.today().isoformat()}.csv")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/export/missions")
+async def export_missions(
+    grade_level: Optional[int] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
+    student_id: Optional[str] = Query(None),
+    pillar: Optional[str] = Query(None),
+    format: str = Query("csv"),
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Export mission completion history as CSV or JSON."""
+    supabase = get_supabase_admin()
+
+    try:
+        # Use student_interactions filtered to mission types
+        query = supabase.table("student_interactions").select(
+            "student_id, pillar, interaction_type, correct, score, created_at, "
+            "students(student_name, classrooms(class_name, grade_level))"
+        ).in_("interaction_type", ["mission_mc", "mission_fill"])
+
+        if student_id:
+            query = query.eq("student_id", student_id)
+        if pillar:
+            query = query.eq("pillar", pillar)
+        if grade_level is not None:
+            query = query.eq("grade_level", grade_level)
+        if date_from:
+            query = query.gte("created_at", date_from)
+        if date_to:
+            query = query.lte("created_at", date_to)
+
+        query = query.limit(50000)
+        result = query.execute()
+        interactions = result.data or []
+
+        rows = []
+        for i in interactions:
+            student = i.get("students") or {}
+            classroom = student.get("classrooms") or {}
+            rows.append({
+                "student_id": i.get("student_id", ""),
+                "student_name": student.get("student_name", ""),
+                "grade_level": classroom.get("grade_level", ""),
+                "pillar": i.get("pillar", ""),
+                "task_type": i.get("interaction_type", ""),
+                "is_correct": i.get("correct", ""),
+                "points_awarded": i.get("score", ""),
+                "completed_at": i.get("created_at", ""),
+            })
+
+        if format == "json":
+            return rows
+
+        fieldnames = [
+            "student_id", "student_name", "grade_level", "pillar",
+            "task_type", "is_correct", "points_awarded", "completed_at",
+        ]
+        return _csv_response(rows, fieldnames, f"missions_{date.today().isoformat()}.csv")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+@router.get("/export/evaluations")
+async def export_evaluations(
+    grade_level: Optional[int] = Query(None),
+    evaluation_type: Optional[str] = Query(None),
+    student_id: Optional[str] = Query(None),
+    format: str = Query("csv"),
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Export evaluation records as CSV or JSON. Returns empty data if evaluation tables don't exist yet."""
+    supabase = get_supabase_admin()
+
+    fieldnames = [
+        "student_id", "student_name", "grade_level", "evaluation_type",
+        "section", "pillar", "question_text", "student_answer",
+        "is_correct", "likert_value", "time_taken_ms", "created_at",
+    ]
+
+    try:
+        query = supabase.table("evaluation_records").select(
+            "student_id, evaluation_type, section, is_correct, likert_value, "
+            "time_taken_ms, student_answer, created_at, "
+            "evaluation_questions(question_text, pillar), "
+            "students(student_name, classrooms(class_name, grade_level))"
+        )
+
+        if student_id:
+            query = query.eq("student_id", student_id)
+        if evaluation_type:
+            query = query.eq("evaluation_type", evaluation_type)
+
+        query = query.limit(50000)
+        result = query.execute()
+        records = result.data or []
+
+        # Apply grade_level filter post-query via joined data
+        if grade_level is not None:
+            records = [
+                r for r in records
+                if (r.get("students") or {}).get("classrooms", {}).get("grade_level") == grade_level
+            ]
+
+        rows = []
+        for r in records:
+            student = r.get("students") or {}
+            classroom = student.get("classrooms") or {}
+            question = r.get("evaluation_questions") or {}
+            rows.append({
+                "student_id": r.get("student_id", ""),
+                "student_name": student.get("student_name", ""),
+                "grade_level": classroom.get("grade_level", ""),
+                "evaluation_type": r.get("evaluation_type", ""),
+                "section": r.get("section", ""),
+                "pillar": question.get("pillar", ""),
+                "question_text": question.get("question_text", ""),
+                "student_answer": r.get("student_answer", ""),
+                "is_correct": r.get("is_correct", ""),
+                "likert_value": r.get("likert_value", ""),
+                "time_taken_ms": r.get("time_taken_ms", ""),
+                "created_at": r.get("created_at", ""),
+            })
+
+        if format == "json":
+            return rows
+
+        return _csv_response(rows, fieldnames, f"evaluations_{date.today().isoformat()}.csv")
+
+    except Exception:
+        # Evaluation tables may not exist yet (A01 creates them)
+        if format == "json":
+            return []
+        return _csv_response([], fieldnames, f"evaluations_{date.today().isoformat()}.csv")
 
 
 # ─────────────────────────────────────────────────────────────
