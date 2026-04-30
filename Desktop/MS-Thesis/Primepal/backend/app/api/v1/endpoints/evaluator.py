@@ -5,9 +5,18 @@ Endpoints:
   GET /api/v1/evaluator/report/student/{student_id}
       → Generate NLP insight report for a specific student (teacher-protected).
 
+  GET /api/v1/evaluator/report/student/{student_id}/detailed
+      → Full pillar stats + AI insights with optional date range & pillar filter.
+
   GET /api/v1/evaluator/report/classroom/{classroom_id}
       → Return a summary roster of all students with their interaction counts
         and accuracy rates (teacher-protected). No LLM call — pure DB aggregation.
+
+  GET /api/v1/evaluator/report/grade/{grade_level}
+      → Grade-wise aggregate report with per-pillar accuracy, quartiles, proficiency.
+
+  GET /api/v1/evaluator/report/grade/{grade_level}/csv
+      → CSV export of grade-level student performance data.
 
   GET /api/v1/evaluator/dashboard-stats
       → Return aggregate statistics for the teacher's dashboard: total students,
@@ -15,6 +24,7 @@ Endpoints:
         Teacher-protected, computed from real database data.
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from app.core.security import get_current_teacher
@@ -661,6 +671,12 @@ class PillarStat(BaseModel):
     accuracy_pct: int  # 0-100
 
 
+class DailyScore(BaseModel):
+    date: str
+    correct: int
+    total: int
+
+
 class StudentDetailedReport(BaseModel):
     student_id: str
     student_name: str
@@ -672,6 +688,10 @@ class StudentDetailedReport(BaseModel):
     total_questions: int
     overall_accuracy_pct: int
     pillar_stats: list[PillarStat]
+    # Date range & trend
+    date_range: dict  # { "from": str|null, "to": str|null }
+    trend: str  # "improving" | "declining" | "stable"
+    daily_scores: list[DailyScore]
     # AI narrative (from nlp_evaluator)
     engagement_level: str
     strengths: list[str]
@@ -688,14 +708,20 @@ class StudentDetailedReport(BaseModel):
 async def get_student_detailed_report(
     student_id: str,
     teacher: dict = Depends(get_current_teacher),
+    date_from: str | None = Query(None, description="ISO date string YYYY-MM-DD"),
+    date_to: str | None = Query(None, description="ISO date string YYYY-MM-DD"),
+    pillar: str | None = Query(None, description="Filter by pillar (reading/writing/listening/speaking)"),
 ):
     """
     Returns a complete student report card:
     - Identity: name, roll number, classroom, grade level, total points
     - Overall stats: total questions, overall accuracy
     - Per-pillar breakdown: reading / writing / listening / speaking counts + accuracy
+    - Trend: improving / declining / stable (first-half vs second-half accuracy)
+    - Daily scores: per-day correct/total counts
     - AI narrative: engagement level, strengths, improvements, teacher note
 
+    Optional filters: date_from, date_to (YYYY-MM-DD), pillar.
     Teacher must own the student's classroom.
     """
     from collections import defaultdict
@@ -730,13 +756,21 @@ async def get_student_detailed_report(
     grade_level: int = classroom_resp.data["grade_level"]
     classroom_name: str = classroom_resp.data["class_name"]
 
-    # 2. Fetch ALL interactions for this student (lifetime stats)
-    int_resp = (
+    # 2. Fetch interactions with optional date range and pillar filters
+    int_query = (
         supabase.table("student_interactions")
-        .select("interaction_type, correct, pillar")
+        .select("interaction_type, correct, pillar, created_at")
         .eq("student_id", student_id)
-        .execute()
+        .order("created_at", desc=False)
     )
+    if date_from:
+        int_query = int_query.gte("created_at", f"{date_from}T00:00:00")
+    if date_to:
+        int_query = int_query.lte("created_at", f"{date_to}T23:59:59")
+    if pillar:
+        int_query = int_query.eq("pillar", pillar)
+
+    int_resp = int_query.execute()
     interactions = int_resp.data or []
 
     # 3. Per-pillar stats
@@ -745,12 +779,12 @@ async def get_student_detailed_report(
     total_correct = 0
 
     for row in interactions:
-        pillar = row.get("pillar")
+        p = row.get("pillar")
         correct = row.get("correct") is True
-        if pillar:
-            pillar_data[pillar]["total"] += 1
+        if p:
+            pillar_data[p]["total"] += 1
             if correct:
-                pillar_data[pillar]["correct"] += 1
+                pillar_data[p]["correct"] += 1
         total_questions += 1
         if correct:
             total_correct += 1
@@ -767,7 +801,36 @@ async def get_student_detailed_report(
 
     overall_accuracy_pct = round(total_correct / total_questions * 100) if total_questions > 0 else 0
 
-    # 4. AI narrative
+    # 4. Daily scores
+    daily_map: dict[str, dict] = defaultdict(lambda: {"correct": 0, "total": 0})
+    for row in interactions:
+        created = row.get("created_at", "")
+        day = created[:10] if created else "unknown"
+        daily_map[day]["total"] += 1
+        if row.get("correct") is True:
+            daily_map[day]["correct"] += 1
+    daily_scores = [
+        DailyScore(date=d, correct=v["correct"], total=v["total"])
+        for d, v in sorted(daily_map.items())
+    ]
+
+    # 5. Trend: compare first half vs second half accuracy
+    trend = "stable"
+    if len(interactions) >= 4:
+        mid = len(interactions) // 2
+        first_half = interactions[:mid]
+        second_half = interactions[mid:]
+        first_correct = sum(1 for r in first_half if r.get("correct") is True)
+        second_correct = sum(1 for r in second_half if r.get("correct") is True)
+        first_pct = first_correct / len(first_half) * 100 if first_half else 0
+        second_pct = second_correct / len(second_half) * 100 if second_half else 0
+        diff = second_pct - first_pct
+        if diff > 5:
+            trend = "improving"
+        elif diff < -5:
+            trend = "declining"
+
+    # 6. AI narrative
     ai_report = await evaluate_interactions(
         student_id=student_id,
         grade_level=grade_level,
@@ -785,9 +848,616 @@ async def get_student_detailed_report(
         total_questions=total_questions,
         overall_accuracy_pct=overall_accuracy_pct,
         pillar_stats=pillar_stats,
+        date_range={"from": date_from, "to": date_to},
+        trend=trend,
+        daily_scores=daily_scores,
         engagement_level=ai_report.engagement_level,
         strengths=ai_report.strengths,
         areas_for_improvement=ai_report.areas_for_improvement,
         recommended_topics=ai_report.recommended_topics,
         teacher_note=ai_report.teacher_note,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /report/grade/{grade_level}  — grade-wise aggregate report
+# ---------------------------------------------------------------------------
+
+class GradeReportResponse(BaseModel):
+    grade_level: int
+    total_students: int
+    total_interactions: int
+    overall_accuracy_pct: float
+    pillar_accuracy: dict[str, float]  # { reading: 72.5, writing: 58.1, ... }
+    top_weak_topics: list[str]    # bottom 3 pillars by accuracy
+    top_strong_topics: list[str]  # top 3 pillars by accuracy
+    quartiles: dict[str, int]     # { top_25: 8, middle_50: 15, bottom_25: 7 }
+    student_count_by_proficiency: dict[str, int]  # { proficient: 20, developing: 8, struggling: 2 }
+    ai_summary: str  # LLM-generated 2-3 sentence summary
+
+
+async def _generate_grade_summary(grade_level: int, stats: dict) -> str:
+    """Generate a short AI summary of grade-level performance for teachers."""
+    try:
+        from langchain_openai import ChatOpenAI
+        from app.core.config import settings as app_settings
+        llm = ChatOpenAI(
+            model="gpt-4o-mini",
+            temperature=0.3,
+            openai_api_key=app_settings.OPENAI_API_KEY,
+        )
+        prompt = (
+            f"Summarize this grade {grade_level} performance in 2-3 sentences for a teacher:\n"
+            f"Overall accuracy: {stats['overall_accuracy_pct']}%\n"
+            f"Reading: {stats['pillar_accuracy'].get('reading', 0)}%\n"
+            f"Writing: {stats['pillar_accuracy'].get('writing', 0)}%\n"
+            f"Listening: {stats['pillar_accuracy'].get('listening', 0)}%\n"
+            f"Speaking: {stats['pillar_accuracy'].get('speaking', 0)}%\n"
+            f"{stats['total_students']} students, {stats['student_count_by_proficiency']} proficiency distribution.\n"
+            f"Keep it concise and actionable."
+        )
+        result = await llm.ainvoke(prompt)
+        return result.content.strip()
+    except Exception:
+        return "AI summary unavailable."
+
+
+@router.get(
+    "/report/grade/{grade_level}",
+    response_model=GradeReportResponse,
+    summary="Grade-wise aggregate report (teacher only)",
+)
+async def get_grade_report(
+    grade_level: int,
+    teacher: dict = Depends(get_current_teacher),
+    date_from: str | None = Query(None, description="ISO date string YYYY-MM-DD"),
+    date_to: str | None = Query(None, description="ISO date string YYYY-MM-DD"),
+):
+    """
+    Returns an aggregate performance report for all students in a given grade level
+    across all of the teacher's classrooms. Includes per-pillar accuracy, quartiles,
+    proficiency distribution, and an AI-generated summary.
+
+    Optional date range filter narrows interactions to the given period.
+    """
+    from collections import defaultdict
+
+    supabase = get_supabase_admin()
+    teacher_id: str = teacher["id"]
+
+    # 1. Fetch all classrooms with this grade_level owned by the teacher
+    cls_resp = (
+        supabase.table("classrooms")
+        .select("id")
+        .eq("teacher_id", teacher_id)
+        .eq("grade_level", grade_level)
+        .execute()
+    )
+    classrooms = cls_resp.data or []
+    if not classrooms:
+        return GradeReportResponse(
+            grade_level=grade_level,
+            total_students=0,
+            total_interactions=0,
+            overall_accuracy_pct=0.0,
+            pillar_accuracy={},
+            top_weak_topics=[],
+            top_strong_topics=[],
+            quartiles={"top_25": 0, "middle_50": 0, "bottom_25": 0},
+            student_count_by_proficiency={"proficient": 0, "developing": 0, "struggling": 0},
+            ai_summary="No data available for this grade level.",
+        )
+
+    classroom_ids = [c["id"] for c in classrooms]
+
+    # 2. Fetch all students in those classrooms
+    stu_resp = (
+        supabase.table("students")
+        .select("id, student_name, roll_number")
+        .in_("classroom_id", classroom_ids)
+        .execute()
+    )
+    student_rows = stu_resp.data or []
+    total_students = len(student_rows)
+
+    if total_students == 0:
+        return GradeReportResponse(
+            grade_level=grade_level,
+            total_students=0,
+            total_interactions=0,
+            overall_accuracy_pct=0.0,
+            pillar_accuracy={},
+            top_weak_topics=[],
+            top_strong_topics=[],
+            quartiles={"top_25": 0, "middle_50": 0, "bottom_25": 0},
+            student_count_by_proficiency={"proficient": 0, "developing": 0, "struggling": 0},
+            ai_summary="No students enrolled in this grade level.",
+        )
+
+    student_ids = [s["id"] for s in student_rows]
+
+    # 3. Fetch all interactions for those students (optionally filtered by date range)
+    int_query = (
+        supabase.table("student_interactions")
+        .select("student_id, correct, pillar")
+        .in_("student_id", student_ids)
+    )
+    if date_from:
+        int_query = int_query.gte("created_at", f"{date_from}T00:00:00")
+    if date_to:
+        int_query = int_query.lte("created_at", f"{date_to}T23:59:59")
+    int_resp = int_query.execute()
+    interactions = int_resp.data or []
+    total_interactions = len(interactions)
+
+    # 4. Compute per-pillar accuracy and overall accuracy
+    pillar_stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
+    total_correct = 0
+    student_stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
+
+    for row in interactions:
+        p = row.get("pillar")
+        is_correct = row.get("correct") is True
+        if p:
+            pillar_stats[p]["total"] += 1
+            if is_correct:
+                pillar_stats[p]["correct"] += 1
+        student_stats[row["student_id"]]["total"] += 1
+        if is_correct:
+            student_stats[row["student_id"]]["correct"] += 1
+            total_correct += 1
+
+    overall_accuracy_pct = round(total_correct / total_interactions * 100, 1) if total_interactions > 0 else 0.0
+
+    pillar_accuracy: dict[str, float] = {}
+    for p, d in pillar_stats.items():
+        pillar_accuracy[p] = round(d["correct"] / d["total"] * 100, 1) if d["total"] > 0 else 0.0
+
+    # Sort pillars by accuracy for strong/weak
+    sorted_pillars = sorted(pillar_accuracy.items(), key=lambda x: x[1])
+    top_weak_topics = [p for p, _ in sorted_pillars[:3]]
+    top_strong_topics = [p for p, _ in sorted_pillars[-3:]][::-1]
+
+    # 5. Compute quartiles: sort students by accuracy, split into top 25%, middle 50%, bottom 25%
+    student_accuracies: list[float] = []
+    for sid in student_ids:
+        st = student_stats.get(sid)
+        if st and st["total"] > 0:
+            student_accuracies.append(st["correct"] / st["total"] * 100)
+        else:
+            student_accuracies.append(0.0)
+
+    student_accuracies_sorted = sorted(student_accuracies)
+    n = len(student_accuracies_sorted)
+    bottom_25_count = n // 4
+    top_25_count = n // 4
+    middle_50_count = n - bottom_25_count - top_25_count
+
+    quartiles = {
+        "top_25": top_25_count,
+        "middle_50": middle_50_count,
+        "bottom_25": bottom_25_count,
+    }
+
+    # 6. Proficiency levels: >70% = proficient, 40-70% = developing, <40% = struggling
+    proficiency: dict[str, int] = {"proficient": 0, "developing": 0, "struggling": 0}
+    for acc in student_accuracies:
+        if acc > 70:
+            proficiency["proficient"] += 1
+        elif acc >= 40:
+            proficiency["developing"] += 1
+        else:
+            proficiency["struggling"] += 1
+
+    # 7. Generate AI summary
+    summary_stats = {
+        "overall_accuracy_pct": overall_accuracy_pct,
+        "pillar_accuracy": pillar_accuracy,
+        "total_students": total_students,
+        "student_count_by_proficiency": proficiency,
+    }
+    ai_summary = await _generate_grade_summary(grade_level, summary_stats)
+
+    return GradeReportResponse(
+        grade_level=grade_level,
+        total_students=total_students,
+        total_interactions=total_interactions,
+        overall_accuracy_pct=overall_accuracy_pct,
+        pillar_accuracy=pillar_accuracy,
+        top_weak_topics=top_weak_topics,
+        top_strong_topics=top_strong_topics,
+        quartiles=quartiles,
+        student_count_by_proficiency=proficiency,
+        ai_summary=ai_summary,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /report/grade/{grade_level}/csv  — CSV export
+# ---------------------------------------------------------------------------
+
+@router.get(
+    "/report/grade/{grade_level}/csv",
+    summary="Export grade-level student performance as CSV (teacher only)",
+)
+async def export_grade_csv(
+    grade_level: int,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """
+    Export a CSV file of all students in the given grade level with per-pillar
+    accuracy and overall accuracy. Returns a streaming CSV download.
+    """
+    import csv
+    import io
+    from collections import defaultdict
+
+    supabase = get_supabase_admin()
+    teacher_id: str = teacher["id"]
+
+    # 1. Fetch classrooms
+    cls_resp = (
+        supabase.table("classrooms")
+        .select("id")
+        .eq("teacher_id", teacher_id)
+        .eq("grade_level", grade_level)
+        .execute()
+    )
+    classrooms = cls_resp.data or []
+    classroom_ids = [c["id"] for c in classrooms]
+
+    # 2. Fetch students
+    student_rows: list[dict] = []
+    if classroom_ids:
+        stu_resp = (
+            supabase.table("students")
+            .select("id, student_name, roll_number")
+            .in_("classroom_id", classroom_ids)
+            .order("student_name")
+            .execute()
+        )
+        student_rows = stu_resp.data or []
+
+    # 3. Fetch interactions
+    student_ids = [s["id"] for s in student_rows]
+    interactions: list[dict] = []
+    if student_ids:
+        int_resp = (
+            supabase.table("student_interactions")
+            .select("student_id, correct, pillar")
+            .in_("student_id", student_ids)
+            .execute()
+        )
+        interactions = int_resp.data or []
+
+    # 4. Aggregate per student per pillar
+    student_pillar: dict[str, dict[str, dict]] = defaultdict(
+        lambda: defaultdict(lambda: {"total": 0, "correct": 0})
+    )
+    student_totals: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
+
+    for row in interactions:
+        sid = row["student_id"]
+        p = row.get("pillar")
+        is_correct = row.get("correct") is True
+        student_totals[sid]["total"] += 1
+        if is_correct:
+            student_totals[sid]["correct"] += 1
+        if p:
+            student_pillar[sid][p]["total"] += 1
+            if is_correct:
+                student_pillar[sid][p]["correct"] += 1
+
+    # 5. Build CSV
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "student_name", "roll_number", "total_interactions",
+        "reading_accuracy", "writing_accuracy", "listening_accuracy",
+        "speaking_accuracy", "overall_accuracy",
+    ])
+
+    for s in student_rows:
+        sid = s["id"]
+        totals = student_totals.get(sid, {"total": 0, "correct": 0})
+        overall_acc = round(totals["correct"] / totals["total"] * 100, 1) if totals["total"] > 0 else 0.0
+
+        pillar_accs = {}
+        for p_name in ("reading", "writing", "listening", "speaking"):
+            pd = student_pillar[sid].get(p_name, {"total": 0, "correct": 0})
+            pillar_accs[p_name] = round(pd["correct"] / pd["total"] * 100, 1) if pd["total"] > 0 else 0.0
+
+        writer.writerow([
+            s["student_name"],
+            s.get("roll_number") or "",
+            totals["total"],
+            pillar_accs["reading"],
+            pillar_accs["writing"],
+            pillar_accs["listening"],
+            pillar_accs["speaking"],
+            overall_acc,
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename=grade-{grade_level}-report.csv"
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /grade-overview/{grade_level}  — T04 grade overview with idle detection
+# ---------------------------------------------------------------------------
+
+class GradeOverviewResponse(BaseModel):
+    grade_level: int
+    total_students: int
+    active_today: int
+    idle_students: int  # no activity in 48 hours
+    avg_accuracy: float
+    pillar_accuracy: dict[str, float]  # reading, writing, listening, speaking
+    weak_pillars: list[str]  # pillars below 50% accuracy
+    strong_pillars: list[str]  # pillars above 75% accuracy
+    idle_student_list: list[dict]  # [{ student_id, student_name, last_activity_date }]
+
+
+@router.get(
+    "/grade-overview/{grade_level}",
+    response_model=GradeOverviewResponse,
+    summary="Grade-level overview with idle student detection (teacher only)",
+)
+async def get_grade_overview(
+    grade_level: int,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """
+    Returns a grade-level overview including:
+    - Total students, active today count, idle count
+    - Per-pillar accuracy with weak/strong classification
+    - List of idle students (no activity in 48+ hours)
+
+    Teacher authentication required.
+    """
+    from datetime import datetime, timedelta, timezone
+    from collections import defaultdict
+
+    supabase = get_supabase_admin()
+    teacher_id: str = teacher["id"]
+
+    # 1. Fetch classrooms for this grade
+    cls_res = (
+        supabase.table("classrooms")
+        .select("id")
+        .eq("teacher_id", teacher_id)
+        .eq("grade_level", grade_level)
+        .execute()
+    )
+    classrooms = cls_res.data or []
+
+    empty = GradeOverviewResponse(
+        grade_level=grade_level,
+        total_students=0,
+        active_today=0,
+        idle_students=0,
+        avg_accuracy=0.0,
+        pillar_accuracy={},
+        weak_pillars=[],
+        strong_pillars=[],
+        idle_student_list=[],
+    )
+
+    if not classrooms:
+        return empty
+
+    classroom_ids = [c["id"] for c in classrooms]
+
+    # 2. Fetch students with last_activity_date
+    stu_res = (
+        supabase.table("students")
+        .select("id, student_name, classroom_id, last_activity_date, current_streak")
+        .in_("classroom_id", classroom_ids)
+        .execute()
+    )
+    student_rows = stu_res.data or []
+    total_students = len(student_rows)
+
+    if not student_rows:
+        return empty
+
+    # 3. Count active today and idle students
+    now = datetime.now(timezone.utc)
+    today_str = now.strftime("%Y-%m-%d")
+    two_days_ago_str = (now - timedelta(hours=48)).strftime("%Y-%m-%d")
+
+    active_today = 0
+    idle_count = 0
+    idle_student_list: list[dict] = []
+
+    for s in student_rows:
+        last_activity = s.get("last_activity_date")
+        if last_activity and last_activity[:10] == today_str:
+            active_today += 1
+        if not last_activity or last_activity[:10] < two_days_ago_str:
+            idle_count += 1
+            idle_student_list.append({
+                "student_id": s["id"],
+                "student_name": s["student_name"],
+                "last_activity_date": last_activity,
+            })
+
+    # 4. Fetch interactions and compute per-pillar accuracy
+    student_ids = [s["id"] for s in student_rows]
+    int_res = (
+        supabase.table("student_interactions")
+        .select("student_id, pillar, correct")
+        .in_("student_id", student_ids)
+        .execute()
+    )
+    interactions = int_res.data or []
+
+    pillar_agg: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
+    total_correct = 0
+    total_count = 0
+
+    for row in interactions:
+        p = row.get("pillar")
+        if p:
+            pillar_agg[p]["total"] += 1
+            if row.get("correct") is True:
+                pillar_agg[p]["correct"] += 1
+        total_count += 1
+        if row.get("correct") is True:
+            total_correct += 1
+
+    avg_accuracy = round(total_correct / total_count * 100, 2) if total_count > 0 else 0.0
+
+    pillar_accuracy: dict[str, float] = {}
+    weak_pillars: list[str] = []
+    strong_pillars: list[str] = []
+
+    for p_name in ["reading", "writing", "listening", "speaking"]:
+        ps = pillar_agg.get(p_name)
+        if ps and ps["total"] > 0:
+            acc = round(ps["correct"] / ps["total"] * 100, 2)
+        else:
+            acc = 0.0
+        pillar_accuracy[p_name] = acc
+        if acc < 50:
+            weak_pillars.append(p_name)
+        if acc > 75:
+            strong_pillars.append(p_name)
+
+    return GradeOverviewResponse(
+        grade_level=grade_level,
+        total_students=total_students,
+        active_today=active_today,
+        idle_students=idle_count,
+        avg_accuracy=avg_accuracy,
+        pillar_accuracy=pillar_accuracy,
+        weak_pillars=weak_pillars,
+        strong_pillars=strong_pillars,
+        idle_student_list=idle_student_list,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /weekly-trend/{grade_level}  — T04 weekly accuracy trend
+# ---------------------------------------------------------------------------
+
+class WeeklyTrendPoint(BaseModel):
+    week_label: str  # "Apr 21-27"
+    accuracy: float
+    interactions: int
+
+
+class WeeklyTrendResponse(BaseModel):
+    grade_level: int
+    pillar: str | None  # null = overall
+    weeks: list[WeeklyTrendPoint]
+
+
+@router.get(
+    "/weekly-trend/{grade_level}",
+    response_model=WeeklyTrendResponse,
+    summary="Weekly accuracy trend for a grade (teacher only)",
+)
+async def get_weekly_trend(
+    grade_level: int,
+    teacher: dict = Depends(get_current_teacher),
+    pillar: str | None = Query(None, description="Filter by pillar"),
+    weeks: int = Query(4, ge=1, le=12, description="Number of weeks to return"),
+):
+    """
+    Returns weekly accuracy trend data for a grade level.
+    Each data point includes the week label, accuracy percentage, and interaction count.
+    """
+    from datetime import datetime, timedelta, timezone
+
+    supabase = get_supabase_admin()
+    teacher_id: str = teacher["id"]
+
+    # 1. Fetch classrooms
+    cls_res = (
+        supabase.table("classrooms")
+        .select("id")
+        .eq("teacher_id", teacher_id)
+        .eq("grade_level", grade_level)
+        .execute()
+    )
+    classrooms = cls_res.data or []
+    if not classrooms:
+        return WeeklyTrendResponse(grade_level=grade_level, pillar=pillar, weeks=[])
+
+    classroom_ids = [c["id"] for c in classrooms]
+
+    # 2. Fetch students
+    stu_res = (
+        supabase.table("students")
+        .select("id")
+        .in_("classroom_id", classroom_ids)
+        .execute()
+    )
+    student_ids = [s["id"] for s in (stu_res.data or [])]
+    if not student_ids:
+        return WeeklyTrendResponse(grade_level=grade_level, pillar=pillar, weeks=[])
+
+    # 3. Compute week boundaries
+    now = datetime.now(timezone.utc)
+    current_monday = now - timedelta(days=now.weekday())
+    current_monday = current_monday.replace(hour=0, minute=0, second=0, microsecond=0)
+    earliest_start = current_monday - timedelta(weeks=weeks - 1)
+
+    # 4. Fetch interactions from the earliest start
+    int_query = (
+        supabase.table("student_interactions")
+        .select("correct, created_at, pillar")
+        .in_("student_id", student_ids)
+        .gte("created_at", earliest_start.isoformat())
+    )
+    if pillar:
+        int_query = int_query.eq("pillar", pillar)
+    int_res = int_query.execute()
+    interactions = int_res.data or []
+
+    # 5. Bucket interactions by week
+    week_data: dict[int, dict] = {i: {"total": 0, "correct": 0} for i in range(weeks)}
+
+    for row in interactions:
+        created = row.get("created_at", "")
+        if not created:
+            continue
+        try:
+            dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
+        except (ValueError, AttributeError):
+            continue
+        delta_days = (dt - earliest_start).days
+        week_idx = delta_days // 7
+        if 0 <= week_idx < weeks:
+            week_data[week_idx]["total"] += 1
+            if row.get("correct") is True:
+                week_data[week_idx]["correct"] += 1
+
+    # 6. Build response
+    MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    result_weeks: list[WeeklyTrendPoint] = []
+    for i in range(weeks):
+        week_start = earliest_start + timedelta(weeks=i)
+        week_end = week_start + timedelta(days=6)
+        label = f"{MONTH_NAMES[week_start.month - 1]} {week_start.day}-{week_end.day}"
+        wd = week_data[i]
+        accuracy = round(wd["correct"] / wd["total"] * 100, 2) if wd["total"] > 0 else 0.0
+        result_weeks.append(WeeklyTrendPoint(
+            week_label=label,
+            accuracy=accuracy,
+            interactions=wd["total"],
+        ))
+
+    return WeeklyTrendResponse(
+        grade_level=grade_level,
+        pillar=pillar,
+        weeks=result_weeks,
     )
