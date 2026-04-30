@@ -37,6 +37,7 @@ from app.agents.tutor_agent.mission_generator import (
     generate_daily_missions,
     generate_pillar_missions,
 )
+from app.utils.performance_profile import get_student_performance_profile, invalidate_performance_cache
 
 logger = logging.getLogger(__name__)
 
@@ -403,6 +404,9 @@ async def complete_mission(
     # Update daily streak (any completed mission counts as activity)
     streak_data = await update_streak(student_id)
 
+    # Invalidate performance profile cache so next mission generation uses fresh data
+    background_tasks.add_task(invalidate_performance_cache, student_id)
+
     return CompleteResponse(
         points_awarded=points_awarded,
         new_total=new_total,
@@ -677,6 +681,16 @@ async def get_pillar_missions(
         student_weaknesses = []
 
     # ------------------------------------------------------------------
+    # Step 3b: Fetch student performance profile for adaptive difficulty
+    # ------------------------------------------------------------------
+    performance_profile = None
+    try:
+        performance_profile = await get_student_performance_profile(student_id)
+        logger.info("Performance profile loaded for student %s: overall=%.1f%%", student_id, performance_profile.get("overall_accuracy", 0))
+    except Exception as exc:
+        logger.warning("Could not fetch performance profile for student %s: %s", student_id, exc)
+
+    # ------------------------------------------------------------------
     # Step 4: Generate pillar missions via mission generator
     # If is_frustrated=true, generates Confidence Builder questions
     # ------------------------------------------------------------------
@@ -688,6 +702,7 @@ async def get_pillar_missions(
             student_id=student_id,
             student_weaknesses=student_weaknesses,
             is_frustrated=is_frustrated,
+            performance_profile=performance_profile,
         )
         if missions is None:
             raise ValueError("generate_pillar_missions returned None")
@@ -892,6 +907,33 @@ async def submit_speaking_answer(
         new_total=new_total,
         status="final",
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /performance (S09: Student Performance Profile)
+# ---------------------------------------------------------------------------
+
+class PerformanceResponse(BaseModel):
+    overall_accuracy: float
+    pillar_accuracy: dict[str, float]
+    weak_topics: list[dict]
+    strong_topics: list[dict]
+    difficulty_recommendation: str
+
+
+@router.get("/performance", response_model=PerformanceResponse, summary="Student performance profile")
+async def get_performance(student: dict = Depends(get_current_student)):
+    """
+    Return the student's per-topic performance profile for UI display.
+
+    Shows overall accuracy, per-pillar accuracy, weak/strong areas,
+    and the recommended difficulty level for adaptive missions.
+
+    Authentication: student JWT (Bearer token).
+    """
+    student_id = student["sub"]
+    profile = await get_student_performance_profile(student_id)
+    return PerformanceResponse(**profile)
 
 
 # ---------------------------------------------------------------------------
