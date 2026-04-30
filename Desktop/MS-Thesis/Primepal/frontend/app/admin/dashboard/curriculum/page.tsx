@@ -26,7 +26,7 @@ export default function GlobalCurriculumPage() {
       const response = await fetch(`${API_BASE}/admin/curriculum`, { headers });
       const data = await response.json();
       setCurriculum(data);
-    } catch (err) {
+    } catch {
       console.error(err);
     } finally {
       setLoading(false);
@@ -48,7 +48,7 @@ export default function GlobalCurriculumPage() {
       if (response.ok) {
         setCurriculum(curriculum.filter((c) => c.id !== chunkId));
       }
-    } catch (err) {
+    } catch {
       alert("Failed to delete curriculum");
     } finally {
       setDeletingId(null);

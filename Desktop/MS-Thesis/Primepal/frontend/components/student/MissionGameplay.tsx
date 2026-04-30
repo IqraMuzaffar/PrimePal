@@ -1,72 +1,65 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import QuestionTimer from './QuestionTimer';
+import TaskRouter from './tasks/TaskRouter';
 import { motion } from 'framer-motion';
-import { Check, X } from 'lucide-react';
-
-interface Question {
-  id: string;
-  pillar: string;
-  question_text: string;
-  options?: string[];
-  correct_answer: string;
-  type: string;
-}
+import { MissionQuestion, getTimerSeconds } from '@/types/missions';
 
 interface MissionGameplayProps {
-  questions: Question[];
+  questions: MissionQuestion[];
+  pillar?: string;
   onComplete: (results: GameResult[]) => void;
 }
 
 interface GameResult {
-  question_id: string;
+  question_id: number;
   is_correct: boolean;
   time_remaining: number;
+  task_type: string;
 }
 
 export default function MissionGameplay({ questions, onComplete }: MissionGameplayProps) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [results, setResults] = useState<GameResult[]>([]);
-  const [selectedAnswer, setSelectedAnswer] = useState<string | null>(null);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [timeRemaining, setTimeRemaining] = useState(15);
+  const [timerKey, setTimerKey] = useState(0);
 
   const currentQuestion = questions[currentIndex];
   const isLastQuestion = currentIndex === questions.length - 1;
+  const taskType = currentQuestion?.task_type ?? currentQuestion?.type ?? 'multiple_choice';
+  const timerSeconds = getTimerSeconds(taskType);
 
-  const handleTimeUp = () => {
-    handleAnswer(null);
-  };
+  const advance = useCallback((newResults: GameResult[]) => {
+    if (isLastQuestion) {
+      onComplete(newResults);
+    } else {
+      setCurrentIndex(currentIndex + 1);
+      setShowFeedback(false);
+      setTimerKey(k => k + 1);
+    }
+  }, [currentIndex, isLastQuestion, onComplete]);
 
-  const handleAnswer = (answer: string | null) => {
-    const isCorrect = answer === currentQuestion.correct_answer;
-
+  const handleAnswer = useCallback((answer: string, isCorrect: boolean) => {
     const result: GameResult = {
       question_id: currentQuestion.id,
       is_correct: isCorrect,
-      time_remaining: timeRemaining,
+      time_remaining: 0,
+      task_type: taskType,
     };
 
     const newResults = [...results, result];
     setResults(newResults);
     setShowFeedback(true);
-    setSelectedAnswer(answer);
 
-    // Show feedback for 2 seconds, then advance
-    const timeout = setTimeout(() => {
-      if (isLastQuestion) {
-        onComplete(newResults);
-      } else {
-        setCurrentIndex(currentIndex + 1);
-        setShowFeedback(false);
-        setSelectedAnswer(null);
-        setTimeRemaining(15);
-      }
-    }, 2000);
+    setTimeout(() => advance(newResults), 2000);
+  }, [currentQuestion, taskType, results, advance]);
 
-    return () => clearTimeout(timeout);
-  };
+  const handleTimeUp = useCallback(() => {
+    handleAnswer('', false);
+  }, [handleAnswer]);
+
+  if (!currentQuestion) return null;
 
   return (
     <div className="h-[100dvh] bg-gradient-to-br from-slate-50 to-slate-100 p-3 sm:p-6 flex flex-col overflow-hidden">
@@ -90,12 +83,13 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
         </div>
 
         {/* Timer */}
-        <QuestionTimer 
-          initialSeconds={15} 
-          onTimeUp={handleTimeUp} 
+        <QuestionTimer
+          key={timerKey}
+          initialSeconds={timerSeconds}
+          onTimeUp={handleTimeUp}
         />
 
-        {/* Question */}
+        {/* Task */}
         <motion.div
           key={currentIndex}
           initial={{ opacity: 0, y: 20 }}
@@ -103,54 +97,20 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
           transition={{ duration: 0.3 }}
           className="bg-white rounded-lg sm:rounded-2xl p-3 sm:p-8 shadow-lg mb-3 sm:mb-6 flex-shrink-0"
         >
-          <h2 className="text-base sm:text-xl lg:text-2xl font-bold text-gray-800 mb-3 sm:mb-6 leading-tight">{currentQuestion.question_text}</h2>
-
-          {currentQuestion.options ? (
-            <div className="space-y-2 sm:space-y-3">
-              {currentQuestion.options.map((option, idx) => {
-                const isCorrect = option === currentQuestion.correct_answer;
-                const isSelected = option === selectedAnswer;
-
-                let buttonClass = 'bg-white border-2 border-gray-300 text-gray-800';
-                if (showFeedback) {
-                  if (isCorrect) {
-                    buttonClass = 'bg-green-100 border-2 border-green-500 text-green-800';
-                  } else if (isSelected && !isCorrect) {
-                    buttonClass = 'bg-red-100 border-2 border-red-500 text-red-800';
-                  }
-                }
-
-                return (
-                  <motion.button
-                    key={idx}
-                    whileHover={!showFeedback ? { scale: 1.02 } : {}}
-                    whileTap={!showFeedback ? { scale: 0.98 } : {}}
-                    onClick={() => !showFeedback && handleAnswer(option)}
-                    disabled={showFeedback}
-                    className={`w-full p-3 sm:p-4 rounded-lg font-semibold text-sm sm:text-lg transition-all ${buttonClass} disabled:cursor-not-allowed min-h-[52px] sm:min-h-auto flex items-center justify-center`}
-                  >
-                    <div className="flex items-center gap-2 sm:gap-3">
-                      <span>{option}</span>
-                      {showFeedback && isCorrect && <Check className="text-green-600" size={20} />}
-                      {showFeedback && isSelected && !isCorrect && <X className="text-red-600" size={20} />}
-                    </div>
-                  </motion.button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="text-center text-gray-600">
-              <p className="mb-4 text-sm sm:text-base">Correct answer: {currentQuestion.correct_answer}</p>
-            </div>
-          )}
+          <TaskRouter
+            question={currentQuestion}
+            onAnswer={handleAnswer}
+            showFeedback={showFeedback}
+            disabled={showFeedback}
+          />
         </motion.div>
 
-        {/* Skip Button (optional) */}
+        {/* Skip Button */}
         {!showFeedback && (
           <motion.button
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            onClick={() => handleAnswer(null)}
+            onClick={() => handleAnswer('', false)}
             className="mx-auto px-4 sm:px-6 py-2 bg-gray-400 text-white rounded-lg font-semibold text-xs sm:text-sm hover:bg-gray-500 transition flex-shrink-0"
           >
             Skip Question

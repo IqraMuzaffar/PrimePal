@@ -19,7 +19,7 @@ the teacher-configured current_week_topic.
 import logging
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
 
 from app.api.v1.endpoints.classroom import get_active_topics
@@ -28,6 +28,7 @@ from app.core.supabase_client import get_supabase_admin
 from app.core.cache import cache_get, cache_set, make_cache_key
 from app.agents.tutor_agent.chatbot import retrieve_grade_filtered_chunks
 from app.agents.evaluator_agent.interaction_logger import log_interaction
+from app.core.config import settings
 from app.agents.tutor_agent.mission_generator import (
     DailyMissions,
     MissionQuestion,
@@ -55,15 +56,27 @@ _SEED_PHRASE = "vocabulary words lesson"
 class QuestionOptionOut(BaseModel):
     id: str
     text: str
+    emoji: str | None = None
 
 
 class MissionQuestionOut(BaseModel):
     id: int
-    type: str
+    task_type: str
+    pillar: str
     question: str
-    options: list[QuestionOptionOut] | None
+    difficulty: str
+    points_value: int
     emoji_hint: str
-    # NOTE: correct_answer is deliberately absent from this model
+    options: list[QuestionOptionOut] | None = None
+    passage: str | None = None
+    audio_text: str | None = None
+    image_context: str | None = None
+    image_options: list[QuestionOptionOut] | None = None
+    word_bank: list[str] | None = None
+    word_with_blanks: str | None = None
+    letter_options: list[str] | None = None
+    sentence_start: str | None = None
+    # correct_answer, correct_order deliberately ABSENT
 
 
 class DailyMissionsResponse(BaseModel):
@@ -74,8 +87,10 @@ class DailyMissionsResponse(BaseModel):
 
 class CompleteRequest(BaseModel):
     question_correct: bool
-    question_type: str = "multiple_choice"  # "multiple_choice" or "fill_blank"
-    pillar: str | None = None               # "reading" | "writing" | "listening" | "speaking"
+    question_type: str = "multiple_choice"
+    task_type: str | None = None
+    pillar: str | None = None
+    answer_data: dict | None = None
 
 
 class CompleteResponse(BaseModel):
@@ -104,17 +119,44 @@ class PillarMissionsResponse(BaseModel):
 # Helper — strip correct_answer before sending to client
 # ---------------------------------------------------------------------------
 
-def _strip_answer(q: MissionQuestion) -> MissionQuestionOut:
+def _strip_answer(q) -> MissionQuestionOut:
+    """Strip correct_answer and correct_order before sending to client."""
+    if isinstance(q, dict):
+        return MissionQuestionOut(
+            id=q.get("id", 0),
+            task_type=q.get("task_type", q.get("type", "multiple_choice")),
+            pillar=q.get("pillar", ""),
+            question=q.get("question", ""),
+            difficulty=q.get("difficulty", "medium"),
+            points_value=q.get("points_value", 10),
+            emoji_hint=q.get("emoji_hint", ""),
+            options=[QuestionOptionOut(**o) for o in q["options"]] if q.get("options") else None,
+            passage=q.get("passage"),
+            audio_text=q.get("audio_text"),
+            image_context=q.get("image_context"),
+            image_options=[QuestionOptionOut(**o) for o in q["image_options"]] if q.get("image_options") else None,
+            word_bank=q.get("word_bank"),
+            word_with_blanks=q.get("word_with_blanks"),
+            letter_options=q.get("letter_options"),
+            sentence_start=q.get("sentence_start"),
+        )
     return MissionQuestionOut(
         id=q.id,
-        type=q.type,
+        task_type=q.task_type if hasattr(q, 'task_type') else getattr(q, 'type', 'multiple_choice'),
+        pillar=getattr(q, 'pillar', ''),
         question=q.question,
-        options=(
-            [QuestionOptionOut(id=opt.id, text=opt.text) for opt in q.options]
-            if q.options is not None
-            else None
-        ),
+        difficulty=getattr(q, 'difficulty', 'medium'),
+        points_value=getattr(q, 'points_value', 10),
         emoji_hint=q.emoji_hint,
+        options=[QuestionOptionOut(id=o.id, text=o.text, emoji=getattr(o, 'emoji', None)) for o in q.options] if q.options else None,
+        passage=getattr(q, 'passage', None),
+        audio_text=getattr(q, 'audio_text', None),
+        image_context=getattr(q, 'image_context', None),
+        image_options=[QuestionOptionOut(id=o.id, text=o.text, emoji=getattr(o, 'emoji', None)) for o in q.image_options] if getattr(q, 'image_options', None) else None,
+        word_bank=getattr(q, 'word_bank', None),
+        word_with_blanks=getattr(q, 'word_with_blanks', None),
+        letter_options=getattr(q, 'letter_options', None),
+        sentence_start=getattr(q, 'sentence_start', None),
     )
 
 
@@ -311,7 +353,9 @@ async def complete_mission(
         student_id=student_id,
         classroom_id=classroom_id,
         grade_level=grade_level,
-        interaction_type="mission_fill" if body.question_type == "fill_blank" else "mission_mc",
+        interaction_type=f"mission_{body.task_type}" if body.task_type else (
+            "mission_fill" if body.question_type == "fill_blank" else "mission_mc"
+        ),
         original_message=None,
         translated_message=None,
         correct=body.question_correct,
@@ -515,15 +559,10 @@ async def get_pillar_missions(
     mission_questions = []
     for q in missions:
         if isinstance(q, dict):
-            # Create a MissionQuestion from dict, removing is_weakness_focused flag
-            mq = MissionQuestion(
-                id=q["id"],
-                type=q["type"],
-                question=q["question"],
-                options=q.get("options"),
-                correct_answer=q["correct_answer"],
-                emoji_hint=q["emoji_hint"],
-            )
+            q_filtered = {k: v for k, v in q.items() if k != "is_weakness_focused"}
+            if "type" in q_filtered and "task_type" not in q_filtered:
+                q_filtered["task_type"] = q_filtered.pop("type")
+            mq = MissionQuestion(**q_filtered)
             mission_questions.append(mq)
         else:
             mission_questions.append(q)
@@ -540,6 +579,110 @@ async def get_pillar_missions(
         await cache_set(cache_key, response.model_dump(), ttl=3600)
 
     return response
+
+
+# ---------------------------------------------------------------------------
+# POST /submit-speaking (Speaking mission answer via Whisper transcription)
+# ---------------------------------------------------------------------------
+
+class SpeakingSubmissionResponse(BaseModel):
+    is_correct: bool
+    similarity_score: float
+    transcription: str
+    points_awarded: int
+    new_total: int
+
+
+@router.post("/submit-speaking", response_model=SpeakingSubmissionResponse, summary="Submit speaking answer for mission")
+async def submit_speaking_answer(
+    audio_file: UploadFile = File(...),
+    expected_text: str = Form(...),
+    pillar: str = Form(default="speaking"),
+    background_tasks: BackgroundTasks = BackgroundTasks(),
+    student: dict = Depends(get_current_student),
+):
+    from openai import AsyncOpenAI
+    from io import BytesIO
+    from difflib import SequenceMatcher
+
+    student_id: str = student["sub"]
+    classroom_id: str = student["classroom_id"]
+    supabase = get_supabase_admin()
+
+    audio_bytes = await audio_file.read()
+    if len(audio_bytes) < 100:
+        return SpeakingSubmissionResponse(
+            is_correct=False, similarity_score=0.0, transcription="",
+            points_awarded=0, new_total=0,
+        )
+
+    openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+    audio_buffer = BytesIO(audio_bytes)
+    audio_buffer.name = "recording.webm"
+
+    try:
+        whisper_response = await openai_client.audio.transcriptions.create(
+            model="whisper-1",
+            file=audio_buffer,
+            language="en",
+        )
+        transcription = whisper_response.text.strip()
+    except Exception as exc:
+        logger.error(f"Whisper transcription failed: {exc}")
+        transcription = ""
+
+    expected_lower = expected_text.lower().strip()
+    transcription_lower = transcription.lower().strip()
+    similarity = SequenceMatcher(None, expected_lower, transcription_lower).ratio()
+
+    is_correct = similarity >= 0.6
+    points_awarded = _POINTS_PER_CORRECT if is_correct else 0
+
+    student_resp = (
+        supabase.table("students")
+        .select("points, missions_completed")
+        .eq("id", student_id)
+        .maybe_single()
+        .execute()
+    )
+    current_points = (student_resp.data.get("points") or 0) if student_resp.data else 0
+    new_total = current_points + points_awarded
+
+    if points_awarded > 0 and student_resp.data:
+        current_missions = student_resp.data.get("missions_completed") or 0
+        supabase.table("students").update(
+            {"points": new_total, "missions_completed": current_missions + 1}
+        ).eq("id", student_id).execute()
+
+    classroom_resp = (
+        supabase.table("classrooms")
+        .select("grade_level")
+        .eq("id", classroom_id)
+        .maybe_single()
+        .execute()
+    )
+    grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
+
+    background_tasks.add_task(
+        log_interaction,
+        student_id=student_id,
+        classroom_id=classroom_id,
+        grade_level=grade_level,
+        interaction_type="mission_speaking",
+        original_message=transcription,
+        translated_message=expected_text,
+        correct=is_correct,
+        context_used=False,
+        pillar="speaking",
+    )
+
+    return SpeakingSubmissionResponse(
+        is_correct=is_correct,
+        similarity_score=round(similarity, 2),
+        transcription=transcription,
+        points_awarded=points_awarded,
+        new_total=new_total,
+    )
 
 
 # ---------------------------------------------------------------------------
