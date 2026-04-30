@@ -106,7 +106,7 @@ async def student_report(
     if not classroom_resp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
 
-    if str(classroom_resp.data["teacher_id"]) != str(teacher_id):
+    if str(classroom_resp.data["teacher_id"]) != str(teacher_id) and not teacher.get("is_admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     grade_level: int = classroom_resp.data["grade_level"]
@@ -155,7 +155,7 @@ async def classroom_report(
     )
     if not classroom_resp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
-    if str(classroom_resp.data["teacher_id"]) != str(teacher_id):
+    if str(classroom_resp.data["teacher_id"]) != str(teacher_id) and not teacher.get("is_admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     grade_level: int = classroom_resp.data["grade_level"]
@@ -238,12 +238,10 @@ async def get_teacher_report(
     """
     supabase = get_supabase_admin()
 
-    # 1. Fetch all teacher classrooms
-    cls_query = (
-        supabase.table("classrooms")
-        .select("id, class_name, grade_level")
-        .eq("teacher_id", teacher["id"])
-    )
+    # 1. Fetch all teacher classrooms (admin sees all)
+    cls_query = supabase.table("classrooms").select("id, class_name, grade_level")
+    if not teacher.get("is_admin"):
+        cls_query = cls_query.eq("teacher_id", teacher["id"])
     if grade_level is not None:
         cls_query = cls_query.eq("grade_level", grade_level)
     cls_res = cls_query.execute()
@@ -354,7 +352,9 @@ async def get_dashboard_stats(
     supabase = get_supabase_admin()
     teacher_id: str = teacher["id"]
 
-    cls_query = supabase.table("classrooms").select("id").eq("teacher_id", teacher_id)
+    cls_query = supabase.table("classrooms").select("id")
+    if not teacher.get("is_admin"):
+        cls_query = cls_query.eq("teacher_id", teacher_id)
     if grade_level is not None:
         cls_query = cls_query.eq("grade_level", grade_level)
     cls_res = cls_query.execute()
@@ -457,7 +457,9 @@ async def get_skill_accuracy(
     supabase = get_supabase_admin()
     teacher_id: str = teacher["id"]
 
-    cls_query = supabase.table("classrooms").select("id").eq("teacher_id", teacher_id)
+    cls_query = supabase.table("classrooms").select("id")
+    if not teacher.get("is_admin"):
+        cls_query = cls_query.eq("teacher_id", teacher_id)
     if grade_level is not None:
         cls_query = cls_query.eq("grade_level", grade_level)
     cls_res = cls_query.execute()
@@ -571,8 +573,10 @@ async def list_all_students(
     supabase = get_supabase_admin()
     teacher_id: str = teacher["id"]
 
-    # 1. Fetch teacher's classrooms
-    cls_query = supabase.table("classrooms").select("id, class_name, grade_level").eq("teacher_id", teacher_id)
+    # 1. Fetch teacher's classrooms (admin sees all)
+    cls_query = supabase.table("classrooms").select("id, class_name, grade_level")
+    if not teacher.get("is_admin"):
+        cls_query = cls_query.eq("teacher_id", teacher_id)
     if grade_level is not None:
         cls_query = cls_query.eq("grade_level", grade_level)
     cls_res = cls_query.execute()
@@ -750,7 +754,7 @@ async def get_student_detailed_report(
     )
     if not classroom_resp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
-    if str(classroom_resp.data["teacher_id"]) != str(teacher_id):
+    if str(classroom_resp.data["teacher_id"]) != str(teacher_id) and not teacher.get("is_admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Access denied")
 
     grade_level: int = classroom_resp.data["grade_level"]
@@ -925,14 +929,11 @@ async def get_grade_report(
     supabase = get_supabase_admin()
     teacher_id: str = teacher["id"]
 
-    # 1. Fetch all classrooms with this grade_level owned by the teacher
-    cls_resp = (
-        supabase.table("classrooms")
-        .select("id")
-        .eq("teacher_id", teacher_id)
-        .eq("grade_level", grade_level)
-        .execute()
-    )
+    # 1. Fetch all classrooms with this grade_level (admin sees all)
+    cls_query = supabase.table("classrooms").select("id")
+    if not teacher.get("is_admin"):
+        cls_query = cls_query.eq("teacher_id", teacher_id)
+    cls_resp = cls_query.eq("grade_level", grade_level).execute()
     classrooms = cls_resp.data or []
     if not classrooms:
         return GradeReportResponse(
@@ -1095,14 +1096,11 @@ async def export_grade_csv(
     supabase = get_supabase_admin()
     teacher_id: str = teacher["id"]
 
-    # 1. Fetch classrooms
-    cls_resp = (
-        supabase.table("classrooms")
-        .select("id")
-        .eq("teacher_id", teacher_id)
-        .eq("grade_level", grade_level)
-        .execute()
-    )
+    # 1. Fetch classrooms (admin sees all)
+    cls_query = supabase.table("classrooms").select("id")
+    if not teacher.get("is_admin"):
+        cls_query = cls_query.eq("teacher_id", teacher_id)
+    cls_resp = cls_query.eq("grade_level", grade_level).execute()
     classrooms = cls_resp.data or []
     classroom_ids = [c["id"] for c in classrooms]
 
@@ -1227,14 +1225,11 @@ async def get_grade_overview(
     supabase = get_supabase_admin()
     teacher_id: str = teacher["id"]
 
-    # 1. Fetch classrooms for this grade
-    cls_res = (
-        supabase.table("classrooms")
-        .select("id")
-        .eq("teacher_id", teacher_id)
-        .eq("grade_level", grade_level)
-        .execute()
-    )
+    # 1. Fetch classrooms for this grade (admin sees all)
+    cls_query = supabase.table("classrooms").select("id")
+    if not teacher.get("is_admin"):
+        cls_query = cls_query.eq("teacher_id", teacher_id)
+    cls_res = cls_query.eq("grade_level", grade_level).execute()
     classrooms = cls_res.data or []
 
     empty = GradeOverviewResponse(
@@ -1379,14 +1374,11 @@ async def get_weekly_trend(
     supabase = get_supabase_admin()
     teacher_id: str = teacher["id"]
 
-    # 1. Fetch classrooms
-    cls_res = (
-        supabase.table("classrooms")
-        .select("id")
-        .eq("teacher_id", teacher_id)
-        .eq("grade_level", grade_level)
-        .execute()
-    )
+    # 1. Fetch classrooms (admin sees all)
+    cls_query = supabase.table("classrooms").select("id")
+    if not teacher.get("is_admin"):
+        cls_query = cls_query.eq("teacher_id", teacher_id)
+    cls_res = cls_query.eq("grade_level", grade_level).execute()
     classrooms = cls_res.data or []
     if not classrooms:
         return WeeklyTrendResponse(grade_level=grade_level, pillar=pillar, weeks=[])
@@ -1533,14 +1525,11 @@ async def generate_daily_plan(
     if cached:
         return TeacherDailyPlan(**cached)
 
-    # -- 2. Fetch classrooms for this grade --
-    cls_res = (
-        supabase_admin_client.table("classrooms")
-        .select("id")
-        .eq("teacher_id", teacher_id)
-        .eq("grade_level", grade_level)
-        .execute()
-    )
+    # -- 2. Fetch classrooms for this grade (admin sees all) --
+    cls_query = supabase_admin_client.table("classrooms").select("id")
+    if not teacher.get("is_admin"):
+        cls_query = cls_query.eq("teacher_id", teacher_id)
+    cls_res = cls_query.eq("grade_level", grade_level).execute()
     classrooms = cls_res.data or []
     if not classrooms:
         raise HTTPException(

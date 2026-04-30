@@ -40,8 +40,8 @@ router = APIRouter()
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _verify_classroom_ownership(supabase, classroom_id: str, teacher_id: str) -> dict:
-    """Fetch the classroom and verify teacher_id matches. Returns the classroom row."""
+def _verify_classroom_ownership(supabase, classroom_id: str, teacher_id: str, *, is_admin: bool = False) -> dict:
+    """Fetch the classroom and verify teacher_id matches. Admin bypasses ownership check. Returns the classroom row."""
     res = (
         supabase.table("classrooms")
         .select("teacher_id")
@@ -51,7 +51,7 @@ def _verify_classroom_ownership(supabase, classroom_id: str, teacher_id: str) ->
     )
     if not res.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
-    if res.data["teacher_id"] != teacher_id:
+    if res.data["teacher_id"] != teacher_id and not is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your classroom")
     return res.data
 
@@ -150,15 +150,12 @@ async def create_classroom(
 
 @router.get("/", response_model=List[ClassroomResponse])
 async def list_classrooms(teacher: dict = Depends(get_current_teacher)):
-    """Returns all classrooms owned by the authenticated teacher, newest first."""
+    """Returns all classrooms owned by the authenticated teacher (admin sees all), newest first."""
     supabase = get_supabase_admin()
-    result = (
-        supabase.table("classrooms")
-        .select("*")
-        .eq("teacher_id", teacher["id"])
-        .order("created_at", desc=True)
-        .execute()
-    )
+    query = supabase.table("classrooms").select("*")
+    if not teacher.get("is_admin"):
+        query = query.eq("teacher_id", teacher["id"])
+    result = query.order("created_at", desc=True).execute()
     return result.data or []
 
 
@@ -179,7 +176,7 @@ async def get_classroom(
     )
     if not classroom_res.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
-    if classroom_res.data["teacher_id"] != teacher["id"]:
+    if classroom_res.data["teacher_id"] != teacher["id"] and not teacher.get("is_admin"):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your classroom")
 
     students_res = (
@@ -201,7 +198,7 @@ async def delete_classroom(
     Returns 400 Bad Request if students are present.
     """
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     # Check if classroom has students
     students_res = (
@@ -236,7 +233,7 @@ async def update_classroom(
 ):
     """Update classroom settings (e.g., current_week_topic). Teacher ownership verified."""
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     # Build update payload with only non-None fields
     update_data = {}
@@ -271,7 +268,7 @@ async def bulk_add_students(
 ):
     """Bulk-creates student ghost profiles with randomly assigned avatars."""
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     names = [n.strip() for n in request.names if n.strip()]
     if not names:
@@ -301,7 +298,7 @@ async def bulk_add_students_v2(
 ):
     """Bulk-creates student profiles with name, roll_number, and email fields."""
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     students = [s for s in request.students if s.student_name and s.student_name.strip()]
     if not students:
@@ -333,7 +330,7 @@ async def remove_student(
 ):
     """Removes a student ghost profile from the roster."""
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     result = (
         supabase.table("students")
@@ -356,7 +353,7 @@ async def update_student(
 ):
     """Update student identity fields (name, roll_number, email). Teacher ownership verified."""
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     update_data = {k: v for k, v in request.model_dump().items() if v is not None}
     if not update_data:
@@ -470,7 +467,7 @@ async def get_classroom_active_topics(
     If no topics have been saved, returns ALL topics for the classroom's grade (default all active).
     """
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     classroom_resp = (
         supabase.table("classrooms")
@@ -497,7 +494,7 @@ async def update_classroom_active_topics(
     Send topic_ids: [] to reset to default (all active).
     """
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
     return await save_active_topics(classroom_id, body.topic_ids, supabase)
 
 
@@ -523,7 +520,7 @@ async def get_syllabus(
 ):
     """Returns the 30-week pacing calendar for a classroom."""
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     result = (
         supabase.table("classroom_syllabus")
@@ -548,7 +545,7 @@ async def update_syllabus_week(
 ):
     """Update the status of a specific week in the pacing calendar."""
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"])
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     result = (
         supabase.table("classroom_syllabus")
