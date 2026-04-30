@@ -25,7 +25,7 @@ Endpoints:
 """
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.core.security import get_current_teacher
 from app.core.supabase_client import get_supabase_admin
@@ -1461,3 +1461,275 @@ async def get_weekly_trend(
         pillar=pillar,
         weeks=result_weeks,
     )
+
+
+# ---------------------------------------------------------------------------
+# POST /teacher-assistant/daily-plan  — T05 AI daily teaching plan
+# ---------------------------------------------------------------------------
+
+class DailyPlanRequest(BaseModel):
+    grade_level: int = Field(ge=1, le=5)
+
+
+class FocusArea(BaseModel):
+    topic: str
+    pillar: str  # reading/writing/listening/speaking
+    reason: str
+
+
+class SuggestedActivity(BaseModel):
+    title: str
+    description: str
+    target_pillar: str
+    estimated_minutes: int
+
+
+class StudentGroup(BaseModel):
+    group_name: str  # e.g., "Needs extra help", "Advanced"
+    student_names: list[str]
+    recommendation: str
+
+
+class TeacherDailyPlan(BaseModel):
+    summary: str  # 2-3 sentence overview
+    focus_areas: list[FocusArea]  # 2-3 weak areas
+    suggested_activities: list[SuggestedActivity]  # 3-5 activities
+    student_groups: list[StudentGroup]  # 2-3 groups
+    snc_references: list[str]  # curriculum references from RAG
+    generated_at: str  # ISO timestamp
+
+
+@router.post(
+    "/teacher-assistant/daily-plan",
+    response_model=TeacherDailyPlan,
+    summary="AI-generated daily teaching plan for a grade (teacher only)",
+)
+async def generate_daily_plan(
+    body: DailyPlanRequest,
+    teacher: dict = Depends(get_current_teacher),
+    supabase_admin_client=Depends(get_supabase_admin),
+):
+    """
+    Generates an AI-powered daily teaching plan for a specific grade level.
+
+    Uses student performance data from the last 7 days, SNC curriculum context
+    via RAG retrieval, and GPT-4o-mini to produce actionable focus areas,
+    suggested activities, and student grouping recommendations.
+
+    Teacher authentication required.
+    """
+    from datetime import datetime, timedelta, timezone, date
+    from collections import defaultdict
+    from app.core.cache import cache_get, cache_set, make_cache_key
+    from app.agents.tutor_agent.chatbot import retrieve_grade_filtered_chunks
+
+    grade_level = body.grade_level
+    teacher_id: str = teacher["id"]
+    today_str = date.today().isoformat()
+
+    # -- 1. Check cache --
+    cache_key = make_cache_key("teacher_plan", str(grade_level), today_str)
+    cached = await cache_get(cache_key)
+    if cached:
+        return TeacherDailyPlan(**cached)
+
+    # -- 2. Fetch classrooms for this grade --
+    cls_res = (
+        supabase_admin_client.table("classrooms")
+        .select("id")
+        .eq("teacher_id", teacher_id)
+        .eq("grade_level", grade_level)
+        .execute()
+    )
+    classrooms = cls_res.data or []
+    if not classrooms:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No classrooms found for grade {grade_level}.",
+        )
+
+    classroom_ids = [c["id"] for c in classrooms]
+
+    # -- 3. Fetch students --
+    stu_res = (
+        supabase_admin_client.table("students")
+        .select("id, student_name, classroom_id")
+        .in_("classroom_id", classroom_ids)
+        .execute()
+    )
+    student_rows = stu_res.data or []
+    if not student_rows:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No students found for grade {grade_level}.",
+        )
+
+    student_ids = [s["id"] for s in student_rows]
+    student_name_map = {s["id"]: s["student_name"] for s in student_rows}
+
+    # -- 4. Fetch interactions from the last 7 days --
+    now = datetime.now(timezone.utc)
+    seven_days_ago = (now - timedelta(days=7)).isoformat()
+
+    int_res = (
+        supabase_admin_client.table("student_interactions")
+        .select("student_id, pillar, correct, topic")
+        .in_("student_id", student_ids)
+        .gte("created_at", seven_days_ago)
+        .execute()
+    )
+    interactions = int_res.data or []
+
+    # -- 5. Compute per-pillar accuracy and per-student accuracy --
+    pillar_agg: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
+    student_agg: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
+    topic_agg: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
+    total_correct = 0
+    total_count = 0
+
+    for row in interactions:
+        p = row.get("pillar")
+        sid = row.get("student_id")
+        topic = row.get("topic")
+        is_correct = row.get("correct") is True
+
+        total_count += 1
+        if is_correct:
+            total_correct += 1
+
+        if p:
+            pillar_agg[p]["total"] += 1
+            if is_correct:
+                pillar_agg[p]["correct"] += 1
+        if sid:
+            student_agg[sid]["total"] += 1
+            if is_correct:
+                student_agg[sid]["correct"] += 1
+        if topic:
+            topic_agg[topic]["total"] += 1
+            if is_correct:
+                topic_agg[topic]["correct"] += 1
+
+    overall_accuracy = round(total_correct / total_count * 100, 2) if total_count > 0 else 0.0
+
+    pillar_accuracy: dict[str, float] = {}
+    for p_name in ["reading", "writing", "listening", "speaking"]:
+        ps = pillar_agg.get(p_name)
+        if ps and ps["total"] > 0:
+            pillar_accuracy[p_name] = round(ps["correct"] / ps["total"] * 100, 2)
+        else:
+            pillar_accuracy[p_name] = 0.0
+
+    # Identify weakest pillars
+    sorted_pillars = sorted(pillar_accuracy.items(), key=lambda x: x[1])
+    weak_pillars = [p for p, acc in sorted_pillars[:2] if acc < 80]
+
+    # Identify weakest topics
+    weak_topics = sorted(
+        [(t, d["correct"] / d["total"] * 100) for t, d in topic_agg.items() if d["total"] >= 3],
+        key=lambda x: x[1],
+    )[:3]
+
+    # -- 6. Group students by performance --
+    struggling_students: list[str] = []
+    on_track_students: list[str] = []
+    advanced_students: list[str] = []
+
+    for sid, agg in student_agg.items():
+        acc = round(agg["correct"] / agg["total"] * 100, 2) if agg["total"] > 0 else 0.0
+        name = student_name_map.get(sid, "Unknown")
+        if acc < 50:
+            struggling_students.append(name)
+        elif acc >= 80:
+            advanced_students.append(name)
+        else:
+            on_track_students.append(name)
+
+    # Students with no interactions in the last 7 days
+    active_ids = set(student_agg.keys())
+    inactive_students = [
+        student_name_map[sid] for sid in student_ids if sid not in active_ids
+    ]
+
+    # -- 7. RAG retrieval for SNC curriculum context --
+    weak_area_desc = ", ".join(weak_pillars) if weak_pillars else "general English"
+    rag_query = (
+        f"activities and lesson plans for practicing {weak_area_desc} "
+        f"skills for grade {grade_level} primary school students"
+    )
+    try:
+        snc_chunks = await retrieve_grade_filtered_chunks(
+            query=rag_query,
+            grade_level=grade_level,
+            supabase_admin_client=supabase_admin_client,
+            match_count=5,
+        )
+    except Exception:
+        snc_chunks = []
+
+    snc_context = "\n\n".join(snc_chunks) if snc_chunks else "No SNC curriculum data available."
+
+    # -- 8. Build LLM prompt --
+    student_breakdown = ""
+    if struggling_students:
+        student_breakdown += f"Struggling students (below 50% accuracy): {', '.join(struggling_students)}\n"
+    if on_track_students:
+        student_breakdown += f"On-track students (50-80% accuracy): {', '.join(on_track_students)}\n"
+    if advanced_students:
+        student_breakdown += f"Advanced students (above 80% accuracy): {', '.join(advanced_students)}\n"
+    if inactive_students:
+        student_breakdown += f"Inactive students (no activity in 7 days): {', '.join(inactive_students)}\n"
+
+    weak_topics_desc = ", ".join([f"{t} ({a:.0f}%)" for t, a in weak_topics]) if weak_topics else "none identified"
+
+    prompt = (
+        f"You are an expert ESL teaching assistant for Pakistani primary schools following the SNC curriculum.\n"
+        f"Generate a daily teaching plan for Grade {grade_level} for {today_str}.\n\n"
+        f"## Class Performance (Last 7 Days)\n"
+        f"- Overall accuracy: {overall_accuracy}%\n"
+        f"- Total students: {len(student_rows)}\n"
+        f"- Active students (last 7 days): {len(active_ids)}\n"
+        f"- Total missions completed: {total_count}\n"
+        f"- Reading accuracy: {pillar_accuracy.get('reading', 0)}%\n"
+        f"- Writing accuracy: {pillar_accuracy.get('writing', 0)}%\n"
+        f"- Listening accuracy: {pillar_accuracy.get('listening', 0)}%\n"
+        f"- Speaking accuracy: {pillar_accuracy.get('speaking', 0)}%\n"
+        f"- Weakest topics: {weak_topics_desc}\n\n"
+        f"## Student Breakdown\n{student_breakdown}\n"
+        f"## SNC Curriculum Context\n{snc_context}\n\n"
+        f"## Instructions\n"
+        f"- Identify 2-3 focus areas based on the weakest pillars and topics.\n"
+        f"- Suggest 3-5 specific, actionable classroom activities (not generic advice). "
+        f"Each activity should have a clear title, description, target pillar, and estimated time.\n"
+        f"- Group students into 2-3 groups based on their performance with specific recommendations.\n"
+        f"- Reference specific SNC curriculum content in snc_references where applicable.\n"
+        f"- Keep the summary to 2-3 sentences.\n"
+    )
+
+    # -- 9. Call LLM with structured output --
+    try:
+        from langchain_openai import ChatOpenAI
+        from app.core.config import settings as app_settings
+
+        llm = ChatOpenAI(
+            model="gpt-4o-mini",
+            temperature=0.4,
+            openai_api_key=app_settings.OPENAI_API_KEY,
+        )
+        structured_llm = llm.with_structured_output(TeacherDailyPlan)
+        plan: TeacherDailyPlan = await structured_llm.ainvoke(prompt)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail=f"Failed to generate daily plan: {str(e)}",
+        )
+
+    # -- 10. Set generated_at and cache --
+    plan.generated_at = datetime.now(timezone.utc).isoformat()
+
+    try:
+        await cache_set(cache_key, plan.model_dump(), ttl=21600)
+    except Exception:
+        pass  # caching is best-effort
+
+    return plan
