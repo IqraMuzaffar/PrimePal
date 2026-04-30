@@ -397,6 +397,9 @@ async def get_active_topics(
     """
     Returns active topics for a classroom.
     If no rows in classroom_active_topics → returns ALL topics for the grade (default all active).
+
+    Grade-level filter: if grade_topic_selections has is_active=false for a topic,
+    that topic is excluded even if it's active at the classroom level.
     """
     saved = (
         supabase.table("classroom_active_topics")
@@ -422,7 +425,22 @@ async def get_active_topics(
             .order("id")
             .execute()
         )
-    return resp.data or []
+    topics = resp.data or []
+
+    # Apply grade-level deactivation filter
+    grade_sel_resp = (
+        supabase.table("grade_topic_selections")
+        .select("topic_id, is_active")
+        .eq("grade_level", grade_level)
+        .eq("is_active", False)
+        .execute()
+    )
+    disabled_ids = {row["topic_id"] for row in (grade_sel_resp.data or [])}
+
+    if disabled_ids:
+        topics = [t for t in topics if t["id"] not in disabled_ids]
+
+    return topics
 
 
 async def save_active_topics(

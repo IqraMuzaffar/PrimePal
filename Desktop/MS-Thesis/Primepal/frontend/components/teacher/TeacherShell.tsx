@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BookOpen, LayoutDashboard, School, LogOut, Settings, X, BarChart2, Menu, GraduationCap, FileText, Zap, Megaphone } from "lucide-react";
+import { BookOpen, LayoutDashboard, School, LogOut, Settings, X, BarChart2, Menu, GraduationCap, FileText, Zap, Megaphone, BookMarked } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 const NAV_LINKS = [
@@ -15,6 +15,7 @@ const NAV_LINKS = [
   { href: "/teacher/analytics",  label: "Analytics",       icon: BarChart2 },
   { href: "/teacher/reports",    label: "Reports",         icon: FileText },
   { href: "/teacher/curriculum", label: "Curriculum Hub",  icon: BookOpen },
+  { href: "/teacher/topics",     label: "Topics",          icon: BookMarked },
 ];
 
 export default function TeacherShell({ children }: { children: React.ReactNode }) {

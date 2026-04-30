@@ -17,18 +17,36 @@ interface ClassroomReportResponse {
   students: StudentSummary[];
 }
 
-async function fetchAnalyticsData(): Promise<AnalyticsDashboardData> {
+interface PageProps {
+  searchParams: Promise<{ grade?: string; pillar?: string }>;
+}
+
+async function fetchAnalyticsData(
+  gradeLevel?: number,
+  pillar?: string
+): Promise<AnalyticsDashboardData> {
   try {
     const headers = await getTeacherHeaders();
 
-    // Fetch all classrooms
+    // Build query string for teacher report
+    const reportParams = new URLSearchParams();
+    if (gradeLevel) reportParams.set("grade_level", String(gradeLevel));
+    const reportQs = reportParams.toString();
+    const reportSuffix = reportQs ? `?${reportQs}` : "";
+
+    // Fetch all classrooms (optionally filtered by grade)
     const classroomList = await apiFetch<
       Array<{ id: string; class_name: string; grade_level: number }>
     >("/classroom", { headers });
 
+    // Filter classrooms client-side if grade filter is set
+    const filteredClassrooms = gradeLevel
+      ? classroomList.filter((c) => c.grade_level === gradeLevel)
+      : classroomList;
+
     // Fetch analytics for each classroom
     const analyticsResults = await Promise.all(
-      classroomList.map(async (room) => {
+      filteredClassrooms.map(async (room) => {
         try {
           const data = await apiFetch<ClassroomReportResponse>(
             `/evaluator/report/classroom/${room.id}`,
@@ -190,8 +208,12 @@ async function fetchAnalyticsData(): Promise<AnalyticsDashboardData> {
   }
 }
 
-export default async function AnalyticsPage() {
-  const data = await fetchAnalyticsData();
+export default async function AnalyticsPage({ searchParams }: PageProps) {
+  const resolvedParams = await searchParams;
+  const gradeLevel = resolvedParams.grade ? Number(resolvedParams.grade) : undefined;
+  const pillar = resolvedParams.pillar || undefined;
+
+  const data = await fetchAnalyticsData(gradeLevel, pillar);
 
   // Empty state
   if (data.summaryStats.activeClassrooms === 0) {
@@ -211,5 +233,5 @@ export default async function AnalyticsPage() {
     );
   }
 
-  return <TabbedDashboard data={data} />;
+  return <TabbedDashboard data={data} gradeLevel={gradeLevel} pillar={pillar} />;
 }

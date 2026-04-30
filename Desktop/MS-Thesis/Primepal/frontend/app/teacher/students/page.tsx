@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
-import { Search, GraduationCap, FileText, ChevronRight, AlertCircle, RefreshCw, UserPlus, Pencil, Trash2, Lock } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { GraduationCap, FileText, ChevronRight, AlertCircle, RefreshCw, UserPlus, Pencil, Trash2, Lock } from "lucide-react";
+import { motion } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import { getTeacherHeaders } from "@/lib/teacherAuth";
+import FilterBar, { useFilterParams } from "@/components/teacher/FilterBar";
 import BulkAddStudentsModal from "@/components/teacher/BulkAddStudentsModal";
 import EditStudentModal from "@/components/teacher/EditStudentModal";
 import type { Student } from "@/types";
@@ -39,14 +40,12 @@ function accuracyColor(pct: number) {
   return "text-rose-600";
 }
 
-export default function StudentsPage() {
+function StudentsContent() {
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [classroomDetails, setClassroomDetails] = useState<Record<string, { id: string; students: Student[] }>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
   const [filterClassroom, setFilterClassroom] = useState("all");
-  const [filterGrade, setFilterGrade] = useState("all");
 
   // Management states
   const [showBulkAdd, setShowBulkAdd] = useState(false);
@@ -59,11 +58,22 @@ export default function StudentsPage() {
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
+  const { gradeLevel, pillar, search } = useFilterParams();
+
   useEffect(() => {
     async function load() {
+      setLoading(true);
+      setError(null);
       try {
         const headers = await getTeacherHeaders();
-        const data = await apiFetch<{ students: StudentRow[] }>("/evaluator/students", { headers });
+        const params = new URLSearchParams();
+        if (gradeLevel) params.set("grade_level", String(gradeLevel));
+        if (pillar) params.set("pillar", pillar);
+        if (search) params.set("search", search);
+        const qs = params.toString();
+        const suffix = qs ? `?${qs}` : "";
+
+        const data = await apiFetch<{ students: StudentRow[] }>(`/evaluator/students${suffix}`, { headers });
         setStudents(data.students || []);
       } catch (err: unknown) {
         const msg = err instanceof Error ? err.message : String(err);
@@ -74,7 +84,7 @@ export default function StudentsPage() {
       }
     }
     load();
-  }, []);
+  }, [gradeLevel, pillar, search]);
 
   async function fetchClassroomDetails(classroomId: string) {
     if (classroomDetails[classroomId]) return;
@@ -130,16 +140,12 @@ export default function StudentsPage() {
     }
   }
 
-  // Unique classrooms and grades for filter dropdowns
+  // Unique classrooms for classroom filter dropdown
   const classrooms = Array.from(new Map(students.map(s => [s.classroom_id, s.classroom_name])).entries());
-  const grades = Array.from(new Set(students.map(s => s.grade_level))).sort();
 
   const filtered = students.filter(s => {
-    const q = search.toLowerCase();
-    const matchSearch = !q || s.student_name.toLowerCase().includes(q) || (s.roll_number ?? "").toLowerCase().includes(q);
     const matchClassroom = filterClassroom === "all" || s.classroom_id === filterClassroom;
-    const matchGrade = filterGrade === "all" || String(s.grade_level) === filterGrade;
-    return matchSearch && matchClassroom && matchGrade;
+    return matchClassroom;
   });
 
   return (
@@ -154,7 +160,7 @@ export default function StudentsPage() {
               Student Directory
             </h1>
             <p className="text-gray-500 text-sm mt-1">
-              {loading ? "Loading…" : error ? "Failed to load" : `${students.length} students across all classrooms`}
+              {loading ? "Loading..." : error ? "Failed to load" : `${students.length} students across all classrooms`}
             </p>
           </div>
           {error && (
@@ -178,19 +184,14 @@ export default function StudentsPage() {
           </div>
         )}
 
-        {/* Filters & Actions */}
+        {/* FilterBar (grade, pillar, search via URL params) */}
+        <div className="mb-6">
+          <FilterBar searchPlaceholder="Search by name or roll number..." />
+        </div>
+
+        {/* Classroom filter + actions */}
         <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-6">
-          <div className="flex flex-col sm:flex-row gap-3 mb-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Search by name or roll number…"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
-              />
-            </div>
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
             <select
               value={filterClassroom}
               onChange={e => {
@@ -206,21 +207,9 @@ export default function StudentsPage() {
                 <option key={id} value={id}>{name}</option>
               ))}
             </select>
-            <select
-              value={filterGrade}
-              onChange={e => setFilterGrade(e.target.value)}
-              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
-            >
-              <option value="all">All Grades</option>
-              {grades.map(g => (
-                <option key={g} value={String(g)}>Grade {g}</option>
-              ))}
-            </select>
-          </div>
 
-          {/* Action buttons - only visible when classroom selected */}
-          {filterClassroom !== "all" && (
-            <div className="flex items-center gap-2 pt-3 border-t border-gray-100">
+            {/* Action buttons - only visible when classroom selected */}
+            {filterClassroom !== "all" && (
               <button
                 onClick={() => {
                   setShowBulkAdd(true);
@@ -229,8 +218,8 @@ export default function StudentsPage() {
               >
                 <UserPlus size={16} /> Add Students
               </button>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Error banner */}
           {removeError && (
@@ -319,7 +308,7 @@ export default function StudentsPage() {
 
                     {/* Points */}
                     <div className="text-center">
-                      <p className="font-bold text-gray-900 text-sm">⭐ {s.total_points}</p>
+                      <p className="font-bold text-gray-900 text-sm">{s.total_points}</p>
                       <p className="text-xs text-gray-400">{s.total_interactions} q&apos;s</p>
                     </div>
 
@@ -453,7 +442,7 @@ export default function StudentsPage() {
 
               {pinSaved && (
                 <p className="text-sm text-green-600 bg-green-50 rounded-lg px-3 py-2 mb-3">
-                  ✓ PIN saved!
+                  PIN saved!
                 </p>
               )}
 
@@ -470,7 +459,7 @@ export default function StudentsPage() {
                   className="flex-1 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-xl
                              hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
-                  {pinSaving ? "Saving…" : "Save PIN"}
+                  {pinSaving ? "Saving..." : "Save PIN"}
                 </button>
               </div>
             </div>
@@ -478,5 +467,25 @@ export default function StudentsPage() {
         )}
       </main>
     </div>
+  );
+}
+
+export default function StudentsPage() {
+  return (
+    <Suspense fallback={
+      <div className="bg-gray-50 min-h-full">
+        <main className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+              <GraduationCap className="w-6 h-6 text-indigo-600" />
+              Student Directory
+            </h1>
+            <p className="text-gray-500 text-sm mt-1">Loading...</p>
+          </div>
+        </main>
+      </div>
+    }>
+      <StudentsContent />
+    </Suspense>
   );
 }

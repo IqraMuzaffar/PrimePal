@@ -14,7 +14,7 @@ Endpoints:
         total interactions, and average accuracy across all their classrooms.
         Teacher-protected, computed from real database data.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from app.core.security import get_current_teacher
@@ -215,20 +215,28 @@ async def classroom_report(
     "/report/teacher",
     summary="Global teacher analytics: all classrooms with student stats",
 )
-async def get_teacher_report(teacher: dict = Depends(get_current_teacher)):
+async def get_teacher_report(
+    teacher: dict = Depends(get_current_teacher),
+    grade_level: int | None = Query(None, description="Filter by grade level"),
+):
     """
     Returns all classrooms for the teacher with per-student interaction stats.
     Used by the global analytics page (By Student / By Grade / By Section views).
+
+    Optional filter:
+    - grade_level: Narrow to classrooms of a specific grade
     """
     supabase = get_supabase_admin()
 
     # 1. Fetch all teacher classrooms
-    cls_res = (
+    cls_query = (
         supabase.table("classrooms")
         .select("id, class_name, grade_level")
         .eq("teacher_id", teacher["id"])
-        .execute()
     )
+    if grade_level is not None:
+        cls_query = cls_query.eq("grade_level", grade_level)
+    cls_res = cls_query.execute()
     classrooms = cls_res.data or []
     if not classrooms:
         return {"classrooms": []}
@@ -314,7 +322,11 @@ class DashboardStatsResponse(BaseModel):
     response_model=DashboardStatsResponse,
     summary="Teacher dashboard statistics (real data)",
 )
-async def get_dashboard_stats(teacher: dict = Depends(get_current_teacher)):
+async def get_dashboard_stats(
+    teacher: dict = Depends(get_current_teacher),
+    grade_level: int | None = Query(None, description="Filter by grade level"),
+    pillar: str | None = Query(None, description="Filter interactions by pillar (reading/writing/listening/speaking)"),
+):
     """
     Returns aggregate statistics for the teacher's dashboard:
     - total_students: Count of all students in this teacher's classrooms
@@ -322,18 +334,20 @@ async def get_dashboard_stats(teacher: dict = Depends(get_current_teacher)):
     - avg_accuracy: Percentage of correct interactions across all students
     - active_this_week: Count of students with at least one interaction in the last 7 days
 
+    Optional filters:
+    - grade_level: Narrow to classrooms of a specific grade
+    - pillar: Narrow interactions to a specific skill pillar
+
     Teacher authentication required (Supabase GoTrue JWT).
     """
     from datetime import datetime, timedelta, timezone
     supabase = get_supabase_admin()
     teacher_id: str = teacher["id"]
 
-    cls_res = (
-        supabase.table("classrooms")
-        .select("id")
-        .eq("teacher_id", teacher_id)
-        .execute()
-    )
+    cls_query = supabase.table("classrooms").select("id").eq("teacher_id", teacher_id)
+    if grade_level is not None:
+        cls_query = cls_query.eq("grade_level", grade_level)
+    cls_res = cls_query.execute()
     classrooms = cls_res.data or []
 
     if not classrooms:
@@ -357,12 +371,14 @@ async def get_dashboard_stats(teacher: dict = Depends(get_current_teacher)):
 
     if students:
         student_ids = [s["id"] for s in students]
-        int_res = (
+        int_query = (
             supabase.table("student_interactions")
             .select("student_id, correct")
             .in_("student_id", student_ids)
-            .execute()
         )
+        if pillar:
+            int_query = int_query.eq("pillar", pillar)
+        int_res = int_query.execute()
         interactions = int_res.data or []
         total_interactions = len(interactions)
 
@@ -374,13 +390,15 @@ async def get_dashboard_stats(teacher: dict = Depends(get_current_teacher)):
 
         # Active this week: distinct students with any interaction in last 7 days
         seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-        week_res = (
+        week_query = (
             supabase.table("student_interactions")
             .select("student_id")
             .in_("student_id", student_ids)
             .gte("created_at", seven_days_ago)
-            .execute()
         )
+        if pillar:
+            week_query = week_query.eq("pillar", pillar)
+        week_res = week_query.execute()
         active_this_week = len({r["student_id"] for r in (week_res.data or [])})
     else:
         total_interactions = 0
@@ -392,6 +410,104 @@ async def get_dashboard_stats(teacher: dict = Depends(get_current_teacher)):
         total_interactions=total_interactions,
         avg_accuracy=avg_accuracy,
         active_this_week=active_this_week,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /skill-accuracy  — per-pillar accuracy breakdown
+# ---------------------------------------------------------------------------
+
+class SkillAccuracyResponse(BaseModel):
+    reading: float
+    writing: float
+    listening: float
+    speaking: float
+    active_today: int
+
+
+@router.get(
+    "/skill-accuracy",
+    response_model=SkillAccuracyResponse,
+    summary="Per-skill accuracy breakdown (teacher only)",
+)
+async def get_skill_accuracy(
+    teacher: dict = Depends(get_current_teacher),
+    grade_level: int | None = Query(None, description="Filter by grade level"),
+):
+    """
+    Returns accuracy percentage per skill pillar (reading, writing, listening,
+    speaking) and the count of students active today (with any interaction today).
+
+    Optional filter:
+    - grade_level: Narrow to classrooms of a specific grade
+    """
+    from datetime import datetime, timedelta, timezone
+    from collections import defaultdict
+
+    supabase = get_supabase_admin()
+    teacher_id: str = teacher["id"]
+
+    cls_query = supabase.table("classrooms").select("id").eq("teacher_id", teacher_id)
+    if grade_level is not None:
+        cls_query = cls_query.eq("grade_level", grade_level)
+    cls_res = cls_query.execute()
+    classrooms = cls_res.data or []
+
+    if not classrooms:
+        return SkillAccuracyResponse(
+            reading=0.0, writing=0.0, listening=0.0, speaking=0.0, active_today=0,
+        )
+
+    classroom_ids = [c["id"] for c in classrooms]
+
+    stu_res = (
+        supabase.table("students")
+        .select("id")
+        .in_("classroom_id", classroom_ids)
+        .execute()
+    )
+    students = stu_res.data or []
+    if not students:
+        return SkillAccuracyResponse(
+            reading=0.0, writing=0.0, listening=0.0, speaking=0.0, active_today=0,
+        )
+
+    student_ids = [s["id"] for s in students]
+
+    int_res = (
+        supabase.table("student_interactions")
+        .select("student_id, pillar, correct, created_at")
+        .in_("student_id", student_ids)
+        .execute()
+    )
+    interactions = int_res.data or []
+
+    # Aggregate per pillar
+    pillar_stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    active_today_ids: set[str] = set()
+
+    for row in interactions:
+        p = row.get("pillar")
+        if p:
+            pillar_stats[p]["total"] += 1
+            if row.get("correct") is True:
+                pillar_stats[p]["correct"] += 1
+        if row.get("created_at", "") >= today_start:
+            active_today_ids.add(row["student_id"])
+
+    def pct(pillar_name: str) -> float:
+        s = pillar_stats.get(pillar_name)
+        if not s or s["total"] == 0:
+            return 0.0
+        return round(s["correct"] / s["total"] * 100, 2)
+
+    return SkillAccuracyResponse(
+        reading=pct("reading"),
+        writing=pct("writing"),
+        listening=pct("listening"),
+        speaking=pct("speaking"),
+        active_today=len(active_today_ids),
     )
 
 
@@ -423,11 +539,21 @@ class StudentsListResponse(BaseModel):
     response_model=StudentsListResponse,
     summary="All students across teacher's classrooms with stats",
 )
-async def list_all_students(teacher: dict = Depends(get_current_teacher)):
+async def list_all_students(
+    teacher: dict = Depends(get_current_teacher),
+    grade_level: int | None = Query(None, description="Filter by grade level"),
+    pillar: str | None = Query(None, description="Filter accuracy by pillar (reading/writing/listening/speaking)"),
+    search: str | None = Query(None, description="Search by student name or roll number"),
+):
     """
     Returns every student across all the teacher's classrooms with aggregated
     stats: total_points, total_interactions, mission_accuracy_pct, active_this_week.
     Used by the global Students directory and At-Risk widget.
+
+    Optional filters:
+    - grade_level: Narrow to classrooms of a specific grade
+    - pillar: Compute accuracy only from that pillar's interactions
+    - search: Filter students by name (case-insensitive) or roll_number
     """
     from datetime import datetime, timedelta, timezone
     from collections import defaultdict
@@ -436,12 +562,10 @@ async def list_all_students(teacher: dict = Depends(get_current_teacher)):
     teacher_id: str = teacher["id"]
 
     # 1. Fetch teacher's classrooms
-    cls_res = (
-        supabase.table("classrooms")
-        .select("id, class_name, grade_level")
-        .eq("teacher_id", teacher_id)
-        .execute()
-    )
+    cls_query = supabase.table("classrooms").select("id, class_name, grade_level").eq("teacher_id", teacher_id)
+    if grade_level is not None:
+        cls_query = cls_query.eq("grade_level", grade_level)
+    cls_res = cls_query.execute()
     classrooms = cls_res.data or []
     if not classrooms:
         return StudentsListResponse(students=[], total_count=0)
@@ -450,26 +574,36 @@ async def list_all_students(teacher: dict = Depends(get_current_teacher)):
     classroom_ids = list(classroom_map.keys())
 
     # 2. Fetch all students
-    stu_res = (
+    stu_query = (
         supabase.table("students")
         .select("id, student_name, roll_number, avatar_url, classroom_id, points")
         .in_("classroom_id", classroom_ids)
         .order("student_name")
-        .execute()
     )
+    stu_res = stu_query.execute()
     student_rows = stu_res.data or []
+
+    # 2b. Apply search filter in-memory (Supabase JS client doesn't support OR + ILIKE easily)
+    if search:
+        search_lower = search.lower()
+        student_rows = [
+            s for s in student_rows
+            if search_lower in s["student_name"].lower()
+            or (s.get("roll_number") and search_lower in s["roll_number"].lower())
+        ]
+
     if not student_rows:
         return StudentsListResponse(students=[], total_count=0)
 
     student_ids = [s["id"] for s in student_rows]
 
-    # 3. Fetch all interactions (type + correct only — no pillar needed here)
-    int_res = (
+    # 3. Fetch all interactions
+    int_query = (
         supabase.table("student_interactions")
-        .select("student_id, interaction_type, correct, created_at")
+        .select("student_id, interaction_type, correct, created_at, pillar")
         .in_("student_id", student_ids)
-        .execute()
     )
+    int_res = int_query.execute()
     all_interactions = int_res.data or []
 
     seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
@@ -479,6 +613,11 @@ async def list_all_students(teacher: dict = Depends(get_current_teacher)):
     for row in all_interactions:
         sid = row["student_id"]
         stats[sid]["total"] += 1
+        # When pillar filter is set, only count matching interactions for accuracy
+        if pillar and row.get("pillar") != pillar:
+            if row.get("created_at", "") >= seven_days_ago:
+                stats[sid]["active"] = True
+            continue
         if row["interaction_type"] in ("mission_mc", "mission_fill"):
             stats[sid]["mission_total"] += 1
             if row.get("correct") is True:
