@@ -35,6 +35,12 @@ interface RewardStatus {
   last_claimed_at: string | null;
 }
 
+interface DailySummary {
+  today_points: number;
+  total_points: number;
+  missions_today: number;
+}
+
 interface Announcement {
   id: string;
   classroom_id: string;
@@ -139,6 +145,7 @@ export default function HomePage() {
   const [isDailyChestOpen, setIsDailyChestOpen] = useState(false);
   const [claimingReward, setClaimingReward] = useState(false);
   const [dailyReward, setDailyReward] = useState<DailyReward | null>(null);
+  const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
 
   useEffect(() => {
     const token = getToken();
@@ -156,6 +163,13 @@ export default function HomePage() {
       })
       .catch(() => {})
       .finally(() => setLoadingProfile(false));
+
+    // Fetch daily summary (best-effort, non-blocking)
+    apiFetch<DailySummary>("/rewards/daily-summary", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((summary) => setDailySummary(summary))
+      .catch(() => {});
   }, [router]);
 
   async function fetchAnnouncement(profileData: StudentProfile) {
@@ -305,14 +319,22 @@ export default function HomePage() {
               Edit Character
             </motion.button>
           </div>
-          <div className="flex flex-col items-center bg-white/20 rounded-2xl px-4 py-3 border-2 border-white/30">
-            {profile?.avatar_url ? (
-              <Image src={profile.avatar_url} alt={name} width={48} height={48} className="rounded-full border-2 border-white/60 mb-1" />
-            ) : (
-              <span className="text-3xl leading-none mb-1">⭐</span>
+          <div className="flex items-center gap-2">
+            {dailySummary && dailySummary.today_points > 0 && (
+              <div className="flex flex-col items-center bg-white/20 rounded-2xl px-3 py-3 border-2 border-white/30">
+                <span className="text-white font-extrabold text-xl leading-tight">+{dailySummary.today_points}</span>
+                <span className="text-white/70 text-[10px] font-semibold">Today</span>
+              </div>
             )}
-            <span className="text-white font-extrabold text-2xl leading-tight">{points}</span>
-            <span className="text-white/70 text-xs font-semibold">Stars</span>
+            <div className="flex flex-col items-center bg-white/20 rounded-2xl px-4 py-3 border-2 border-white/30">
+              {profile?.avatar_url ? (
+                <Image src={profile.avatar_url} alt={name} width={48} height={48} className="rounded-full border-2 border-white/60 mb-1" />
+              ) : (
+                <span className="text-3xl leading-none mb-1">⭐</span>
+              )}
+              <span className="text-white font-extrabold text-2xl leading-tight">{points}</span>
+              <span className="text-white/70 text-xs font-semibold">Stars</span>
+            </div>
           </div>
         </div>
       )}

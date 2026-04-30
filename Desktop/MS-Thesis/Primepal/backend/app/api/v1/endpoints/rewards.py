@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
+from app.core.cache import cache_get, cache_set, make_cache_key
 
 logger = logging.getLogger(__name__)
 
@@ -228,3 +229,67 @@ async def get_reward_status(
         has_claimed_today=has_claimed,
         last_claimed_at=last_claimed_str,
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /daily-summary (S08: Scoring Visibility)
+# ---------------------------------------------------------------------------
+
+class DailySummaryResponse(BaseModel):
+    today_points: int
+    total_points: int
+    missions_today: int
+
+
+@router.get("/daily-summary", response_model=DailySummaryResponse, summary="Daily score summary")
+async def get_daily_summary(
+    student: dict = Depends(get_current_student),
+):
+    """
+    Return the student's score summary for today.
+
+    - today_points: sum of scores from correct interactions today
+    - total_points: cumulative points from student record
+    - missions_today: count of correct interactions today
+
+    Cached for 2 minutes.
+    Authentication: student JWT (Bearer token).
+    """
+    student_id: str = student["sub"]
+    supabase = get_supabase_admin()
+
+    cache_key = make_cache_key("daily_summary", student_id)
+    cached = await cache_get(cache_key)
+    if cached:
+        return DailySummaryResponse(**cached)
+
+    student_resp = (
+        supabase.table("students")
+        .select("points")
+        .eq("id", student_id)
+        .maybe_single()
+        .execute()
+    )
+    total_points = (student_resp.data.get("points") or 0) if student_resp.data else 0
+
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    interactions_resp = (
+        supabase.table("student_interactions")
+        .select("score")
+        .eq("student_id", student_id)
+        .eq("correct", True)
+        .gte("created_at", today_start)
+        .execute()
+    )
+    rows = interactions_resp.data or []
+    today_points = sum(r.get("score") or 10 for r in rows)
+    missions_today = len(rows)
+
+    response = DailySummaryResponse(
+        today_points=today_points,
+        total_points=total_points,
+        missions_today=missions_today,
+    )
+
+    await cache_set(cache_key, response.model_dump(), ttl=120)
+    return response

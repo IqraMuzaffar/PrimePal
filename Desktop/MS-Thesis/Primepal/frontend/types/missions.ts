@@ -23,6 +23,7 @@ export interface MissionQuestion {
   word_with_blanks?: string;
   letter_options?: string[];
   sentence_start?: string;
+  urdu_hint?: string;
   // Legacy compat
   type?: string;
   question_text?: string;

@@ -15,6 +15,7 @@ import RepeatAfterMe from './speaking/RepeatAfterMe';
 import WhatIsThis from './speaking/WhatIsThis';
 import FinishTheSentence from './speaking/FinishTheSentence';
 import LegacyMultipleChoice from './LegacyMultipleChoice';
+import HintButton from './shared/HintButton';
 
 const TASK_COMPONENTS: Record<string, React.ComponentType<TaskProps>> = {
   sentence_picture_match: SentencePictureMatch,
@@ -37,5 +38,12 @@ const TASK_COMPONENTS: Record<string, React.ComponentType<TaskProps>> = {
 export default function TaskRouter(props: TaskProps) {
   const taskType = props.question.task_type ?? props.question.type ?? 'multiple_choice';
   const Component = TASK_COMPONENTS[taskType] ?? LegacyMultipleChoice;
-  return <Component {...props} />;
+  return (
+    <div>
+      <Component {...props} />
+      {!props.showFeedback && props.question.urdu_hint && (
+        <HintButton urduHint={props.question.urdu_hint} />
+      )}
+    </div>
+  );
 }

@@ -76,6 +76,7 @@ class MissionQuestionOut(BaseModel):
     word_with_blanks: str | None = None
     letter_options: list[str] | None = None
     sentence_start: str | None = None
+    urdu_hint: str = ""
     # correct_answer, correct_order deliberately ABSENT
 
 
@@ -90,6 +91,7 @@ class CompleteRequest(BaseModel):
     question_type: str = "multiple_choice"
     task_type: str | None = None
     pillar: str | None = None
+    points_value: int = 10
     answer_data: dict | None = None
 
 
@@ -139,6 +141,7 @@ def _strip_answer(q) -> MissionQuestionOut:
             word_with_blanks=q.get("word_with_blanks"),
             letter_options=q.get("letter_options"),
             sentence_start=q.get("sentence_start"),
+            urdu_hint=q.get("urdu_hint", ""),
         )
     return MissionQuestionOut(
         id=q.id,
@@ -157,6 +160,7 @@ def _strip_answer(q) -> MissionQuestionOut:
         word_with_blanks=getattr(q, 'word_with_blanks', None),
         letter_options=getattr(q, 'letter_options', None),
         sentence_start=getattr(q, 'sentence_start', None),
+        urdu_hint=getattr(q, 'urdu_hint', ''),
     )
 
 
@@ -335,7 +339,7 @@ async def complete_mission(
     grade_level: int = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     current_points: int = student_resp.data.get("points") or 0
-    points_awarded = _POINTS_PER_CORRECT if body.question_correct else 0
+    points_awarded = (body.points_value or _POINTS_PER_CORRECT) if body.question_correct else 0
     new_total = current_points + points_awarded
     current_missions_completed: int = student_resp.data.get("missions_completed") or 0
 

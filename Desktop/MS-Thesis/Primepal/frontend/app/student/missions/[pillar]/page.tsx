@@ -11,6 +11,7 @@ interface GameResult {
   is_correct: boolean;
   time_remaining: number;
   task_type: string;
+  points_value: number;
 }
 
 export default function PillarMissionPage() {
@@ -57,6 +58,7 @@ export default function PillarMissionPage() {
             question_correct: result.is_correct,
             task_type: result.task_type,
             pillar: pillar,
+            points_value: result.points_value,
           }),
         });
       }

@@ -73,6 +73,7 @@ class MissionQuestion(BaseModel):
     word_with_blanks: str | None = None
     letter_options: list[str] | None = None
     sentence_start: str | None = None
+    urdu_hint: str = ""                         # Urdu translation hint for bilingual scaffolding
 
 
 class DailyMissions(BaseModel):
@@ -106,6 +107,7 @@ RULES — follow every rule strictly:
 5. GROUNDING: Every question must naturally reference words or concepts from the context below.
 6. EMOJI: Add a single relevant emoji as emoji_hint for each question (e.g. "🐱" for a cat question).
 7. TOPIC: Set the topic field to a short 1-3 word label that describes all 3 questions.
+8. URDU_HINT: Add an `urdu_hint` field with the Urdu translation of the key vocabulary in each question. Use simple Urdu appropriate for Grade {grade_level}. Example: for "The cat is on the table", urdu_hint could be "بلی میز پر ہے".
 
 SNC CURRICULUM CONTEXT (Grade {grade_level}):
 {context}
@@ -132,6 +134,7 @@ RULES — follow every rule strictly:
 4. ENCOURAGEMENT: Frame questions in a positive, game-like tone.
 5. EMOJI: Add a single relevant emoji as emoji_hint for each question.
 6. TOPIC: Set the topic field to a short 1-3 word label that describes all 3 questions.
+7. URDU_HINT: Add an `urdu_hint` field with the Urdu translation of the key vocabulary in each question. Use simple Urdu appropriate for Grade {grade_level}. Example: for "The cat is on the table", urdu_hint could be "بلی میز پر ہے".
 
 {confidence_builder_override}
 """
@@ -380,7 +383,7 @@ Total points across all 10 questions MUST equal 100.
 {config["field_instructions"]}
 
 EVERY question MUST have these fields:
-- id (1-10), task_type, pillar ("{pillar}"), question, difficulty, points_value, correct_answer, emoji_hint
+- id (1-10), task_type, pillar ("{pillar}"), question, difficulty, points_value, correct_answer, emoji_hint, urdu_hint
 
 RULES:
 1. Use age-appropriate vocabulary for Grade {grade_level} Pakistani students.
@@ -389,6 +392,7 @@ RULES:
 4. Use Pakistani cultural context where relevant.
 5. For multiple choice fields (options, image_options): always provide exactly 4 items with ids "a","b","c","d".
 6. correct_answer for option-based questions must be one of "a","b","c","d".
+7. URDU_HINT: Add an urdu_hint field with the Urdu translation of the key vocabulary or sentence. Use simple Urdu appropriate for Grade {grade_level}. For example: "The cat is sleeping" → "بلی سو رہی ہے".
 {weakness_context}{confidence_override}"""
 
     user_message = f"Generate 10 {pillar} questions for Grade {grade_level} on topics: {topic_text}."
