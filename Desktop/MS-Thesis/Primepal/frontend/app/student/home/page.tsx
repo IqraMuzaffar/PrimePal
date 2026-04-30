@@ -210,7 +210,7 @@ export default function HomePage() {
       .catch(() => {});
   }, [router]);
 
-  async function fetchAnnouncement(profileData: StudentProfile) {
+  async function fetchAnnouncement(_profileData: StudentProfile) {
     try {
       // We need the classroom_id from the JWT or profile
       // For now, we'll extract it from the JWT token
@@ -271,7 +271,7 @@ export default function HomePage() {
     setShowModal(false);
   }
 
-  async function handleClaimReward(reward: DailyReward) {
+  async function handleClaimReward(_reward: DailyReward) {
     setClaimingReward(true);
     const token = getToken();
     if (!token) return;
@@ -471,7 +471,7 @@ export default function HomePage() {
             >
               <span className="text-4xl">🏆</span>
               <span className="text-base">Leaderboard</span>
-              <span className="text-xs text-yellow-100 font-semibold">See who's #1!</span>
+              <span className="text-xs text-yellow-100 font-semibold">See who&apos;s #1!</span>
             </button>
           </motion.div>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="col-span-2">

@@ -36,7 +36,7 @@ const stagger = {
     initial: { opacity: 0, y: 24 },
     animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
   },
-};
+} as const satisfies Record<string, import("framer-motion").Variants>;
 
 export default function LandingPage() {
   return (

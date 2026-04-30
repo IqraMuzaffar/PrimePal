@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { isCurrentUserAdmin } from "@/lib/adminAuth";
 import Link from "next/link";
-import { BarChart2, Download, FileText, LayoutDashboard, LogOut, Menu, Sparkles, X } from "lucide-react";
+import { BarChart2, ClipboardCheck, Download, FileText, LayoutDashboard, LogOut, Menu, Sparkles, X } from "lucide-react";
 
 export default function AdminLayout({
   children,
@@ -93,6 +93,17 @@ export default function AdminLayout({
       <div className="hidden lg:block bg-slate-800 border-b border-slate-700 sticky top-0 z-40">
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex gap-8 text-white">
+            <Link
+              href="/admin/dashboard"
+              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
+                pathname === "/admin/dashboard"
+                  ? "border-indigo-500 text-white"
+                  : "border-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              <ClipboardCheck size={14} />
+              Evaluations
+            </Link>
             <Link
               href="/admin/dashboard/staff"
               className={`px-4 py-3 border-b-2 transition text-sm font-medium ${
@@ -210,6 +221,18 @@ export default function AdminLayout({
           {/* Drawer */}
           <nav className="fixed top-16 left-0 right-0 bg-slate-800 border-b border-slate-700 z-50 lg:hidden">
             <div className="flex flex-col p-2 space-y-1">
+              <Link
+                href="/admin/dashboard"
+                onClick={() => setShowMobileMenu(false)}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
+                  pathname === "/admin/dashboard"
+                    ? "bg-indigo-600 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                <ClipboardCheck size={14} />
+                Evaluations
+              </Link>
               <Link
                 href="/admin/dashboard/staff"
                 onClick={() => setShowMobileMenu(false)}

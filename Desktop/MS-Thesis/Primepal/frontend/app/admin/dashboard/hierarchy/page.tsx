@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getAdminHeaders } from "@/lib/adminAuth";
-import { Plus, Edit2, Trash2, X, Search } from "lucide-react";
+import { Plus, Edit2, Trash2, X } from "lucide-react";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";

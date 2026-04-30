@@ -110,7 +110,7 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
 
   const runningScore = results.reduce((sum, r) => sum + (r.is_correct ? r.points_value : 0), 0);
 
-  const advance = useCallback((newResults: GameResult[]) => {
+  const advance = useCallback((_newResults: GameResult[]) => {
     if (isLastQuestion) {
       setShowSummary(true);
     } else {

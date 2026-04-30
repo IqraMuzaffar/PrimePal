@@ -31,7 +31,7 @@ export default function SpellingBeePage() {
   const [score, setScore] = useState({ correct: 0, totalPoints: 0 });
   const [error, setError] = useState<string | null>(null);
   const [topic, setTopic] = useState("");
-  const [weekNumber, setWeekNumber] = useState(0);
+  const [_weekNumber, setWeekNumber] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
 
@@ -307,7 +307,7 @@ export default function SpellingBeePage() {
             <div className="text-6xl font-bold text-gray-300 tracking-widest">
               {currentWord.word
                 .split("")
-                .map((_, i) => "_")
+                .map((_, _i) => "_")
                 .join(" ")}
             </div>
           </div>

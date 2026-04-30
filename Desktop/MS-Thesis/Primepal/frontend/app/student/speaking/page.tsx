@@ -38,7 +38,7 @@ interface EvaluateProResponse {
 type GameState = 'loading' | 'intro' | 'recording' | 'reviewing' | 'result' | 'retry' | 'finished';
 
 const AudioAPI = typeof window !== 'undefined' && navigator.mediaDevices;
-const SpeechRecognitionAPI = typeof window !== 'undefined'
+const _SpeechRecognitionAPI = typeof window !== 'undefined'
   ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
   : null;
 
@@ -59,7 +59,7 @@ export default function SpeakingPage() {
   const [retryMessage, setRetryMessage] = useState('');
   const [noiseToastShown, setNoiseToastShown] = useState(false);
   const [showNoiseToast, setShowNoiseToast] = useState(false);
-  const recognitionRef = useRef<any>(null);
+  const _recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const audioBlobRef = useRef<Blob | null>(null);

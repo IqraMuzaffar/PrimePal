@@ -122,6 +122,8 @@ def get_current_admin(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied — admin role required",
             )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

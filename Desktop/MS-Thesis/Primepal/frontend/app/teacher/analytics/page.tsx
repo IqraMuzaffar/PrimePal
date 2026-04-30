@@ -24,7 +24,7 @@ interface PageProps {
 
 async function fetchAnalyticsData(
   gradeLevel?: number,
-  pillar?: string
+  _pillar?: string
 ): Promise<AnalyticsDashboardData> {
   try {
     const headers = await getTeacherHeaders();
@@ -33,7 +33,7 @@ async function fetchAnalyticsData(
     const reportParams = new URLSearchParams();
     if (gradeLevel) reportParams.set("grade_level", String(gradeLevel));
     const reportQs = reportParams.toString();
-    const reportSuffix = reportQs ? `?${reportQs}` : "";
+    const _reportSuffix = reportQs ? `?${reportQs}` : "";
 
     // Fetch all classrooms (optionally filtered by grade)
     const classroomList = await apiFetch<

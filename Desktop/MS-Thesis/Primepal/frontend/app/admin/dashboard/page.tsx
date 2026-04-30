@@ -19,7 +19,7 @@ interface StudentResult {
 
 interface Classroom {
   id: string;
-  name: string;
+  class_name: string;
   grade_level: number;
 }
 
@@ -132,24 +132,24 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-slate-800">Evaluation Dashboard</h1>
+      <h1 className="text-2xl font-bold text-white">Evaluation Dashboard</h1>
 
       {/* ── Trigger Post-Test Card ─────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-slate-700 mb-4">
+      <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-sm p-6">
+        <h2 className="text-lg font-semibold text-slate-200 mb-4">
           Trigger Post-Test
         </h2>
 
         <div className="flex flex-wrap items-end gap-4">
           {/* Scope selector */}
           <div>
-            <label className="block text-sm font-medium text-slate-600 mb-1">
+            <label className="block text-sm font-medium text-slate-400 mb-1">
               Scope
             </label>
             <select
               value={scope}
               onChange={(e) => setScope(e.target.value as any)}
-              className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
             >
               <option value="global">Global (all students)</option>
               <option value="grade">By Grade</option>
@@ -160,13 +160,13 @@ export default function AdminDashboardPage() {
           {/* Grade dropdown */}
           {scope === "grade" && (
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
+              <label className="block text-sm font-medium text-slate-400 mb-1">
                 Grade
               </label>
               <select
                 value={gradeTarget}
                 onChange={(e) => setGradeTarget(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 {[1, 2, 3, 4, 5].map((g) => (
                   <option key={g} value={String(g)}>
@@ -180,17 +180,17 @@ export default function AdminDashboardPage() {
           {/* Classroom dropdown */}
           {scope === "classroom" && (
             <div>
-              <label className="block text-sm font-medium text-slate-600 mb-1">
+              <label className="block text-sm font-medium text-slate-400 mb-1">
                 Classroom
               </label>
               <select
                 value={classroomTarget}
                 onChange={(e) => setClassroomTarget(e.target.value)}
-                className="border border-slate-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="bg-slate-700 border border-slate-600 text-white rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
               >
                 {classrooms.map((c) => (
                   <option key={c.id} value={c.id}>
-                    {c.name} (Grade {c.grade_level})
+                    {c.class_name} (Grade {c.grade_level})
                   </option>
                 ))}
               </select>
@@ -207,7 +207,7 @@ export default function AdminDashboardPage() {
             </button>
           ) : (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-amber-700 font-medium">
+              <span className="text-sm text-amber-400 font-medium">
                 Are you sure?
               </span>
               <button
@@ -219,7 +219,7 @@ export default function AdminDashboardPage() {
               </button>
               <button
                 onClick={() => setConfirmOpen(false)}
-                className="bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-300 transition-colors"
+                className="bg-slate-600 text-slate-200 px-4 py-2 rounded-lg text-sm font-medium hover:bg-slate-500 transition-colors"
               >
                 Cancel
               </button>
@@ -231,8 +231,8 @@ export default function AdminDashboardPage() {
           <p
             className={`mt-3 text-sm font-medium ${
               triggerResult.startsWith("Error")
-                ? "text-red-600"
-                : "text-green-600"
+                ? "text-red-400"
+                : "text-green-400"
             }`}
           >
             {triggerResult}
@@ -241,51 +241,51 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* ── Results Summary Card ───────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-slate-700 mb-4">
+      <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-sm p-6">
+        <h2 className="text-lg font-semibold text-slate-200 mb-4">
           Evaluation Results Summary
         </h2>
 
         {loadingResults && (
-          <p className="text-sm text-slate-500">Loading results...</p>
+          <p className="text-sm text-slate-400">Loading results...</p>
         )}
         {resultsError && (
-          <p className="text-sm text-red-600">{resultsError}</p>
+          <p className="text-sm text-red-400">{resultsError}</p>
         )}
 
         {!loadingResults && !resultsError && (
           <>
             {/* Quick stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-              <div className="bg-indigo-50 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-indigo-700">
+              <div className="bg-indigo-900/40 rounded-lg p-4 text-center">
+                <p className="text-2xl font-bold text-indigo-400">
                   {preResults.length}
                 </p>
-                <p className="text-xs text-slate-600 mt-1">
+                <p className="text-xs text-slate-400 mt-1">
                   Pre-test submissions
                 </p>
               </div>
-              <div className="bg-emerald-50 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-emerald-700">
+              <div className="bg-emerald-900/40 rounded-lg p-4 text-center">
+                <p className="text-2xl font-bold text-emerald-400">
                   {postResults.length}
                 </p>
-                <p className="text-xs text-slate-600 mt-1">
+                <p className="text-xs text-slate-400 mt-1">
                   Post-test submissions
                 </p>
               </div>
-              <div className="bg-amber-50 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-amber-700">
+              <div className="bg-amber-900/40 rounded-lg p-4 text-center">
+                <p className="text-2xl font-bold text-amber-400">
                   {avgScore(preResults)}
                 </p>
-                <p className="text-xs text-slate-600 mt-1">
+                <p className="text-xs text-slate-400 mt-1">
                   Avg pre-test score
                 </p>
               </div>
-              <div className="bg-purple-50 rounded-lg p-4 text-center">
-                <p className="text-2xl font-bold text-purple-700">
+              <div className="bg-purple-900/40 rounded-lg p-4 text-center">
+                <p className="text-2xl font-bold text-purple-400">
                   {avgScore(postResults)}
                 </p>
-                <p className="text-xs text-slate-600 mt-1">
+                <p className="text-xs text-slate-400 mt-1">
                   Avg post-test score
                 </p>
               </div>
@@ -295,7 +295,7 @@ export default function AdminDashboardPage() {
             {results.length > 0 ? (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm text-left">
-                  <thead className="bg-slate-50 text-slate-600">
+                  <thead className="bg-slate-700/50 text-slate-300">
                     <tr>
                       <th className="px-3 py-2 font-medium">Student</th>
                       <th className="px-3 py-2 font-medium">Type</th>
@@ -305,32 +305,32 @@ export default function AdminDashboardPage() {
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-100">
+                  <tbody className="divide-y divide-slate-700">
                     {results.map((r, i) => (
-                      <tr key={i} className="hover:bg-slate-50">
-                        <td className="px-3 py-2">
+                      <tr key={i} className="hover:bg-slate-700/30">
+                        <td className="px-3 py-2 text-slate-200">
                           {r.student_name || r.student_id.slice(0, 8)}
                         </td>
                         <td className="px-3 py-2">
                           <span
                             className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                               r.evaluation_type === "pre"
-                                ? "bg-indigo-100 text-indigo-700"
-                                : "bg-emerald-100 text-emerald-700"
+                                ? "bg-indigo-900/50 text-indigo-300"
+                                : "bg-emerald-900/50 text-emerald-300"
                             }`}
                           >
                             {r.evaluation_type}
                           </span>
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2 text-slate-200">
                           {r.correct}/{r.total}
                           {r.total > 0 && (
-                            <span className="text-slate-400 ml-1">
+                            <span className="text-slate-500 ml-1">
                               ({Math.round((r.correct / r.total) * 100)}%)
                             </span>
                           )}
                         </td>
-                        <td className="px-3 py-2">
+                        <td className="px-3 py-2 text-slate-200">
                           {r.psychometric_avg !== null
                             ? `${r.psychometric_avg}/3`
                             : "---"}
@@ -341,7 +341,7 @@ export default function AdminDashboardPage() {
                 </table>
               </div>
             ) : (
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-slate-400">
                 No evaluation results yet.
               </p>
             )}

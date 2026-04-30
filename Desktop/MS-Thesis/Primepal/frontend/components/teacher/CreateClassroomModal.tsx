@@ -113,7 +113,7 @@ export default function CreateClassroomModal({ onClose, onCreated }: Props) {
               className="w-full px-4 py-2.5 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             />
             <p className="text-xs text-gray-400 mt-1">
-              Leave empty to auto-generate as "Grade X - Section Y"
+              Leave empty to auto-generate as &quot;Grade X - Section Y&quot;
             </p>
             <p className="text-xs text-amber-600 mt-2 bg-amber-50 px-2 py-1 rounded">
               ℹ️ Each section (e.g., 3A, 3B) can only exist once per grade

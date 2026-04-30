@@ -2,7 +2,6 @@
 
 import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
 import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Zap, Activity, BookOpenCheck, Headphones, MessageSquare } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getTeacherHeaders } from "@/lib/teacherAuth";

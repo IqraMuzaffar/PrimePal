@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Image from "next/image";
-import { Activity, Target, Building2, TrendingUp, Trophy, Users, BookOpen } from "lucide-react";
+import { Activity, Target, TrendingUp, Trophy, Users, BookOpen } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getTeacherHeaders } from "@/lib/teacherAuth";
 import type { AnalyticsDashboardData } from "@/types/analytics";
@@ -88,7 +88,7 @@ export default function AnalyticsOverview({ data }: Props) {
   const [dashStats, setDashStats] = useState<DashboardStats | null>(null);
   const [skillAccuracy, setSkillAccuracy] = useState<SkillAccuracy | null>(null);
   const [weeklyTrends, setWeeklyTrends] = useState<WeeklyTrendData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -143,14 +143,6 @@ export default function AnalyticsOverview({ data }: Props) {
       return acc;
     },
     {} as Record<number, { totalAccuracy: number; count: number }>
-  );
-
-  const topGrade = Object.entries(gradeStats).reduce(
-    (best, [grade, stats]) => {
-      const avg = stats.totalAccuracy / stats.count;
-      return avg > best.avg ? { grade: Number(grade), avg } : best;
-    },
-    { grade: 1, avg: 0 }
   );
 
   const getAccuracyColor = (accuracy: number) => {

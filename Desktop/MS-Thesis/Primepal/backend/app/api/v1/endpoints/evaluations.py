@@ -290,8 +290,8 @@ async def get_evaluation_results(
 
     # Collect unique student IDs and fetch names
     unique_sids = list({r["student_id"] for r in rows})
-    names_res = sb.table("students").select("id,name").in_("id", unique_sids).execute()
-    name_map = {s["id"]: s.get("name", "") for s in (names_res.data or [])}
+    names_res = sb.table("students").select("id,student_name").in_("id", unique_sids).execute()
+    name_map = {s["id"]: s.get("student_name", "") for s in (names_res.data or [])}
 
     # Aggregate per (student_id, evaluation_type)
     from collections import defaultdict

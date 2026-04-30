@@ -15,7 +15,7 @@ interface Props {
   pillar?: string;
 }
 
-export default function TabbedDashboard({ data, gradeLevel, pillar }: Props) {
+export default function TabbedDashboard({ data, gradeLevel }: Props) {
   const [activeTab, setActiveTab] = useState<"overview" | "byGrade" | "byClass" | "byStudent">("overview");
   const [selectedGrade, setSelectedGrade] = useState<number | null>(gradeLevel ?? null);
   const [selectedGradeForClass, setSelectedGradeForClass] = useState<number | null>(gradeLevel ?? null);

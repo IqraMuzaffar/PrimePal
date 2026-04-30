@@ -13,7 +13,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-import random
+import secrets
 import secrets
 import string
 
@@ -264,10 +264,10 @@ async def delete_teacher(
 @router.get("/teachers")
 async def list_all_teachers(current_admin: dict = Depends(get_current_admin)):
     """List all teachers (admin only)."""
-    supabase = get_supabase()
+    supabase_admin = get_supabase_admin()
 
     try:
-        result = supabase.table("teachers").select("*").execute()
+        result = supabase_admin.table("teachers").select("*").execute()
         return result.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch teachers: {str(e)}")
@@ -320,10 +320,10 @@ async def reassign_classroom(
 @router.get("/classrooms")
 async def list_all_classrooms(current_admin: dict = Depends(get_current_admin)):
     """List all classrooms (admin only)."""
-    supabase = get_supabase()
+    supabase_admin = get_supabase_admin()
 
     try:
-        result = supabase.table("classrooms").select("*,teachers(full_name)").execute()
+        result = supabase_admin.table("classrooms").select("*,teachers(full_name)").execute()
         return result.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch classrooms: {str(e)}")
@@ -362,10 +362,10 @@ async def delete_curriculum_chunk(
 @router.get("/curriculum")
 async def list_all_curriculum(current_admin: dict = Depends(get_current_admin)):
     """List all curriculum chunks (admin only)."""
-    supabase = get_supabase()
+    supabase_admin = get_supabase_admin()
 
     try:
-        result = supabase.table("snc_knowledge_base").select("*").execute()
+        result = supabase_admin.table("snc_knowledge_base").select("*").execute()
         return result.data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch curriculum: {str(e)}")
@@ -677,7 +677,7 @@ async def get_book_status(
 
 def _generate_pin() -> str:
     """Generate a random 4-digit PIN string."""
-    return str(random.randint(1000, 9999))
+    return str(secrets.randbelow(9000) + 1000)
 
 
 class StudentCreateRequest(BaseModel):
@@ -706,7 +706,7 @@ async def list_all_students(
 
     try:
         query = supabase_admin.table("students").select(
-            "id, student_name, roll_number, email, classroom_id, secret_pin, created_at, "
+            "id, student_name, roll_number, email, classroom_id, created_at, "
             "classrooms(id, class_name, grade_level)"
         )
 
@@ -1114,9 +1114,9 @@ async def export_evaluations(
 
     try:
         query = supabase.table("evaluation_records").select(
-            "student_id, evaluation_type, section, is_correct, likert_value, "
+            "student_id, evaluation_type, is_correct, likert_value, "
             "time_taken_ms, student_answer, created_at, "
-            "evaluation_questions(question_text, pillar), "
+            "evaluation_questions(question_text, pillar, section), "
             "students(student_name, classrooms(class_name, grade_level))"
         )
 
@@ -1146,7 +1146,7 @@ async def export_evaluations(
                 "student_name": student.get("student_name", ""),
                 "grade_level": classroom.get("grade_level", ""),
                 "evaluation_type": r.get("evaluation_type", ""),
-                "section": r.get("section", ""),
+                "section": question.get("section", ""),
                 "pillar": question.get("pillar", ""),
                 "question_text": question.get("question_text", ""),
                 "student_answer": r.get("student_answer", ""),
@@ -1174,7 +1174,8 @@ async def export_evaluations(
 
 def _generate_class_code() -> str:
     """Generate a random 6-character alphanumeric class code."""
-    return "".join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    alphabet = string.ascii_uppercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(6))
 
 
 class ClassroomCreateRequest(BaseModel):

@@ -68,7 +68,7 @@ function ActivityBadge({ activeThisWeek, lastActivity }: { activeThisWeek: boole
   return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-red-100 text-red-700">Idle</span>;
 }
 
-function MiniPillarBar({ value }: { value: number }) {
+function _MiniPillarBar({ value }: { value: number }) {
   const color = value >= 70 ? "bg-green-500" : value >= 40 ? "bg-yellow-500" : "bg-red-500";
   return (
     <div className="w-12 bg-gray-200 rounded-full h-1.5 inline-block">

@@ -153,7 +153,6 @@ export default function CurriculumManagementPage() {
 
       if (res.ok) {
         const data = await res.json();
-        setUploadStatus("success");
         // Reset form
         setBookTitle("");
         setSelectedGrade(null);
@@ -161,8 +160,11 @@ export default function CurriculumManagementPage() {
         if (fileInputRef.current) fileInputRef.current.value = "";
         fetchBooks();
 
-        // If the response already has a final status, we're done
-        if (data.status !== "success") {
+        // Use the actual status from the API response
+        if (data.status === "success") {
+          setUploadStatus("success");
+        } else {
+          setUploadStatus(data.status || "pending");
           startStatusPolling(data.id);
         }
       } else {
