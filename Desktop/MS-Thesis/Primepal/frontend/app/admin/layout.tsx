@@ -114,6 +114,16 @@ export default function AdminLayout({
               School Hierarchy
             </Link>
             <Link
+              href="/admin/dashboard/students"
+              className={`px-4 py-3 border-b-2 transition text-sm font-medium ${
+                isActive("/students")
+                  ? "border-indigo-500 text-white"
+                  : "border-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              Students
+            </Link>
+            <Link
               href="/admin/dashboard/curriculum"
               className={`px-4 py-3 border-b-2 transition text-sm font-medium ${
                 isActive("/curriculum")
@@ -160,6 +170,17 @@ export default function AdminLayout({
                 }`}
               >
                 School Hierarchy
+              </Link>
+              <Link
+                href="/admin/dashboard/students"
+                onClick={() => setShowMobileMenu(false)}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition ${
+                  isActive("/students")
+                    ? "bg-indigo-600 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                Students
               </Link>
               <Link
                 href="/admin/dashboard/curriculum"
