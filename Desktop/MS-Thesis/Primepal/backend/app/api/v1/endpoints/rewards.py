@@ -34,6 +34,7 @@ class DailyRewardResponse(BaseModel):
     amount: int       # Points/stars awarded (0 for multiplier)
     new_total: int    # Student's new total points
     message: str      # Human-readable reward message
+    new_achievements: list[dict] = []  # Newly unlocked achievements
 
 
 class RewardStatusResponse(BaseModel):
@@ -174,11 +175,22 @@ async def claim_daily_reward(
         student_id, reward_type, reward_amount, new_total,
     )
 
+    # ------------------------------------------------------------------
+    # Step 6: Check for newly unlocked achievements
+    # ------------------------------------------------------------------
+    new_badges: list[dict] = []
+    try:
+        from app.api.v1.endpoints.achievements import check_and_unlock_achievements
+        new_badges = await check_and_unlock_achievements(student_id)
+    except Exception as e:
+        logger.warning("Achievement check failed after daily reward: %s", e)
+
     return DailyRewardResponse(
         reward_type=reward_type,
         amount=reward_amount,
         new_total=new_total,
         message=message,
+        new_achievements=new_badges,
     )
 
 
@@ -293,3 +305,42 @@ async def get_daily_summary(
 
     await cache_set(cache_key, response.model_dump(), ttl=120)
     return response
+
+
+# ---------------------------------------------------------------------------
+# GET /streak (S07: Daily Streak Engine)
+# ---------------------------------------------------------------------------
+
+class StreakResponse(BaseModel):
+    current_streak: int
+    longest_streak: int
+    last_activity_date: str | None
+
+
+@router.get("/streak", response_model=StreakResponse, summary="Get student streak")
+async def get_streak(student: dict = Depends(get_current_student)):
+    """
+    Get the student's current and longest streak.
+
+    - current_streak: consecutive days with at least one completed task
+    - longest_streak: all-time best streak
+    - last_activity_date: ISO date of last activity (YYYY-MM-DD) or null
+
+    Authentication: student JWT (Bearer token).
+    """
+    student_id: str = student["sub"]
+    supabase = get_supabase_admin()
+
+    resp = supabase.table("students").select(
+        "current_streak, longest_streak, last_activity_date"
+    ).eq("id", student_id).maybe_single().execute()
+
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    data = resp.data
+    return StreakResponse(
+        current_streak=data.get("current_streak") or 0,
+        longest_streak=data.get("longest_streak") or 0,
+        last_activity_date=data.get("last_activity_date"),
+    )

@@ -29,6 +29,7 @@ from app.core.cache import cache_get, cache_set, make_cache_key
 from app.agents.tutor_agent.chatbot import retrieve_grade_filtered_chunks
 from app.agents.evaluator_agent.interaction_logger import log_interaction
 from app.core.config import settings
+from app.utils.streak import update_streak
 from app.agents.tutor_agent.mission_generator import (
     DailyMissions,
     MissionQuestion,
@@ -93,11 +94,13 @@ class CompleteRequest(BaseModel):
     pillar: str | None = None
     points_value: int = 10
     answer_data: dict | None = None
+    submitted_at: str | None = None  # ISO timestamp for idempotency checks
 
 
 class CompleteResponse(BaseModel):
     points_awarded: int
     new_total: int
+    current_streak: int = 0
 
 
 class StudentProfileResponse(BaseModel):
@@ -339,9 +342,39 @@ async def complete_mission(
     grade_level: int = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     current_points: int = student_resp.data.get("points") or 0
+    current_missions_completed: int = student_resp.data.get("missions_completed") or 0
+
+    # ------------------------------------------------------------------
+    # Idempotency check: look for a duplicate interaction within 60s
+    # ------------------------------------------------------------------
+    interaction_type = f"mission_{body.task_type}" if body.task_type else (
+        "mission_fill" if body.question_type == "fill_blank" else "mission_mc"
+    )
+
+    if body.submitted_at:
+        try:
+            submitted_dt = datetime.fromisoformat(body.submitted_at.replace("Z", "+00:00"))
+            window_start = (submitted_dt - timedelta(seconds=60)).isoformat()
+            window_end = (submitted_dt + timedelta(seconds=60)).isoformat()
+
+            dup_resp = (
+                supabase.table("student_interactions")
+                .select("id")
+                .eq("student_id", student_id)
+                .eq("interaction_type", interaction_type)
+                .gte("created_at", window_start)
+                .lte("created_at", window_end)
+                .limit(1)
+                .execute()
+            )
+            if dup_resp.data:
+                logger.info("Duplicate submission detected for student %s, skipping points", student_id)
+                return CompleteResponse(points_awarded=0, new_total=current_points)
+        except (ValueError, TypeError):
+            pass  # If submitted_at is malformed, skip idempotency check
+
     points_awarded = (body.points_value or _POINTS_PER_CORRECT) if body.question_correct else 0
     new_total = current_points + points_awarded
-    current_missions_completed: int = student_resp.data.get("missions_completed") or 0
 
     # ------------------------------------------------------------------
     # Step 2: Persist updated points and missions_completed (only if correct)
@@ -367,9 +400,133 @@ async def complete_mission(
         pillar=body.pillar,
     )
 
+    # Update daily streak (any completed mission counts as activity)
+    streak_data = await update_streak(student_id)
+
     return CompleteResponse(
         points_awarded=points_awarded,
         new_total=new_total,
+        current_streak=streak_data.get("current_streak", 0),
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /submit-batch (Offline queue batch submission)
+# ---------------------------------------------------------------------------
+
+class BatchSubmitRequest(BaseModel):
+    answers: list[CompleteRequest]
+
+
+class BatchSubmitResponse(BaseModel):
+    processed: int
+    skipped: int
+    new_total: int
+
+
+@router.post("/submit-batch", response_model=BatchSubmitResponse, summary="Batch-submit queued answers")
+async def submit_batch(
+    body: BatchSubmitRequest,
+    background_tasks: BackgroundTasks,
+    student: dict = Depends(get_current_student),
+):
+    """
+    Submit multiple answers at once (for offline queue flush).
+    Applies the same idempotency logic as /complete — duplicates are skipped.
+
+    Authentication: student JWT (Bearer token).
+    """
+    student_id: str = student["sub"]
+    classroom_id: str = student["classroom_id"]
+    supabase = get_supabase_admin()
+
+    # Fetch student data once
+    student_resp = (
+        supabase.table("students")
+        .select("points, missions_completed")
+        .eq("id", student_id)
+        .maybe_single()
+        .execute()
+    )
+    if not student_resp.data:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student record not found")
+
+    classroom_resp = (
+        supabase.table("classrooms")
+        .select("grade_level")
+        .eq("id", classroom_id)
+        .maybe_single()
+        .execute()
+    )
+    grade_level: int = classroom_resp.data["grade_level"] if classroom_resp.data else 0
+
+    current_points: int = student_resp.data.get("points") or 0
+    current_missions: int = student_resp.data.get("missions_completed") or 0
+    processed = 0
+    skipped = 0
+
+    for answer in body.answers:
+        itype = f"mission_{answer.task_type}" if answer.task_type else (
+            "mission_fill" if answer.question_type == "fill_blank" else "mission_mc"
+        )
+
+        # Idempotency check
+        is_dup = False
+        if answer.submitted_at:
+            try:
+                submitted_dt = datetime.fromisoformat(answer.submitted_at.replace("Z", "+00:00"))
+                window_start = (submitted_dt - timedelta(seconds=60)).isoformat()
+                window_end = (submitted_dt + timedelta(seconds=60)).isoformat()
+
+                dup_resp = (
+                    supabase.table("student_interactions")
+                    .select("id")
+                    .eq("student_id", student_id)
+                    .eq("interaction_type", itype)
+                    .gte("created_at", window_start)
+                    .lte("created_at", window_end)
+                    .limit(1)
+                    .execute()
+                )
+                if dup_resp.data:
+                    is_dup = True
+            except (ValueError, TypeError):
+                pass
+
+        if is_dup:
+            skipped += 1
+            continue
+
+        pts = (answer.points_value or _POINTS_PER_CORRECT) if answer.question_correct else 0
+        current_points += pts
+        if pts > 0:
+            current_missions += 1
+        processed += 1
+
+        background_tasks.add_task(
+            log_interaction,
+            student_id=student_id,
+            classroom_id=classroom_id,
+            grade_level=grade_level,
+            interaction_type=itype,
+            original_message=None,
+            translated_message=None,
+            correct=answer.question_correct,
+            context_used=False,
+            pillar=answer.pillar,
+        )
+
+    # Persist updated totals once
+    if processed > 0:
+        supabase.table("students").update({
+            "points": current_points,
+            "missions_completed": current_missions,
+        }).eq("id", student_id).execute()
+
+    return BatchSubmitResponse(
+        processed=processed,
+        skipped=skipped,
+        new_total=current_points,
     )
 
 
@@ -595,6 +752,15 @@ class SpeakingSubmissionResponse(BaseModel):
     transcription: str
     points_awarded: int
     new_total: int
+    status: str = "final"  # "final" | "retry" | "give_up"
+
+
+_GARBLED_SIMILARITY_THRESHOLD = 0.30
+_GARBLED_MAX_ATTEMPTS = 3
+_WHISPER_ACCENT_PROMPT = (
+    "Pakistani English accent. Common words: hello, thank you, please, "
+    "excuse me, water, school, teacher, mother, father."
+)
 
 
 @router.post("/submit-speaking", response_model=SpeakingSubmissionResponse, summary="Submit speaking answer for mission")
@@ -602,6 +768,7 @@ async def submit_speaking_answer(
     audio_file: UploadFile = File(...),
     expected_text: str = Form(...),
     pillar: str = Form(default="speaking"),
+    attempt_number: int = Form(default=1),
     background_tasks: BackgroundTasks = BackgroundTasks(),
     student: dict = Depends(get_current_student),
 ):
@@ -618,6 +785,7 @@ async def submit_speaking_answer(
         return SpeakingSubmissionResponse(
             is_correct=False, similarity_score=0.0, transcription="",
             points_awarded=0, new_total=0,
+            status="give_up" if attempt_number >= _GARBLED_MAX_ATTEMPTS else "retry",
         )
 
     openai_client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
@@ -629,6 +797,7 @@ async def submit_speaking_answer(
             model="whisper-1",
             file=audio_buffer,
             language="en",
+            prompt=_WHISPER_ACCENT_PROMPT,
         )
         transcription = whisper_response.text.strip()
     except Exception as exc:
@@ -638,6 +807,41 @@ async def submit_speaking_answer(
     expected_lower = expected_text.lower().strip()
     transcription_lower = transcription.lower().strip()
     similarity = SequenceMatcher(None, expected_lower, transcription_lower).ratio()
+
+    # Garbled input detection: if similarity is very low, offer retry
+    is_garbled = (
+        not transcription_lower
+        or len(transcription_lower) < 3
+        or similarity < _GARBLED_SIMILARITY_THRESHOLD
+    )
+
+    if is_garbled:
+        student_resp = (
+            supabase.table("students")
+            .select("points")
+            .eq("id", student_id)
+            .maybe_single()
+            .execute()
+        )
+        current_points = (student_resp.data.get("points") or 0) if student_resp.data else 0
+
+        if attempt_number >= _GARBLED_MAX_ATTEMPTS:
+            return SpeakingSubmissionResponse(
+                is_correct=False,
+                similarity_score=round(similarity, 2),
+                transcription=transcription,
+                points_awarded=0,
+                new_total=current_points,
+                status="give_up",
+            )
+        return SpeakingSubmissionResponse(
+            is_correct=False,
+            similarity_score=round(similarity, 2),
+            transcription=transcription,
+            points_awarded=0,
+            new_total=current_points,
+            status="retry",
+        )
 
     is_correct = similarity >= 0.6
     points_awarded = _POINTS_PER_CORRECT if is_correct else 0
@@ -686,6 +890,7 @@ async def submit_speaking_answer(
         transcription=transcription,
         points_awarded=points_awarded,
         new_total=new_total,
+        status="final",
     )
 
 

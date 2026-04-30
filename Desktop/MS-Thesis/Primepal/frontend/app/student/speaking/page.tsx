@@ -31,9 +31,11 @@ interface EvaluateProResponse {
   pronunciation_data: PronunciationWord[];
   points_awarded: number;
   new_total: number;
+  status: 'final' | 'retry' | 'give_up';
+  noise_flagged: boolean;
 }
 
-type GameState = 'loading' | 'intro' | 'recording' | 'reviewing' | 'result' | 'finished';
+type GameState = 'loading' | 'intro' | 'recording' | 'reviewing' | 'result' | 'retry' | 'finished';
 
 const AudioAPI = typeof window !== 'undefined' && navigator.mediaDevices;
 const SpeechRecognitionAPI = typeof window !== 'undefined'
@@ -53,6 +55,10 @@ export default function SpeakingPage() {
   const [feedback, setFeedback] = useState<EvaluateProResponse | null>(null);
   const [topic, setTopic] = useState('');
   const [browserSupported, setBrowserSupported] = useState(true);
+  const [attemptNumber, setAttemptNumber] = useState(1);
+  const [retryMessage, setRetryMessage] = useState('');
+  const [noiseToastShown, setNoiseToastShown] = useState(false);
+  const [showNoiseToast, setShowNoiseToast] = useState(false);
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -177,6 +183,7 @@ export default function SpeakingPage() {
       formData.append('audio_file', audioBlob, 'recording.webm');
       formData.append('prompt_id', String(currentPrompt.id));
       formData.append('prompt_text', currentPrompt.prompt);
+      formData.append('attempt_number', String(attemptNumber));
 
       // Send to new /speaking/evaluate-pro endpoint
       const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
@@ -194,11 +201,39 @@ export default function SpeakingPage() {
 
       const result: EvaluateProResponse = await response.json();
 
+      // Handle noise flag toast (only once per session)
+      if (result.noise_flagged && !noiseToastShown) {
+        setNoiseToastShown(true);
+        setShowNoiseToast(true);
+        setTimeout(() => setShowNoiseToast(false), 3000);
+      }
+
+      // Handle retry / give_up statuses
+      if (result.status === 'retry') {
+        setRetryMessage(result.feedback);
+        setAttemptNumber((prev) => prev + 1);
+        setGameState('retry');
+        return;
+      }
+
+      if (result.status === 'give_up') {
+        setRetryMessage(result.feedback);
+        setGameState('retry');
+        // Auto-advance after 2 seconds
+        setTimeout(() => {
+          setAttemptNumber(1);
+          advanceToNextPrompt();
+        }, 2000);
+        return;
+      }
+
+      // Normal final result
       setFeedback(result);
       setScore((prev) => ({
         completed: prev.completed + 1,
         totalPoints: prev.totalPoints + result.points_awarded,
       }));
+      setAttemptNumber(1);
 
       setGameState('result');
       setTimeout(() => advanceToNextPrompt(), 4000); // Longer delay for animations
@@ -495,6 +530,59 @@ export default function SpeakingPage() {
 
           <p className="text-xs text-gray-500 text-center">Next prompt in a moment...</p>
         </div>
+      )}
+
+      {gameState === 'retry' && (
+        <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white rounded-2xl border-2 border-amber-200 p-8 shadow-sm text-center space-y-6"
+          >
+            {/* Pulsing microphone */}
+            <motion.div
+              animate={{ scale: [1, 1.15, 1] }}
+              transition={{ duration: 1.2, repeat: Infinity }}
+              className="mx-auto w-20 h-20 rounded-full bg-gradient-to-r from-amber-400 to-orange-400 flex items-center justify-center shadow-lg"
+            >
+              <Mic size={40} className="text-white" />
+            </motion.div>
+
+            <p className="text-xl font-bold text-gray-800">{retryMessage}</p>
+
+            {attemptNumber <= 3 && (
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => {
+                  audioChunksRef.current = [];
+                  recordingTimeRef.current = 0;
+                  setTranscript('');
+                  setGameState('intro');
+                }}
+                className="px-8 py-3 bg-gradient-to-r from-amber-500 to-orange-500 text-white font-bold text-lg rounded-xl hover:from-amber-600 hover:to-orange-600 transition-all shadow-md"
+              >
+                Try Again
+              </motion.button>
+            )}
+
+            <p className="text-xs text-gray-400">
+              Attempt {Math.min(attemptNumber, 3)} of 3
+            </p>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Noise toast */}
+      {showNoiseToast && (
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: 40 }}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-lg text-sm font-medium z-50"
+        >
+          Try moving to a quieter spot! 🤫
+        </motion.div>
       )}
     </div>
   );

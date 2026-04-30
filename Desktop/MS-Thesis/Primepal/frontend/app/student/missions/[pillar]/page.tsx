@@ -5,6 +5,8 @@ import { useParams, useRouter } from 'next/navigation';
 import MissionGameplay from '@/components/student/MissionGameplay';
 import { apiFetch } from '@/lib/api';
 import { MissionQuestion } from '@/types/missions';
+import { useNetworkStatus } from '@/lib/use-network-status';
+import { addPendingAnswer, flushPendingAnswers } from '@/lib/network-queue';
 
 interface GameResult {
   question_id: number;
@@ -18,10 +20,21 @@ export default function PillarMissionPage() {
   const params = useParams();
   const router = useRouter();
   const pillar = params.pillar as string;
+  const { isOnline } = useNetworkStatus();
 
   const [questions, setQuestions] = useState<MissionQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // On mount, flush any pending answers from previous sessions
+  useEffect(() => {
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem('primepal_student_token')
+      : null;
+    if (token && isOnline) {
+      flushPendingAnswers(token).catch(() => {});
+    }
+  }, [isOnline]);
 
   useEffect(() => {
     const fetchQuestions = async () => {
@@ -46,11 +59,13 @@ export default function PillarMissionPage() {
   }, [pillar]);
 
   const handleComplete = async (results: GameResult[]) => {
-    try {
-      const token = localStorage.getItem('primepal_student_token');
-      if (!token) { router.push('/student/missions'); return; }
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem('primepal_student_token')
+      : null;
+    if (!token) { router.push('/student/missions'); return; }
 
-      for (const result of results) {
+    for (const result of results) {
+      try {
         await apiFetch('/missions/complete', {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
@@ -59,15 +74,28 @@ export default function PillarMissionPage() {
             task_type: result.task_type,
             pillar: pillar,
             points_value: result.points_value,
+            submitted_at: new Date().toISOString(),
           }),
         });
+      } catch {
+        // Network failure — queue the answer locally
+        addPendingAnswer({
+          student_id: '', // will be resolved from token on server
+          question_id: result.question_id,
+          answer_data: null,
+          pillar: pillar,
+          task_type: result.task_type,
+          points_value: result.points_value,
+          question_correct: result.is_correct,
+          timestamp: new Date().toISOString(),
+        });
       }
-
-      router.push('/student/missions');
-    } catch (err) {
-      console.error('Failed to save results', err);
-      router.push('/student/missions');
     }
+
+    // Try to flush any previously queued answers
+    flushPendingAnswers(token).catch(() => {});
+
+    router.push('/student/missions');
   };
 
   if (loading) {

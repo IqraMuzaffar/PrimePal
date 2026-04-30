@@ -10,6 +10,8 @@ import { usePrimeSounds } from "@/lib/use-sound";
 import AnimatedBackground from "@/components/student/AnimatedBackground";
 import DynamicBackground from "@/components/student/DynamicBackground";
 import { AudioProvider, AudioContext } from "@/components/student/AudioProvider";
+import OfflineBanner from "@/components/student/OfflineBanner";
+import StreakCounter from "@/components/student/StreakCounter";
 
 interface StudentProfile {
   student_id: string;
@@ -22,11 +24,12 @@ interface StudentProfile {
 }
 
 const NAV_LINKS = [
-  { href: "/student/home",        label: "Home",        icon: "🏠" },
-  { href: "/student/chat",        label: "Chat",        icon: "💬" },
-  { href: "/student/missions",    label: "Missions",    icon: "🎯" },
-  { href: "/student/quests",      label: "Quests",      icon: "📋" },
-  { href: "/student/leaderboard", label: "Leaderboard", icon: "🏆" },
+  { href: "/student/home",         label: "Home",        icon: "🏠" },
+  { href: "/student/chat",         label: "Chat",        icon: "💬" },
+  { href: "/student/missions",     label: "Missions",    icon: "🎯" },
+  { href: "/student/quests",       label: "Quests",      icon: "📋" },
+  { href: "/student/achievements", label: "Badges",      icon: "🏅" },
+  { href: "/student/leaderboard",  label: "Leaderboard", icon: "🏆" },
 ];
 
 function StudentLayoutContent({ children }: { children: React.ReactNode }) {
@@ -38,6 +41,7 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
   const { play: playClick } = usePrimeSounds("pop");
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [streak, setStreak] = useState<{ current_streak: number; longest_streak: number }>({ current_streak: 0, longest_streak: 0 });
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -50,6 +54,13 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
       .then((data) => setProfile(data))
       .catch(() => {})
       .finally(() => setLoading(false));
+
+    // Fetch streak data (best-effort, non-blocking)
+    apiFetch<{ current_streak: number; longest_streak: number; last_activity_date: string | null }>("/rewards/streak", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((data) => setStreak({ current_streak: data.current_streak, longest_streak: data.longest_streak }))
+      .catch(() => {});
   }, []);
 
   function handleLogout() {
@@ -73,6 +84,9 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
     <>
       <DynamicBackground missionsCompleted={profile?.missions_completed ?? 0} />
       <AnimatedBackground>
+        {/* ── Offline banner ── */}
+        <OfflineBanner />
+
         {/* ── Top bar ── */}
         <header className="sticky top-0 z-20 bg-white border-b border-slate-100 shadow-sm">
         <div className="flex items-center justify-between px-4 py-2 gap-2 max-w-2xl mx-auto">
@@ -131,6 +145,7 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
                     {profile.student_name.charAt(0).toUpperCase()}
                   </div>
                 )}
+                <StreakCounter currentStreak={streak.current_streak} longestStreak={streak.longest_streak} />
                 <span className="bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
                   ⭐ {profile.points}
                 </span>

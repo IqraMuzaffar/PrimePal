@@ -9,6 +9,7 @@ import { motion } from "framer-motion";
 import { apiFetch } from "@/lib/api";
 import AvatarCustomizeModal from "@/components/student/AvatarCustomizeModal";
 import DailyChestModal from "@/components/student/DailyChestModal";
+import AchievementPopup from "@/components/student/AchievementPopup";
 import { usePrimeSounds } from "@/lib/use-sound";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -28,6 +29,7 @@ interface DailyReward {
   amount: number;
   new_total: number;
   message: string;
+  new_achievements?: Array<{ name: string; icon: string; tier: string }>;
 }
 
 interface RewardStatus {
@@ -50,16 +52,30 @@ interface Announcement {
   created_at: string;
 }
 
+interface AchievementBadge {
+  id: string;
+  name: string;
+  icon: string;
+  tier: string;
+  unlocked: boolean;
+  unlocked_at: string | null;
+  current_progress: number;
+  threshold_value: number;
+}
+
+interface AchievementsResponse {
+  achievements: AchievementBadge[];
+}
+
 // ── Constants ────────────────────────────────────────────────────────────────
 
-const BADGES = [
-  { id: "first_star",   label: "First Star",   icon: "⭐", threshold: 1,   desc: "Earn your first point!" },
-  { id: "on_fire",      label: "On Fire",       icon: "🔥", threshold: 50,  desc: "50 stars earned!" },
-  { id: "star_learner", label: "Star Learner",  icon: "💎", threshold: 100, desc: "100 stars — amazing!" },
-  { id: "champion",     label: "Champion",      icon: "🏆", threshold: 200, desc: "200 stars — champion!" },
-];
-
 const COMING_SOON: Array<{ id: string; icon: string; label: string; tagline: string }> = [];
+
+const TIER_BORDER: Record<string, string> = {
+  bronze: "border-[#CD7F32]",
+  silver: "border-[#C0C0C0]",
+  gold: "border-[#FFD700]",
+};
 
 const QUOTES = [
   "Every word you learn is a superpower! 💪",
@@ -146,6 +162,9 @@ export default function HomePage() {
   const [claimingReward, setClaimingReward] = useState(false);
   const [dailyReward, setDailyReward] = useState<DailyReward | null>(null);
   const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
+  const [badges, setBadges] = useState<AchievementBadge[]>([]);
+  const [achievementPopup, setAchievementPopup] = useState<{ name: string; icon: string; tier: "bronze" | "silver" | "gold" } | null>(null);
+  const [streakResetBanner, setStreakResetBanner] = useState(false);
 
   useEffect(() => {
     const token = getToken();
@@ -169,6 +188,25 @@ export default function HomePage() {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then((summary) => setDailySummary(summary))
+      .catch(() => {});
+
+    // Fetch streak to detect reset (best-effort)
+    apiFetch<{ current_streak: number; longest_streak: number; last_activity_date: string | null }>("/rewards/streak", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((data) => {
+        if (data.current_streak === 0 && data.longest_streak > 0) {
+          setStreakResetBanner(true);
+          setTimeout(() => setStreakResetBanner(false), 6000);
+        }
+      })
+      .catch(() => {});
+
+    // Fetch achievements/badges (best-effort, non-blocking)
+    apiFetch<AchievementsResponse>("/achievements/me", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((data) => setBadges(data.achievements))
       .catch(() => {});
   }, [router]);
 
@@ -252,6 +290,24 @@ export default function HomePage() {
         setProfile({ ...profile, points: claimedReward.new_total });
       }
 
+      // Show achievement popup if any new achievements were unlocked
+      if (claimedReward.new_achievements && claimedReward.new_achievements.length > 0) {
+        const first = claimedReward.new_achievements[0];
+        setTimeout(() => {
+          setAchievementPopup({
+            name: first.name,
+            icon: first.icon,
+            tier: first.tier as "bronze" | "silver" | "gold",
+          });
+        }, 2500);
+        // Re-fetch badges to update the shelf
+        apiFetch<AchievementsResponse>("/achievements/me", {
+          headers: { Authorization: `Bearer ${token}` },
+        })
+          .then((data) => setBadges(data.achievements))
+          .catch(() => {});
+      }
+
       // Close modal after brief delay to let user see the actual reward
       setTimeout(() => {
         setIsDailyChestOpen(false);
@@ -294,6 +350,21 @@ export default function HomePage() {
               </p>
             </div>
           </div>
+        </motion.div>
+      )}
+
+      {/* Streak reset banner */}
+      {streakResetBanner && (
+        <motion.div
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.4 }}
+          className="w-full rounded-2xl bg-gradient-to-r from-orange-100 to-amber-100 border border-orange-200 p-3 text-center"
+        >
+          <p className="text-sm font-bold text-orange-700">
+            Your streak reset — let&apos;s start a new one! {"💪"}
+          </p>
         </motion.div>
       )}
 
@@ -436,28 +507,45 @@ export default function HomePage() {
 
       {/* ③ Achievements shelf */}
       <section>
-        <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3">Your Badges</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Your Badges</h2>
+          <Link href="/student/achievements" className="text-xs font-bold text-indigo-500 hover:text-indigo-700 transition-colors">
+            See All &rarr;
+          </Link>
+        </div>
         <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
-          {BADGES.map((badge) => {
-            const earned = points >= badge.threshold;
-            return (
-              <div
-                key={badge.id}
-                className={[
-                  "flex flex-col items-center gap-1 px-4 py-3 rounded-2xl border-2 shrink-0 w-24 text-center transition-all",
-                  earned ? "bg-indigo-50 border-indigo-200 shadow-sm" : "bg-slate-50 border-slate-200 opacity-40",
-                ].join(" ")}
-                title={badge.desc}
-              >
-                <span className={["text-2xl", earned ? "" : "grayscale"].join(" ")}>{badge.icon}</span>
-                <span className={["text-xs font-bold leading-tight", earned ? "text-slate-700" : "text-slate-400"].join(" ")}>{badge.label}</span>
-                {earned
-                  ? <span className="text-[10px] text-indigo-600 font-extrabold bg-indigo-100 rounded-full px-1.5">✓ Earned</span>
-                  : <span className="text-[10px] text-slate-400 font-semibold">{badge.threshold} ⭐</span>
-                }
-              </div>
-            );
-          })}
+          {badges.length === 0 && !loadingProfile && (
+            <div className="flex flex-col items-center gap-1 px-4 py-3 rounded-2xl border-2 border-slate-200 bg-slate-50 w-full text-center">
+              <span className="text-2xl">🏅</span>
+              <span className="text-xs font-bold text-slate-400">No badges yet — keep learning!</span>
+            </div>
+          )}
+          {badges.filter((b) => b.unlocked).slice(0, 5).map((badge) => (
+            <div
+              key={badge.id}
+              className={[
+                "flex flex-col items-center gap-1 px-4 py-3 rounded-2xl border-2 shrink-0 w-24 text-center transition-all shadow-sm",
+                TIER_BORDER[badge.tier] || "border-indigo-200",
+                badge.tier === "gold" ? "bg-yellow-50" : badge.tier === "silver" ? "bg-slate-50" : "bg-amber-50",
+              ].join(" ")}
+              title={badge.name}
+            >
+              <span className="text-2xl">{badge.icon}</span>
+              <span className="text-xs font-bold leading-tight text-slate-700">{badge.name}</span>
+              <span className="text-[10px] text-indigo-600 font-extrabold bg-indigo-100 rounded-full px-1.5">Earned</span>
+            </div>
+          ))}
+          {badges.filter((b) => !b.unlocked).slice(0, Math.max(0, 5 - badges.filter((b) => b.unlocked).length)).map((badge) => (
+            <div
+              key={badge.id}
+              className="flex flex-col items-center gap-1 px-4 py-3 rounded-2xl border-2 shrink-0 w-24 text-center transition-all bg-slate-50 border-slate-200 opacity-40"
+              title={badge.name}
+            >
+              <span className="text-2xl grayscale">{badge.icon}</span>
+              <span className="text-xs font-bold leading-tight text-slate-400">{badge.name}</span>
+              <span className="text-[10px] text-slate-400 font-semibold">{badge.current_progress}/{badge.threshold_value}</span>
+            </div>
+          ))}
         </div>
       </section>
 
@@ -496,6 +584,16 @@ export default function HomePage() {
           onRewardClaimed={handleClaimReward}
           reward={dailyReward || { reward_type: "stars", amount: 25, new_total: 0, message: "🎁 Claim your daily reward!" }}
           isClaiming={claimingReward}
+        />
+      )}
+
+      {/* Achievement popup */}
+      {achievementPopup && (
+        <AchievementPopup
+          name={achievementPopup.name}
+          icon={achievementPopup.icon}
+          tier={achievementPopup.tier}
+          onDismiss={() => setAchievementPopup(null)}
         />
       )}
 
