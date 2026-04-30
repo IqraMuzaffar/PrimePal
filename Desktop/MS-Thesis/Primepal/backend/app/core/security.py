@@ -74,7 +74,7 @@ def get_current_teacher(
 ) -> dict:
     """FastAPI dependency — validates a Supabase GoTrue JWT for a teacher session.
 
-    Returns {"id": "<teacher_uuid>"} on success.
+    Returns {"id": "<teacher_uuid>", "is_admin": bool} on success.
     Raises 401 if the token is invalid or expired.
     """
     supabase = get_supabase()
@@ -84,7 +84,18 @@ def get_current_teacher(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired teacher session",
         )
-    return {"id": str(response.user.id)}
+    user_id = str(response.user.id)
+
+    # Check if user is admin (for global data access)
+    is_admin = False
+    try:
+        result = supabase.table("teachers").select("role").eq("id", user_id).maybe_single().execute()
+        if result.data and result.data.get("role") == "admin":
+            is_admin = True
+    except Exception:
+        pass
+
+    return {"id": user_id, "is_admin": is_admin}
 
 
 def get_current_admin(
@@ -111,6 +122,8 @@ def get_current_admin(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied — admin role required",
             )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,

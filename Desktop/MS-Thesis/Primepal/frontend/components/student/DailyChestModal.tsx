@@ -35,8 +35,6 @@ export default function DailyChestModal({
   const { play: playFanfare } = usePrimeSounds("fanfare");
   const confettiRef = useRef<HTMLDivElement>(null);
 
-  if (!isOpen || !reward) return null;
-
   const isChestOpened = tapCount >= 3;
 
   // Trigger confetti explosion on tap 3
@@ -87,7 +85,7 @@ export default function DailyChestModal({
       }, 200);
 
       // Stage 4: Continuous smaller bursts for 1 second
-      let burstCount = 0;
+      let _burstCount = 0;
       const burstInterval = setInterval(() => {
         if (Date.now() > animationEnd - 1000) {
           clearInterval(burstInterval);
@@ -105,10 +103,12 @@ export default function DailyChestModal({
           colors: ["#FFD700", "#FFA500"],
         });
 
-        burstCount++;
+        _burstCount++;
       }, 150);
     }
   }, [isChestOpened, showReward]);
+
+  if (!isOpen || !reward) return null;
 
   const handleChestTap = () => {
     if (isChestOpened || isClaiming) return;

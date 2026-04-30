@@ -1,0 +1,272 @@
+"use client";
+
+import { useEffect, useState, useCallback } from "react";
+import { Check, ChevronDown } from "lucide-react";
+import { apiFetch } from "@/lib/api";
+import { getTeacherHeaders } from "@/lib/teacherAuth";
+
+interface GradeTopicItem {
+  topic_id: number;
+  topic_name: string;
+  is_active: boolean;
+}
+
+interface GradeSelectionsResponse {
+  grade_level: number;
+  topics: GradeTopicItem[];
+}
+
+const GRADES = [1, 2, 3, 4, 5];
+
+export default function TopicsPage() {
+  const [grade, setGrade] = useState(1);
+  const [topics, setTopics] = useState<GradeTopicItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [dirty, setDirty] = useState(false);
+
+  const fetchTopics = useCallback(async (gradeLevel: number) => {
+    setLoading(true);
+    setError(null);
+    setSaved(false);
+    setDirty(false);
+    try {
+      const headers = await getTeacherHeaders();
+      const data = await apiFetch<GradeSelectionsResponse>(
+        `/topics/grade-selections/${gradeLevel}`,
+        { headers }
+      );
+      setTopics(data.topics);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to load topics.");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchTopics(grade);
+  }, [grade, fetchTopics]);
+
+  function toggleTopic(topicId: number) {
+    setTopics((prev) =>
+      prev.map((t) =>
+        t.topic_id === topicId ? { ...t, is_active: !t.is_active } : t
+      )
+    );
+    setDirty(true);
+    setSaved(false);
+  }
+
+  function selectAll() {
+    setTopics((prev) => prev.map((t) => ({ ...t, is_active: true })));
+    setDirty(true);
+    setSaved(false);
+  }
+
+  function deselectAll() {
+    setTopics((prev) => prev.map((t) => ({ ...t, is_active: false })));
+    setDirty(true);
+    setSaved(false);
+  }
+
+  async function saveChanges() {
+    setSaving(true);
+    setError(null);
+    try {
+      const headers = await getTeacherHeaders();
+      const data = await apiFetch<GradeSelectionsResponse>(
+        `/topics/grade-selections/${grade}`,
+        {
+          method: "PUT",
+          body: JSON.stringify({
+            selections: topics.map((t) => ({
+              topic_id: t.topic_id,
+              is_active: t.is_active,
+            })),
+          }),
+          headers,
+        }
+      );
+      setTopics(data.topics);
+      setSaved(true);
+      setDirty(false);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const activeCount = topics.filter((t) => t.is_active).length;
+  const totalCount = topics.length;
+
+  return (
+    <div className="bg-gray-50 min-h-full p-6">
+      <div className="max-w-3xl mx-auto">
+        {/* Header */}
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold text-gray-900">Topic Selection</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Control which SNC topics are active for each grade level. Deactivated
+            topics will be excluded from AI-generated tasks across all classrooms.
+          </p>
+        </div>
+
+        {/* Grade selector + actions */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-5 mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            {/* Grade dropdown */}
+            <div className="relative">
+              <label className="text-xs font-medium text-gray-500 uppercase tracking-wide block mb-1.5">
+                Grade Level
+              </label>
+              <div className="relative">
+                <select
+                  value={grade}
+                  onChange={(e) => setGrade(Number(e.target.value))}
+                  className="appearance-none bg-gray-50 border border-gray-200 rounded-xl pl-4 pr-10 py-2.5 text-sm font-medium text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-500 transition-all cursor-pointer"
+                >
+                  {GRADES.map((g) => (
+                    <option key={g} value={g}>
+                      Grade {g}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown
+                  size={16}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={selectAll}
+                disabled={loading}
+                className="px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                Select All
+              </button>
+              <button
+                onClick={deselectAll}
+                disabled={loading}
+                className="px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                Deselect All
+              </button>
+            </div>
+          </div>
+
+          {/* Summary */}
+          {!loading && (
+            <p className="text-sm text-gray-500 mt-4">
+              <span className="font-semibold text-gray-700">{activeCount}</span> of{" "}
+              <span className="font-semibold text-gray-700">{totalCount}</span>{" "}
+              topics active for Grade {grade}
+            </p>
+          )}
+        </div>
+
+        {/* Topic cards */}
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          {loading ? (
+            <div className="p-5 space-y-3">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-4 p-4 rounded-xl bg-gray-50 animate-pulse"
+                >
+                  <div className="w-5 h-5 rounded bg-gray-200" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 w-32 bg-gray-200 rounded" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : topics.length === 0 ? (
+            <div className="p-12 text-center text-gray-400 text-sm">
+              No topics found for Grade {grade}.
+            </div>
+          ) : (
+            <div className="p-5 space-y-2">
+              {topics.map((topic) => (
+                <button
+                  key={topic.topic_id}
+                  onClick={() => toggleTopic(topic.topic_id)}
+                  className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all ${
+                    topic.is_active
+                      ? "border-indigo-200 bg-indigo-50/50"
+                      : "border-gray-100 bg-gray-50 hover:border-gray-200"
+                  }`}
+                >
+                  {/* Checkbox */}
+                  <div
+                    className={`w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors ${
+                      topic.is_active
+                        ? "bg-indigo-600 text-white"
+                        : "bg-white border-2 border-gray-300"
+                    }`}
+                  >
+                    {topic.is_active && <Check size={14} strokeWidth={3} />}
+                  </div>
+
+                  {/* Topic info */}
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={`text-sm font-medium ${
+                        topic.is_active ? "text-gray-900" : "text-gray-500"
+                      }`}
+                    >
+                      {topic.topic_name}
+                    </p>
+                  </div>
+
+                  {/* Status pill */}
+                  <span
+                    className={`text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${
+                      topic.is_active
+                        ? "bg-indigo-100 text-indigo-700"
+                        : "bg-gray-200 text-gray-500"
+                    }`}
+                  >
+                    {topic.is_active ? "Active" : "Inactive"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Footer with save */}
+          {!loading && topics.length > 0 && (
+            <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between">
+              <div>
+                {error && (
+                  <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+                    {error}
+                  </p>
+                )}
+                {saved && (
+                  <p className="text-sm text-green-600 bg-green-50 rounded-lg px-3 py-2 flex items-center gap-1.5">
+                    <Check size={14} /> Changes saved successfully
+                  </p>
+                )}
+              </div>
+              <button
+                onClick={saveChanges}
+                disabled={saving || !dirty}
+                className="px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl transition-colors"
+              >
+                {saving ? "Saving..." : "Save Changes"}
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

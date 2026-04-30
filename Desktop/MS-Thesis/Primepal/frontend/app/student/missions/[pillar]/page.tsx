@@ -4,56 +4,49 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import MissionGameplay from '@/components/student/MissionGameplay';
 import { apiFetch } from '@/lib/api';
-
-interface Question {
-  id: string;
-  pillar: string;
-  question_text: string;
-  options?: string[];
-  correct_answer: string;
-  type: string;
-}
-
-interface StudentProfile {
-  student_id: string;
-  student_name: string;
-  classroom_id: string;
-}
+import { MissionQuestion } from '@/types/missions';
+import { useNetworkStatus } from '@/lib/use-network-status';
+import { addPendingAnswer, flushPendingAnswers } from '@/lib/network-queue';
 
 interface GameResult {
-  question_id: string;
+  question_id: number;
   is_correct: boolean;
   time_remaining: number;
+  task_type: string;
+  points_value: number;
 }
 
 export default function PillarMissionPage() {
   const params = useParams();
   const router = useRouter();
   const pillar = params.pillar as string;
+  const { isOnline } = useNetworkStatus();
 
-  const [questions, setQuestions] = useState<Question[]>([]);
+  const [questions, setQuestions] = useState<MissionQuestion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // On mount, flush any pending answers from previous sessions
+  useEffect(() => {
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem('primepal_student_token')
+      : null;
+    if (token && isOnline) {
+      flushPendingAnswers(token).catch(() => {});
+    }
+  }, [isOnline]);
 
   useEffect(() => {
     const fetchQuestions = async () => {
       if (typeof window === 'undefined') return;
-
       const token = localStorage.getItem('primepal_student_token');
-      if (!token) {
-        setError('User not logged in');
-        return;
-      }
+      if (!token) { setError('User not logged in'); return; }
 
       try {
-        await apiFetch<StudentProfile>('/missions/me', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        const response = await apiFetch<{ questions: Question[] }>('/missions', {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
+        const response = await apiFetch<{ questions: MissionQuestion[] }>(
+          `/missions/pillar?pillar=${pillar}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
         setQuestions(response.questions);
       } catch (err) {
         setError('Failed to load questions');
@@ -62,35 +55,47 @@ export default function PillarMissionPage() {
         setLoading(false);
       }
     };
-
     fetchQuestions();
   }, [pillar]);
 
   const handleComplete = async (results: GameResult[]) => {
-    try {
-      const token = localStorage.getItem('primepal_student_token');
-      if (!token) {
-        router.push(`/student/missions`);
-        return;
-      }
+    const token = typeof window !== 'undefined'
+      ? localStorage.getItem('primepal_student_token')
+      : null;
+    if (!token) { router.push('/student/missions'); return; }
 
-      // Log results to backend (Task 7 will create this endpoint)
-      await apiFetch('/interactions', {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
-        body: JSON.stringify({
+    for (const result of results) {
+      try {
+        await apiFetch('/missions/complete', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            question_correct: result.is_correct,
+            task_type: result.task_type,
+            pillar: pillar,
+            points_value: result.points_value,
+            submitted_at: new Date().toISOString(),
+          }),
+        });
+      } catch {
+        // Network failure — queue the answer locally
+        addPendingAnswer({
+          student_id: '', // will be resolved from token on server
+          question_id: result.question_id,
+          answer_data: null,
           pillar: pillar,
-          results: results,
-        }),
-      });
-
-      // Show results page or redirect back to dashboard
-      router.push(`/student/missions`);
-    } catch (err) {
-      console.error('Failed to save results', err);
-      // Still redirect even if logging fails
-      router.push(`/student/missions`);
+          task_type: result.task_type,
+          points_value: result.points_value,
+          question_correct: result.is_correct,
+          timestamp: new Date().toISOString(),
+        });
+      }
     }
+
+    // Try to flush any previously queued answers
+    flushPendingAnswers(token).catch(() => {});
+
+    router.push('/student/missions');
   };
 
   if (loading) {
@@ -109,10 +114,7 @@ export default function PillarMissionPage() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
         <div className="text-center">
           <p className="text-red-600 text-lg mb-4">{error || 'No questions available'}</p>
-          <button
-            onClick={() => router.back()}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700"
-          >
+          <button onClick={() => router.back()} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">
             Go Back
           </button>
         </div>
@@ -120,5 +122,5 @@ export default function PillarMissionPage() {
     );
   }
 
-  return <MissionGameplay questions={questions} onComplete={handleComplete} />;
+  return <MissionGameplay questions={questions} pillar={pillar} onComplete={handleComplete} />;
 }

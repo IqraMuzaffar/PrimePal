@@ -7,6 +7,7 @@ interface StudentSummary {
   student_id: string;
   student_name: string;
   avatar_url: string | null;
+  roll_number: string | null;
   total_interactions: number;
   mission_accuracy_pct: number;
 }
@@ -17,18 +18,36 @@ interface ClassroomReportResponse {
   students: StudentSummary[];
 }
 
-async function fetchAnalyticsData(): Promise<AnalyticsDashboardData> {
+interface PageProps {
+  searchParams: Promise<{ grade?: string; pillar?: string }>;
+}
+
+async function fetchAnalyticsData(
+  gradeLevel?: number,
+  _pillar?: string
+): Promise<AnalyticsDashboardData> {
   try {
     const headers = await getTeacherHeaders();
 
-    // Fetch all classrooms
+    // Build query string for teacher report
+    const reportParams = new URLSearchParams();
+    if (gradeLevel) reportParams.set("grade_level", String(gradeLevel));
+    const reportQs = reportParams.toString();
+    const _reportSuffix = reportQs ? `?${reportQs}` : "";
+
+    // Fetch all classrooms (optionally filtered by grade)
     const classroomList = await apiFetch<
       Array<{ id: string; class_name: string; grade_level: number }>
     >("/classroom", { headers });
 
+    // Filter classrooms client-side if grade filter is set
+    const filteredClassrooms = gradeLevel
+      ? classroomList.filter((c) => c.grade_level === gradeLevel)
+      : classroomList;
+
     // Fetch analytics for each classroom
     const analyticsResults = await Promise.all(
-      classroomList.map(async (room) => {
+      filteredClassrooms.map(async (room) => {
         try {
           const data = await apiFetch<ClassroomReportResponse>(
             `/evaluator/report/classroom/${room.id}`,
@@ -98,17 +117,8 @@ async function fetchAnalyticsData(): Promise<AnalyticsDashboardData> {
         avatarUrl: s.avatar_url,
         grade: s.grade_level,
         accuracy: s.mission_accuracy_pct,
-        totalPoints: Math.round(s.total_interactions * 10), // Mock points calculation
+        totalPoints: Math.round(s.total_interactions * 10),
       }));
-
-    // Weak points per grade (mock data for now)
-    const weakPointsByGrade: Record<number, string[]> = {
-      1: ["Colors", "Numbers", "Animals"],
-      2: ["Verbs", "Adjectives", "Food"],
-      3: ["Sentences", "Tenses", "Prepositions"],
-      4: ["Grammar", "Composition", "Vocabulary"],
-      5: ["Complex sentences", "Literature", "Technical terms"],
-    };
 
     // Student table data (first 50 students, sorted by points)
     const studentTableData = {
@@ -116,7 +126,7 @@ async function fetchAnalyticsData(): Promise<AnalyticsDashboardData> {
         .map((s) => ({
           id: s.student_id,
           name: s.student_name,
-          rollNumber: `${Math.floor(Math.random() * 9000) + 1000}`, // Mock roll number
+          rollNumber: s.roll_number || "",
           grade: s.grade_level,
           className: s.classroom_name,
           classId: s.classroom_id,
@@ -162,13 +172,12 @@ async function fetchAnalyticsData(): Promise<AnalyticsDashboardData> {
       },
       classrooms,
       topStudents,
-      weakPointsByGrade,
+      weakPointsByGrade: {},
       studentTableData,
       sections,
     };
   } catch (error) {
     console.error("Failed to fetch analytics data:", error);
-    // Return empty data structure on error
     return {
       summaryStats: {
         totalInteractions: 0,
@@ -186,14 +195,33 @@ async function fetchAnalyticsData(): Promise<AnalyticsDashboardData> {
         currentPage: 1,
       },
       sections: [],
+      fetchError: true,
     };
   }
 }
 
-export default async function AnalyticsPage() {
-  const data = await fetchAnalyticsData();
+export default async function AnalyticsPage({ searchParams }: PageProps) {
+  const resolvedParams = await searchParams;
+  const gradeLevel = resolvedParams.grade ? Number(resolvedParams.grade) : undefined;
+  const pillar = resolvedParams.pillar || undefined;
+
+  const data = await fetchAnalyticsData(gradeLevel, pillar);
 
   // Empty state
+  if (data.fetchError) {
+    return (
+      <div className="bg-gray-50 min-h-full p-6">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">Global Analytics</h1>
+          <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+            <p className="text-red-700 font-medium">Failed to load analytics data</p>
+            <p className="text-sm text-red-500 mt-1">Please check your connection and try refreshing the page.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (data.summaryStats.activeClassrooms === 0) {
     return (
       <div className="bg-gray-50 min-h-full p-6">
@@ -211,5 +239,5 @@ export default async function AnalyticsPage() {
     );
   }
 
-  return <TabbedDashboard data={data} />;
+  return <TabbedDashboard data={data} gradeLevel={gradeLevel} pillar={pillar} />;
 }

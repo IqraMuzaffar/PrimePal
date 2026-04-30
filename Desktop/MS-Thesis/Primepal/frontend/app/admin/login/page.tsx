@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
-import Link from "next/link";
 
 type LoginStep = "code" | "signup" | "login";
 
@@ -260,7 +259,7 @@ export default function AdminLoginPage() {
                 {loading ? "Signing In..." : "Sign In"}
               </button>
               <p className="text-center text-sm text-gray-600">
-                Don't have an invite code?{" "}
+                Don&apos;t have an invite code?{" "}
                 <button
                   type="button"
                   onClick={() => setStep("code")}

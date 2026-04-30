@@ -24,7 +24,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Play background music (loops continuously)
-  const [playBGM, { stop: stopBGM, pause: pauseBGM }] =
+  const [playBGM, { stop: _stopBGM, pause: pauseBGM }] =
     useSound("/sounds/bgm.wav", {
       loop: true,
       volume: 0.4, // 40% volume for background

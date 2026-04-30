@@ -6,22 +6,27 @@ import AnalyticsOverview from "./AnalyticsOverview";
 import AnalyticsByGrade from "./AnalyticsByGrade";
 import AnalyticsByClass from "./AnalyticsByClass";
 import AnalyticsByStudent from "./AnalyticsByStudent";
+import FilterBar from "./FilterBar";
 import type { AnalyticsDashboardData } from "@/types/analytics";
 
 interface Props {
   data: AnalyticsDashboardData;
+  gradeLevel?: number;
+  pillar?: string;
 }
 
-export default function TabbedDashboard({ data }: Props) {
+export default function TabbedDashboard({ data, gradeLevel }: Props) {
   const [activeTab, setActiveTab] = useState<"overview" | "byGrade" | "byClass" | "byStudent">("overview");
-  const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
-  const [selectedGradeForClass, setSelectedGradeForClass] = useState<number | null>(null);
+  const [selectedGrade, setSelectedGrade] = useState<number | null>(gradeLevel ?? null);
+  const [selectedGradeForClass, setSelectedGradeForClass] = useState<number | null>(gradeLevel ?? null);
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [studentTablePage, setStudentTablePage] = useState(1);
   const [studentTableFilters, setStudentTableFilters] = useState<{
     grade?: number;
     class?: string;
-  }>({});
+  }>({
+    grade: gradeLevel,
+  });
 
   return (
     <div className="bg-gray-50 min-h-screen">
@@ -31,6 +36,11 @@ export default function TabbedDashboard({ data }: Props) {
           <h1 className="text-3xl font-bold text-gray-900">Global Analytics</h1>
           <p className="text-gray-600 text-sm mt-1">Monitor all classrooms and student performance in one dashboard</p>
         </div>
+      </div>
+
+      {/* Filter Bar */}
+      <div className="max-w-7xl mx-auto px-6 pt-6">
+        <FilterBar showSearch={false} />
       </div>
 
       {/* Tab Navigation */}

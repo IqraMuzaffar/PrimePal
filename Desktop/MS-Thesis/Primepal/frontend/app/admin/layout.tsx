@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { isCurrentUserAdmin } from "@/lib/adminAuth";
 import Link from "next/link";
-import { LogOut, Menu, X } from "lucide-react";
+import { BarChart2, ClipboardCheck, Download, FileText, LayoutDashboard, LogOut, Menu, Sparkles, X } from "lucide-react";
 
 export default function AdminLayout({
   children,
@@ -94,6 +94,17 @@ export default function AdminLayout({
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex gap-8 text-white">
             <Link
+              href="/admin/dashboard"
+              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
+                pathname === "/admin/dashboard"
+                  ? "border-indigo-500 text-white"
+                  : "border-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              <ClipboardCheck size={14} />
+              Evaluations
+            </Link>
+            <Link
               href="/admin/dashboard/staff"
               className={`px-4 py-3 border-b-2 transition text-sm font-medium ${
                 isActive("/staff")
@@ -114,6 +125,16 @@ export default function AdminLayout({
               School Hierarchy
             </Link>
             <Link
+              href="/admin/dashboard/students"
+              className={`px-4 py-3 border-b-2 transition text-sm font-medium ${
+                isActive("/students")
+                  ? "border-indigo-500 text-white"
+                  : "border-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              Students
+            </Link>
+            <Link
               href="/admin/dashboard/curriculum"
               className={`px-4 py-3 border-b-2 transition text-sm font-medium ${
                 isActive("/curriculum")
@@ -122,6 +143,67 @@ export default function AdminLayout({
               }`}
             >
               Global Curriculum
+            </Link>
+            <Link
+              href="/admin/dashboard/export"
+              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
+                isActive("/export")
+                  ? "border-indigo-500 text-white"
+                  : "border-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              <Download size={14} />
+              Data Export
+            </Link>
+
+            {/* Divider */}
+            <div className="border-l border-slate-600 h-6 self-center" />
+
+            {/* Teacher View section */}
+            <span className="self-center text-xs text-slate-500 uppercase tracking-wider font-semibold">Teacher View</span>
+            <Link
+              href="/teacher/dashboard"
+              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
+                pathname.startsWith("/teacher/dashboard")
+                  ? "border-emerald-500 text-white"
+                  : "border-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              <LayoutDashboard size={14} />
+              Dashboard
+            </Link>
+            <Link
+              href="/teacher/analytics"
+              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
+                pathname.startsWith("/teacher/analytics")
+                  ? "border-emerald-500 text-white"
+                  : "border-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              <BarChart2 size={14} />
+              Analytics
+            </Link>
+            <Link
+              href="/teacher/reports"
+              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
+                pathname.startsWith("/teacher/reports")
+                  ? "border-emerald-500 text-white"
+                  : "border-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              <FileText size={14} />
+              Reports
+            </Link>
+            <Link
+              href="/teacher/assistant"
+              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
+                pathname.startsWith("/teacher/assistant")
+                  ? "border-emerald-500 text-white"
+                  : "border-transparent text-gray-400 hover:text-white"
+              }`}
+            >
+              <Sparkles size={14} />
+              AI Assistant
             </Link>
           </div>
         </div>
@@ -139,6 +221,18 @@ export default function AdminLayout({
           {/* Drawer */}
           <nav className="fixed top-16 left-0 right-0 bg-slate-800 border-b border-slate-700 z-50 lg:hidden">
             <div className="flex flex-col p-2 space-y-1">
+              <Link
+                href="/admin/dashboard"
+                onClick={() => setShowMobileMenu(false)}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
+                  pathname === "/admin/dashboard"
+                    ? "bg-indigo-600 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                <ClipboardCheck size={14} />
+                Evaluations
+              </Link>
               <Link
                 href="/admin/dashboard/staff"
                 onClick={() => setShowMobileMenu(false)}
@@ -162,6 +256,17 @@ export default function AdminLayout({
                 School Hierarchy
               </Link>
               <Link
+                href="/admin/dashboard/students"
+                onClick={() => setShowMobileMenu(false)}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition ${
+                  isActive("/students")
+                    ? "bg-indigo-600 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                Students
+              </Link>
+              <Link
                 href="/admin/dashboard/curriculum"
                 onClick={() => setShowMobileMenu(false)}
                 className={`px-4 py-3 rounded-lg text-sm font-medium transition ${
@@ -171,6 +276,70 @@ export default function AdminLayout({
                 }`}
               >
                 Global Curriculum
+              </Link>
+              <Link
+                href="/admin/dashboard/export"
+                onClick={() => setShowMobileMenu(false)}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
+                  isActive("/export")
+                    ? "bg-indigo-600 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                <Download size={14} />
+                Data Export
+              </Link>
+
+              {/* Teacher View section */}
+              <div className="border-t border-slate-600 my-1" />
+              <span className="px-4 py-1 text-xs text-slate-500 uppercase tracking-wider font-semibold">Teacher View</span>
+              <Link
+                href="/teacher/dashboard"
+                onClick={() => setShowMobileMenu(false)}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
+                  pathname.startsWith("/teacher/dashboard")
+                    ? "bg-emerald-600 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                <LayoutDashboard size={14} />
+                Dashboard
+              </Link>
+              <Link
+                href="/teacher/analytics"
+                onClick={() => setShowMobileMenu(false)}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
+                  pathname.startsWith("/teacher/analytics")
+                    ? "bg-emerald-600 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                <BarChart2 size={14} />
+                Analytics
+              </Link>
+              <Link
+                href="/teacher/reports"
+                onClick={() => setShowMobileMenu(false)}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
+                  pathname.startsWith("/teacher/reports")
+                    ? "bg-emerald-600 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                <FileText size={14} />
+                Reports
+              </Link>
+              <Link
+                href="/teacher/assistant"
+                onClick={() => setShowMobileMenu(false)}
+                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
+                  pathname.startsWith("/teacher/assistant")
+                    ? "bg-emerald-600 text-white"
+                    : "text-gray-300 hover:text-white hover:bg-slate-700"
+                }`}
+              >
+                <Sparkles size={14} />
+                AI Assistant
               </Link>
             </div>
           </nav>

@@ -124,7 +124,7 @@ export default function AnnouncementsPage() {
         payload.target_grade_level = targetGrade;
       }
 
-      const response = await apiFetch<Announcement>(
+      const _response = await apiFetch<Announcement>(
         "/announcements",
         {
           method: "POST",
@@ -213,7 +213,7 @@ export default function AnnouncementsPage() {
             Bilingual Announcements
           </h1>
           <p className="text-gray-600 mt-1">
-            Post announcements in English — they'll be auto-translated to Urdu for students
+            Post announcements in English — they&apos;ll be auto-translated to Urdu for students
           </p>
         </div>
 

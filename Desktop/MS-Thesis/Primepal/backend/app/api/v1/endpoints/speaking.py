@@ -10,6 +10,7 @@ Endpoints (all require student JWT):
 
 import json
 import logging
+from difflib import SequenceMatcher
 from io import BytesIO
 from openai import AsyncOpenAI
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
@@ -19,11 +20,23 @@ from app.core.config import settings
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
 from app.utils.pronunciation import compare_phrases, calculate_pronunciation_score
+from app.utils.streak import update_streak
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+
+# Whisper prompt to prime for Pakistani English accent patterns
+WHISPER_ACCENT_PROMPT = (
+    "Pakistani English accent. Common words: hello, thank you, please, "
+    "excuse me, water, school, teacher, mother, father."
+)
+
+# Garbled-input thresholds
+_GARBLED_SIMILARITY_THRESHOLD = 0.30
+_GARBLED_MIN_CHARS = 3
+_MAX_ATTEMPTS = 3
 
 # ---------------------------------------------------------------------------
 # Response Schemas
@@ -45,6 +58,7 @@ class EvaluateRequest(BaseModel):
     prompt_id: int
     prompt_text: str
     transcript: str
+    attempt_number: int = 1
 
 
 class EvaluateFeedback(BaseModel):
@@ -52,6 +66,7 @@ class EvaluateFeedback(BaseModel):
     feedback: str
     points_awarded: int
     new_total: int
+    status: str = "final"  # "final" | "retry" | "give_up"
 
 
 class PronunciationWordData(BaseModel):
@@ -68,6 +83,8 @@ class EvaluatePronunciationFeedback(BaseModel):
     pronunciation_data: list[PronunciationWordData]
     points_awarded: int
     new_total: int
+    status: str = "final"  # "final" | "retry" | "give_up"
+    noise_flagged: bool = False
 
 
 # ---------------------------------------------------------------------------
@@ -196,8 +213,22 @@ async def evaluate_response(
     student_id: str = student["sub"]
     classroom_id: str = student["classroom_id"]
 
-    # If transcript is empty, automatic 0
-    if not request.transcript or not request.transcript.strip():
+    # ---- Garbled / empty input detection ----
+    transcript_text = (request.transcript or "").strip()
+    is_empty = not transcript_text or len(transcript_text) < _GARBLED_MIN_CHARS
+
+    if not is_empty:
+        similarity = SequenceMatcher(
+            None,
+            request.prompt_text.lower().strip(),
+            transcript_text.lower(),
+        ).ratio()
+        is_garbled = similarity < _GARBLED_SIMILARITY_THRESHOLD
+    else:
+        is_garbled = True
+
+    if is_empty or is_garbled:
+        # Fetch current points for response
         points_resp = (
             supabase.table("students")
             .select("points")
@@ -206,11 +237,21 @@ async def evaluate_response(
             .execute()
         )
         current_points = points_resp.data.get("points", 0) if points_resp.data else 0
+
+        if request.attempt_number >= _MAX_ATTEMPTS:
+            return EvaluateFeedback(
+                score=0,
+                feedback="No worries! Let's try the next one. \U0001f60a",
+                points_awarded=0,
+                new_total=current_points,
+                status="give_up",
+            )
         return EvaluateFeedback(
-            score=0,
-            feedback="It looks like nothing was recorded. Try again!",
+            score=-1,
+            feedback="I couldn't hear you clearly — let's try again! \U0001f3a4",
             points_awarded=0,
             new_total=current_points,
+            status="retry",
         )
 
     # Fetch grade level for evaluation context
@@ -309,9 +350,13 @@ Keep the feedback encouraging, short (1-2 sentences), and suitable for a young c
             "correct": score > 0,
             "context_used": False,
             "pillar": "speaking",
+            "score": points_awarded,
         }).execute()
     except Exception as exc:
         logger.warning(f"Failed to log speaking interaction: {exc}")
+
+    # Update daily streak
+    await update_streak(student_id)
 
     return EvaluateFeedback(
         score=score,
@@ -328,6 +373,7 @@ Keep the feedback encouraging, short (1-2 sentences), and suitable for a young c
 class EvaluateProRequest(BaseModel):
     prompt_id: int
     prompt_text: str
+    attempt_number: int = 1
 
 
 @router.post("/evaluate-pro", response_model=EvaluatePronunciationFeedback)
@@ -370,6 +416,7 @@ async def evaluate_pronunciation(
             response_format="verbose_json",
             timestamp_granularities=["word"],
             language="en",
+            prompt=WHISPER_ACCENT_PROMPT,
         )
 
         # Extract words from Whisper's verbose response
@@ -401,6 +448,47 @@ async def evaluate_pronunciation(
         threshold=0.75,  # 75% similarity threshold for "correct"
     )
     pronunciation_score = calculate_pronunciation_score(pronunciation_data_list)
+
+    # ---- Garbled / noise detection for evaluate-pro ----
+    noise_flagged = False
+    all_wrong = all(p["status"] != "correct" for p in pronunciation_data_list) if pronunciation_data_list else True
+
+    if pronunciation_score < 20 and len(spoken_words) < 2:
+        # Fetch current points for early return
+        student_resp_early = (
+            supabase.table("students")
+            .select("points")
+            .eq("id", student_id)
+            .maybe_single()
+            .execute()
+        )
+        current_pts = (student_resp_early.data.get("points") or 0) if student_resp_early.data else 0
+
+        if request.attempt_number >= _MAX_ATTEMPTS:
+            return EvaluatePronunciationFeedback(
+                score=0,
+                feedback="No worries! Let's try the next one. \U0001f60a",
+                pronunciation_score=pronunciation_score,
+                pronunciation_data=[PronunciationWordData(**p) for p in pronunciation_data_list],
+                points_awarded=0,
+                new_total=current_pts,
+                status="give_up",
+                noise_flagged=False,
+            )
+        return EvaluatePronunciationFeedback(
+            score=-1,
+            feedback="I couldn't hear you clearly — let's try again! \U0001f3a4",
+            pronunciation_score=pronunciation_score,
+            pronunciation_data=[PronunciationWordData(**p) for p in pronunciation_data_list],
+            points_awarded=0,
+            new_total=current_pts,
+            status="retry",
+            noise_flagged=False,
+        )
+
+    # Background noise detection: mic picked up sound but nothing intelligible
+    if all_wrong and spoken_words:
+        noise_flagged = True
 
     # Overall correctness: mark as correct if pronunciation_score >= 70
     overall_correct = pronunciation_score >= 70
@@ -435,6 +523,10 @@ If < 70, gently point out which word(s) to practice. Make it suitable for young 
     except Exception as exc:
         logger.error(f"Failed to generate feedback: {exc}")
         feedback = "Great attempt! Keep practicing!" if overall_correct else "Keep practicing, you're getting closer!"
+
+    # Append noise tip to feedback if flagged
+    if noise_flagged:
+        feedback += " Try moving to a quieter spot! \U0001f92b"
 
     # ------------------------------------------------------------------
     # Step 4: Calculate points and update student total
@@ -492,9 +584,14 @@ If < 70, gently point out which word(s) to practice. Make it suitable for young 
             "context_used": False,
             "pillar": "speaking",
             "pronunciation_data": pronunciation_data_list,  # Store word-level data
+            "noise_flagged": noise_flagged,
+            "score": points_awarded,
         }).execute()
     except Exception as exc:
         logger.warning(f"Failed to log speaking interaction: {exc}")
+
+    # Update daily streak
+    await update_streak(student_id)
 
     return EvaluatePronunciationFeedback(
         score=2 if overall_correct else (1 if pronunciation_score >= 50 else 0),
@@ -503,4 +600,6 @@ If < 70, gently point out which word(s) to practice. Make it suitable for young 
         pronunciation_data=[PronunciationWordData(**p) for p in pronunciation_data_list],
         points_awarded=points_awarded,
         new_total=new_total,
+        status="final",
+        noise_flagged=noise_flagged,
     )

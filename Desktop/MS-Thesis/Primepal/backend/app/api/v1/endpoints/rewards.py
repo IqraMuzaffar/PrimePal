@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
+from app.core.cache import cache_get, cache_set, make_cache_key
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +34,7 @@ class DailyRewardResponse(BaseModel):
     amount: int       # Points/stars awarded (0 for multiplier)
     new_total: int    # Student's new total points
     message: str      # Human-readable reward message
+    new_achievements: list[dict] = []  # Newly unlocked achievements
 
 
 class RewardStatusResponse(BaseModel):
@@ -44,16 +46,20 @@ class RewardStatusResponse(BaseModel):
 # Helper: Determine if timestamp is "today" (UTC midnight boundary)
 # ---------------------------------------------------------------------------
 
-def is_today(timestamp: datetime | None) -> bool:
+def is_today(timestamp) -> bool:
     """
     Check if a given timestamp is from today (same UTC calendar day).
     None timestamps are treated as never claimed (returns False).
+    Handles both datetime objects and ISO-format strings from Supabase.
     """
     if timestamp is None:
         return False
-
+    if isinstance(timestamp, str):
+        timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
     now_utc = datetime.now(timezone.utc)
-    return timestamp.replace(tzinfo=None).date() == now_utc.date()
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return timestamp.date() == now_utc.date()
 
 
 # ---------------------------------------------------------------------------
@@ -173,11 +179,22 @@ async def claim_daily_reward(
         student_id, reward_type, reward_amount, new_total,
     )
 
+    # ------------------------------------------------------------------
+    # Step 6: Check for newly unlocked achievements
+    # ------------------------------------------------------------------
+    new_badges: list[dict] = []
+    try:
+        from app.api.v1.endpoints.achievements import check_and_unlock_achievements
+        new_badges = await check_and_unlock_achievements(student_id)
+    except Exception as e:
+        logger.warning("Achievement check failed after daily reward: %s", e)
+
     return DailyRewardResponse(
         reward_type=reward_type,
         amount=reward_amount,
         new_total=new_total,
         message=message,
+        new_achievements=new_badges,
     )
 
 
@@ -227,4 +244,107 @@ async def get_reward_status(
     return RewardStatusResponse(
         has_claimed_today=has_claimed,
         last_claimed_at=last_claimed_str,
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /daily-summary (S08: Scoring Visibility)
+# ---------------------------------------------------------------------------
+
+class DailySummaryResponse(BaseModel):
+    today_points: int
+    total_points: int
+    missions_today: int
+
+
+@router.get("/daily-summary", response_model=DailySummaryResponse, summary="Daily score summary")
+async def get_daily_summary(
+    student: dict = Depends(get_current_student),
+):
+    """
+    Return the student's score summary for today.
+
+    - today_points: sum of scores from correct interactions today
+    - total_points: cumulative points from student record
+    - missions_today: count of correct interactions today
+
+    Cached for 2 minutes.
+    Authentication: student JWT (Bearer token).
+    """
+    student_id: str = student["sub"]
+    supabase = get_supabase_admin()
+
+    cache_key = make_cache_key("daily_summary", student_id)
+    cached = await cache_get(cache_key)
+    if cached:
+        return DailySummaryResponse(**cached)
+
+    student_resp = (
+        supabase.table("students")
+        .select("points")
+        .eq("id", student_id)
+        .maybe_single()
+        .execute()
+    )
+    total_points = (student_resp.data.get("points") or 0) if student_resp.data else 0
+
+    today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    interactions_resp = (
+        supabase.table("student_interactions")
+        .select("score")
+        .eq("student_id", student_id)
+        .eq("correct", True)
+        .gte("created_at", today_start)
+        .execute()
+    )
+    rows = interactions_resp.data or []
+    today_points = sum(r.get("score") or 10 for r in rows)
+    missions_today = len(rows)
+
+    response = DailySummaryResponse(
+        today_points=today_points,
+        total_points=total_points,
+        missions_today=missions_today,
+    )
+
+    await cache_set(cache_key, response.model_dump(), ttl=120)
+    return response
+
+
+# ---------------------------------------------------------------------------
+# GET /streak (S07: Daily Streak Engine)
+# ---------------------------------------------------------------------------
+
+class StreakResponse(BaseModel):
+    current_streak: int
+    longest_streak: int
+    last_activity_date: str | None
+
+
+@router.get("/streak", response_model=StreakResponse, summary="Get student streak")
+async def get_streak(student: dict = Depends(get_current_student)):
+    """
+    Get the student's current and longest streak.
+
+    - current_streak: consecutive days with at least one completed task
+    - longest_streak: all-time best streak
+    - last_activity_date: ISO date of last activity (YYYY-MM-DD) or null
+
+    Authentication: student JWT (Bearer token).
+    """
+    student_id: str = student["sub"]
+    supabase = get_supabase_admin()
+
+    resp = supabase.table("students").select(
+        "current_streak, longest_streak, last_activity_date"
+    ).eq("id", student_id).maybe_single().execute()
+
+    if not resp.data:
+        raise HTTPException(status_code=404, detail="Student not found")
+
+    data = resp.data
+    return StreakResponse(
+        current_streak=data.get("current_streak") or 0,
+        longest_streak=data.get("longest_streak") or 0,
+        last_activity_date=data.get("last_activity_date"),
     )

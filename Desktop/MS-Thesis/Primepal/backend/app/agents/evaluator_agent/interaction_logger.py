@@ -22,6 +22,7 @@ def log_interaction(
     correct: bool | None = None,    # None for chat interactions
     context_used: bool = False,
     pillar: str | None = None,      # 'reading' | 'writing' | 'listening' | 'speaking' (None for non-pillar interactions)
+    score: int | None = None,       # Points awarded for this interaction (used by daily-summary)
 ) -> None:
     """
     Insert one interaction record into student_interactions.
@@ -46,6 +47,7 @@ def log_interaction(
                 "correct": correct,
                 "context_used": context_used,
                 "pillar": pillar,
+                "score": score,
             }
         ).execute()
     except Exception:

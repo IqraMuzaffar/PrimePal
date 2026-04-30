@@ -1,51 +1,68 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import Link from "next/link";
-import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Zap } from "lucide-react";
+import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Zap, Activity, BookOpenCheck, Headphones, MessageSquare } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { getTeacherHeaders } from "@/lib/teacherAuth";
+import FilterBar, { useFilterParams } from "@/components/teacher/FilterBar";
 import type { Classroom } from "@/types";
 
-interface StudentStats {
+interface DashboardStats {
   total_students: number;
   total_interactions: number;
   avg_accuracy: number;
+  active_this_week: number;
 }
 
-export default function DashboardPage() {
+interface SkillAccuracy {
+  reading: number;
+  writing: number;
+  listening: number;
+  speaking: number;
+  active_today: number;
+}
+
+function skillColor(pct: number): string {
+  if (pct >= 70) return "text-emerald-600 bg-emerald-50 border-emerald-200";
+  if (pct >= 40) return "text-amber-600 bg-amber-50 border-amber-200";
+  return "text-rose-600 bg-rose-50 border-rose-200";
+}
+
+function DashboardContent() {
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [stats, setStats] = useState<StudentStats | null>(null);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [skillAccuracy, setSkillAccuracy] = useState<SkillAccuracy | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const { gradeLevel, pillar } = useFilterParams();
 
   useEffect(() => {
     async function fetchData() {
+      setLoading(true);
       try {
         const headers = await getTeacherHeaders();
-        const classroomData = await apiFetch<Classroom[]>("/classroom/", { headers });
+
+        // Build query params for filters
+        const params = new URLSearchParams();
+        if (gradeLevel) params.set("grade_level", String(gradeLevel));
+        if (pillar) params.set("pillar", pillar);
+        const qs = params.toString();
+        const suffix = qs ? `?${qs}` : "";
+
+        // Fetch classrooms, dashboard stats, and skill accuracy in parallel
+        const [classroomData, dashboardStats, skills] = await Promise.all([
+          apiFetch<Classroom[]>("/classroom/", { headers }),
+          apiFetch<DashboardStats>(`/evaluator/dashboard-stats${suffix}`, { headers }),
+          apiFetch<SkillAccuracy>(
+            `/evaluator/skill-accuracy${gradeLevel ? `?grade_level=${gradeLevel}` : ""}`,
+            { headers }
+          ),
+        ]);
+
         setClassrooms(classroomData);
-
-        // Calculate stats
-        if (classroomData.length > 0) {
-          let totalStudents = 0;
-          let totalInteractions = 0;
-          let totalAccuracy = 0;
-          let classroomCount = 0;
-
-          for (const c of classroomData) {
-            // This is a simplified calculation; in production you'd fetch from analytics endpoint
-            totalStudents += Math.floor(Math.random() * 30) + 10; // Mock: 10-40 students per class
-            totalInteractions += Math.floor(Math.random() * 500) + 100; // Mock: 100-600 interactions
-            totalAccuracy += Math.floor(Math.random() * 40) + 60; // Mock: 60-100% accuracy
-            classroomCount++;
-          }
-
-          setStats({
-            total_students: totalStudents,
-            total_interactions: totalInteractions,
-            avg_accuracy: Math.round(totalAccuracy / classroomCount),
-          });
-        }
+        setStats(dashboardStats);
+        setSkillAccuracy(skills);
       } catch (err) {
         console.error("Failed to fetch data:", err);
       } finally {
@@ -54,20 +71,25 @@ export default function DashboardPage() {
     }
 
     fetchData();
-  }, []);
+  }, [gradeLevel, pillar]);
 
   return (
     <div className="bg-gray-50 min-h-full">
       <main className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
         {/* Page heading */}
-        <div className="mb-8">
+        <div className="mb-6">
           <h1 className="text-3xl font-bold text-gray-900">Teaching Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back! Here's your teaching overview.</p>
+          <p className="text-gray-600 mt-1">Welcome back! Here is your teaching overview.</p>
+        </div>
+
+        {/* Filter Bar */}
+        <div className="mb-6">
+          <FilterBar showSearch={false} />
         </div>
 
         {/* Stats Grid */}
         {!loading && stats && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             {/* Total Students */}
             <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
               <div className="flex items-start justify-between">
@@ -88,7 +110,7 @@ export default function DashboardPage() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Interactions</p>
                   <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total_interactions}</p>
-                  <p className="text-xs text-gray-500 mt-2">Student missions & chat</p>
+                  <p className="text-xs text-gray-500 mt-2">Student missions &amp; chat</p>
                 </div>
                 <div className="p-3 bg-emerald-100 rounded-lg">
                   <Zap className="w-6 h-6 text-emerald-600" />
@@ -101,7 +123,7 @@ export default function DashboardPage() {
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Avg Accuracy</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{stats.avg_accuracy}%</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">{Math.round(stats.avg_accuracy)}%</p>
                   <p className="text-xs text-gray-500 mt-2">Across all students</p>
                 </div>
                 <div className="p-3 bg-rose-100 rounded-lg">
@@ -109,6 +131,61 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+
+            {/* Active This Week */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Active This Week</p>
+                  <p className="text-3xl font-bold text-gray-900 mt-2">{stats.active_this_week}</p>
+                  <p className="text-xs text-gray-500 mt-2">Students with recent activity</p>
+                </div>
+                <div className="p-3 bg-sky-100 rounded-lg">
+                  <Activity className="w-6 h-6 text-sky-600" />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Skill Breakdown */}
+        {!loading && skillAccuracy && (
+          <div className="mb-8">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Skill Breakdown</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[
+                { label: "Reading", value: skillAccuracy.reading, icon: BookOpenCheck },
+                { label: "Writing", value: skillAccuracy.writing, icon: BookOpen },
+                { label: "Listening", value: skillAccuracy.listening, icon: Headphones },
+                { label: "Speaking", value: skillAccuracy.speaking, icon: MessageSquare },
+              ].map(({ label, value, icon: Icon }) => (
+                <div
+                  key={label}
+                  className={`rounded-xl border p-4 ${skillColor(value)}`}
+                >
+                  <div className="flex items-center gap-2 mb-2">
+                    <Icon className="w-4 h-4" />
+                    <span className="text-sm font-semibold">{label}</span>
+                  </div>
+                  <p className="text-2xl font-bold">{Math.round(value)}%</p>
+                  <p className="text-xs opacity-75 mt-1">accuracy</p>
+                </div>
+              ))}
+            </div>
+            {skillAccuracy.active_today > 0 && (
+              <p className="text-xs text-gray-500 mt-3">
+                {skillAccuracy.active_today} student{skillAccuracy.active_today !== 1 ? "s" : ""} active today
+              </p>
+            )}
+          </div>
+        )}
+
+        {/* Loading skeleton */}
+        {loading && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-6 h-32 animate-pulse" />
+            ))}
           </div>
         )}
 
@@ -201,5 +278,27 @@ export default function DashboardPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={
+      <div className="bg-gray-50 min-h-full">
+        <main className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
+          <div className="mb-8">
+            <h1 className="text-3xl font-bold text-gray-900">Teaching Dashboard</h1>
+            <p className="text-gray-600 mt-1">Loading...</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-6 h-32 animate-pulse" />
+            ))}
+          </div>
+        </main>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
   );
 }

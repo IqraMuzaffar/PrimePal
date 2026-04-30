@@ -4,26 +4,25 @@ Feature 6: Mission Generator — generates daily gamified English questions (RAG
 Pipeline:
   1. Receive grade_level and pre-retrieved SNC context chunks from the endpoint.
   2. Build a structured-output LLM chain (ChatOpenAI.with_structured_output).
-  3. Return a DailyMissions object with exactly 3 questions:
-       - 2 multiple_choice
-       - 1 fill_blank
+  3. Return a DailyMissions object with exactly 3 questions using diverse task types
+     (e.g. sentence_picture_match, fill_blank_word_bank, listen_and_choose).
   4. The endpoint strips correct_answer before sending to the client.
 
-Feature 3: Pillar-based Missions (LLM-based generation with weakness focus)
-  1. Receive pillar, grade_level, current_week_topic, and student weaknesses.
-  2. Call OpenAI LLM with pillar-specific prompts.
-  3. Return exactly 10 questions with weakness focus metadata.
+Feature 3: Pillar-based Missions (LLM-based generation with structured output)
+  1. Receive pillar, grade_level, active_topics, and student weaknesses.
+  2. Call OpenAI LLM with pillar-specific prompts and structured output.
+  3. Return exactly 10 questions across 13 task types:
+       Reading:   sentence_picture_match, odd_one_out, fill_blank_word_bank, passage_true_false
+       Writing:   sentence_scramble, missing_letter, guided_translation
+       Listening: listen_and_choose, simon_says, listen_and_spell
+       Speaking:  repeat_after_me, what_is_this, finish_the_sentence
 """
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
-from typing import Literal
-
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_openai import ChatOpenAI
-from openai import AsyncOpenAI
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -45,22 +44,41 @@ DAILY_QUESTIONS_COUNT = 3
 # ---------------------------------------------------------------------------
 
 class QuestionOption(BaseModel):
-    id: str   # "a", "b", "c", or "d"
+    id: str   # "a", "b", "c", "d"
     text: str
+    emoji: str | None = None  # for image_options in picture-match tasks
 
 
 class MissionQuestion(BaseModel):
-    id: int                              # 1, 2, or 3
-    type: Literal["multiple_choice", "fill_blank"]
+    id: int
+    task_type: str                              # e.g. "sentence_picture_match", "odd_one_out", etc.
+    pillar: str = ""                            # reading, writing, listening, speaking
     question: str
-    options: list[QuestionOption] | None  # only for multiple_choice; None for fill_blank
-    correct_answer: str                  # letter "a"/"b"/"c"/"d" for MC; missing word for fill_blank
-    emoji_hint: str                      # single emoji relevant to the question topic
+    difficulty: str = "medium"                  # easy, medium, hard
+    points_value: int = 10                      # 5, 10, 15, or 20
+    correct_answer: str
+    emoji_hint: str = ""
+
+    # Legacy compat — old questions used "type" instead of "task_type"
+    type: str | None = None
+
+    # Optional fields used by specific task types
+    options: list[QuestionOption] | None = None
+    passage: str | None = None
+    audio_text: str | None = None
+    image_context: str | None = None
+    image_options: list[QuestionOption] | None = None
+    word_bank: list[str] | None = None
+    correct_order: list[str] | None = None
+    word_with_blanks: str | None = None
+    letter_options: list[str] | None = None
+    sentence_start: str | None = None
+    urdu_hint: str = ""                         # Urdu translation hint for bilingual scaffolding
 
 
 class DailyMissions(BaseModel):
-    topic: str                           # short topic label, e.g. "Animals" or "Action Verbs"
-    questions: list[MissionQuestion]     # exactly 3
+    topic: str
+    questions: list[MissionQuestion]
 
 
 # ---------------------------------------------------------------------------
@@ -77,8 +95,10 @@ ACTIVE TOPICS: Generate questions STRICTLY based on these topics only: {active_t
 Do NOT generate questions about any topic not in this list.
 
 RULES — follow every rule strictly:
-1. FORMAT: Question 1 and Question 2 must be multiple_choice (4 options: a, b, c, d). \
-   Question 3 must be fill_blank (correct_answer is the missing word, no options needed).
+1. FORMAT: Question 1 must be task_type "sentence_picture_match" or "odd_one_out" (reading task — set pillar to "reading", include image_options with 4 emoji items for sentence_picture_match, or options for odd_one_out). \
+   Question 2 must be task_type "fill_blank_word_bank" or "missing_letter" (writing task — set pillar to "writing", include options for fill_blank_word_bank, or word_with_blanks and letter_options for missing_letter). \
+   Question 3 must be task_type "listen_and_choose" or "simon_says" (listening task — set pillar to "listening", include audio_text and image_options for listen_and_choose, or audio_text and options for simon_says). \
+   Every question needs: id, task_type, pillar, question, difficulty, points_value, correct_answer, emoji_hint.
 2. VOCABULARY: Use only Grade {grade_level} vocabulary found in the context. Never \
    introduce words above this grade level.
 3. SIMPLICITY: Keep questions short and easy to read. These are young children (ages 6-12).
@@ -87,6 +107,7 @@ RULES — follow every rule strictly:
 5. GROUNDING: Every question must naturally reference words or concepts from the context below.
 6. EMOJI: Add a single relevant emoji as emoji_hint for each question (e.g. "🐱" for a cat question).
 7. TOPIC: Set the topic field to a short 1-3 word label that describes all 3 questions.
+8. URDU_HINT: Add an `urdu_hint` field with the Urdu translation of the key vocabulary in each question. Use simple Urdu appropriate for Grade {grade_level}. Example: for "The cat is on the table", urdu_hint could be "بلی میز پر ہے".
 
 SNC CURRICULUM CONTEXT (Grade {grade_level}):
 {context}
@@ -104,13 +125,16 @@ ACTIVE TOPICS: Generate questions STRICTLY based on these topics only: {active_t
 Do NOT generate questions about any topic not in this list.
 
 RULES — follow every rule strictly:
-1. FORMAT: Question 1 and Question 2 must be multiple_choice (4 options: a, b, c, d). \
-   Question 3 must be fill_blank (correct_answer is the missing word, no options needed).
+1. FORMAT: Question 1 must be task_type "sentence_picture_match" or "odd_one_out" (reading task — set pillar to "reading", include image_options with 4 emoji items for sentence_picture_match, or options for odd_one_out). \
+   Question 2 must be task_type "fill_blank_word_bank" or "missing_letter" (writing task — set pillar to "writing", include options for fill_blank_word_bank, or word_with_blanks and letter_options for missing_letter). \
+   Question 3 must be task_type "listen_and_choose" or "simon_says" (listening task — set pillar to "listening", include audio_text and image_options for listen_and_choose, or audio_text and options for simon_says). \
+   Every question needs: id, task_type, pillar, question, difficulty, points_value, correct_answer, emoji_hint.
 2. VOCABULARY: Use only simple, common Grade {grade_level} English vocabulary.
 3. SIMPLICITY: Keep questions short and easy to read. These are young children (ages 6-12).
 4. ENCOURAGEMENT: Frame questions in a positive, game-like tone.
 5. EMOJI: Add a single relevant emoji as emoji_hint for each question.
 6. TOPIC: Set the topic field to a short 1-3 word label that describes all 3 questions.
+7. URDU_HINT: Add an `urdu_hint` field with the Urdu translation of the key vocabulary in each question. Use simple Urdu appropriate for Grade {grade_level}. Example: for "The cat is on the table", urdu_hint could be "بلی میز پر ہے".
 
 {confidence_builder_override}
 """
@@ -219,7 +243,85 @@ CONFIDENCE BUILDER RULES:
 
 
 # ---------------------------------------------------------------------------
-# Public API - Pillar-based Missions (LLM-based with weakness focus)
+# Pydantic schema for pillar missions (structured output target)
+# ---------------------------------------------------------------------------
+
+class PillarMissions(BaseModel):
+    questions: list[MissionQuestion]
+
+
+# ---------------------------------------------------------------------------
+# Pillar task type configurations
+# ---------------------------------------------------------------------------
+
+PILLAR_TASK_CONFIGS = {
+    "reading": {
+        "task_types": [
+            ("sentence_picture_match", 3),
+            ("odd_one_out", 3),
+            ("fill_blank_word_bank", 2),
+            ("passage_true_false", 2),
+        ],
+        "field_instructions": """
+TASK TYPE FIELD REQUIREMENTS:
+- sentence_picture_match: Set question (the sentence), image_options (4 items with id, text, emoji), correct_answer (id of correct option). Example image_options: [{"id":"a","text":"cat","emoji":"🐱"},{"id":"b","text":"dog","emoji":"🐶"},{"id":"c","text":"car","emoji":"🚗"},{"id":"d","text":"book","emoji":"📖"}]
+- odd_one_out: Set question ("Which word does NOT belong?"), options (4 items with id and text), correct_answer (id of the outlier).
+- fill_blank_word_bank: Set question (sentence with ___ for blank), options (4 word choices with id and text), correct_answer (id of correct word).
+- passage_true_false: Set passage (3-5 sentences), question (a statement about the passage), correct_answer ("true" or "false").""",
+    },
+    "writing": {
+        "task_types": [
+            ("sentence_scramble", 4),
+            ("missing_letter", 3),
+            ("guided_translation", 3),
+        ],
+        "field_instructions": """
+TASK TYPE FIELD REQUIREMENTS:
+- sentence_scramble: Set question ("Put the words in the correct order"), word_bank (list of scrambled words), correct_order (list of words in correct order), correct_answer (the full correct sentence as string).
+- missing_letter: Set question ("Fill in the missing letter(s)"), word_with_blanks (e.g. "c_t"), letter_options (6-8 single letters including correct ones), correct_answer (the complete word, e.g. "cat").
+- guided_translation: Set question (an Urdu sentence to translate), word_bank (English words to choose from, scrambled), correct_order (English words in correct order), correct_answer (the full English sentence as string).""",
+    },
+    "listening": {
+        "task_types": [
+            ("listen_and_choose", 4),
+            ("simon_says", 3),
+            ("listen_and_spell", 3),
+        ],
+        "field_instructions": """
+TASK TYPE FIELD REQUIREMENTS:
+- listen_and_choose: Set audio_text (sentence to be spoken aloud), image_options (4 items with id, text, emoji), correct_answer (id of correct option).
+- simon_says: Set audio_text (an instruction like "Touch your nose" or "Clap your hands"), options (4 action choices with id and text), correct_answer (id of correct action).
+- listen_and_spell: Set audio_text (a single word to be spoken aloud), correct_answer (the correct spelling of the word).""",
+    },
+    "speaking": {
+        "task_types": [
+            ("repeat_after_me", 4),
+            ("what_is_this", 3),
+            ("finish_the_sentence", 3),
+        ],
+        "field_instructions": """
+TASK TYPE FIELD REQUIREMENTS:
+- repeat_after_me: Set audio_text (sentence for TTS to read), correct_answer (the same sentence — student must repeat it).
+- what_is_this: Set question ("What is this?"), image_context (a single emoji representing the object, e.g. "🐱"), correct_answer (the word, e.g. "cat").
+- finish_the_sentence: Set question ("Finish this sentence:"), sentence_start (partial sentence like "The cat is..."), correct_answer (expected completion like "sleeping").""",
+    },
+}
+
+DIFFICULTY_DISTRIBUTION = {
+    "easy": 3,
+    "medium": 4,
+    "hard": 3,
+}
+
+POINTS_BY_DIFFICULTY = {
+    "easy": 5,
+    "medium": 10,
+    "hard": 20,
+}
+
+
+# ---------------------------------------------------------------------------
+# Public API - Pillar-based Missions (LLM-based with structured output)
 # ---------------------------------------------------------------------------
 
 async def generate_pillar_missions(
@@ -229,263 +331,165 @@ async def generate_pillar_missions(
     student_id: str,
     student_weaknesses: list[str],
     is_frustrated: bool = False,
+    performance_profile: dict | None = None,
 ) -> list[dict]:
-    """
-    Generate 10 curriculum-aligned questions for a specific pillar using LLM.
-
-    Weaves in student weakness remediation and creates a diverse mix of
-    multiple_choice and fill_blank questions tailored to the pillar.
-
-    Supports Affective Filter management: if is_frustrated is True, the LLM is instructed
-    to create "Confidence Builder" questions with reduced complexity.
-
-    Args:
-        pillar:             One of: reading, writing, listening, speaking
-        grade_level:        The student's classroom grade (1-8)
-        active_topics:      List of active SNC topic names for this classroom (e.g., ["Animals", "Weather"])
-        student_id:         UUID of the student
-        student_weaknesses: List of recent incorrect answers or weak areas
-        is_frustrated:      If True, override to generate "Confidence Builder" questions
-                            with reduced vocabulary complexity and obvious distractors. Default False.
-
-    Returns:
-        A list of exactly 10 question dicts, each with:
-          - id, type, question, options, correct_answer, emoji_hint, is_weakness_focused
-        The caller (endpoint) is responsible for stripping correct_answer before
-        sending the response to the client.
-
-    Raises:
-        ValueError:   If pillar is invalid or LLM returns wrong number of questions
-        RuntimeError: If LLM response cannot be parsed or API fails
-    """
-    # Validate pillar
     valid_pillars = ["reading", "writing", "listening", "speaking"]
     if pillar not in valid_pillars:
         raise ValueError(f"Invalid pillar: {pillar}. Must be one of {valid_pillars}")
 
-    # Define pillar-specific configurations
-    pillar_configs = {
-        "reading": {
-            "emoji": "📖",
-            "instruction": (
-                "Create reading comprehension questions that test vocabulary understanding "
-                "and text interpretation. Mix multiple_choice (questions 1-7) and fill_blank (questions 8-10)."
-            ),
-            "types_distribution": ["multiple_choice"] * 7 + ["fill_blank"] * 3,
-        },
-        "writing": {
-            "emoji": "✍️",
-            "instruction": (
-                "Create writing exercises: fill-in-the-blank with correct grammar/spelling, "
-                "sentence correction tasks, or composition prompts. Mix multiple_choice (questions 1-7) and fill_blank (questions 8-10)."
-            ),
-            "types_distribution": ["multiple_choice"] * 7 + ["fill_blank"] * 3,
-        },
-        "listening": {
-            "emoji": "👂",
-            "instruction": (
-                "Create listening comprehension questions. Provide a passage or scenario that would be "
-                "spoken aloud, then ask multiple_choice questions. All 10 should be multiple_choice format."
-            ),
-            "types_distribution": ["multiple_choice"] * 10,
-        },
-        "speaking": {
-            "emoji": "🗣️",
-            "instruction": (
-                "Create speaking prompts that encourage oral response. Include a prompt phrase "
-                "and a brief example answer. All 10 should be fill_blank (prompt-based) format."
-            ),
-            "types_distribution": ["fill_blank"] * 10,
-        },
-    }
+    config = PILLAR_TASK_CONFIGS[pillar]
+    topic_text = ", ".join(active_topics) if active_topics else "General English skills"
 
-    config = pillar_configs[pillar]
+    # Build task distribution string
+    task_distribution_lines = []
+    for task_type, count in config["task_types"]:
+        task_distribution_lines.append(f"  - {count} questions of type '{task_type}'")
+    task_distribution_str = "\n".join(task_distribution_lines)
 
     # Build weakness context
     weakness_context = ""
-    if student_weaknesses:
-        # Limit to first MAX_WEAKNESS_ITEMS weaknesses
-        limited_weaknesses = student_weaknesses[:MAX_WEAKNESS_ITEMS]
+    if student_weaknesses and not is_frustrated:
+        limited = student_weaknesses[:MAX_WEAKNESS_ITEMS]
         weakness_context = (
             "\n\nSTUDENT'S RECENT WEAK AREAS (create 3-4 questions targeting these):\n"
-            + "\n".join([f"- {w}" for w in limited_weaknesses])
+            + "\n".join([f"- {w}" for w in limited])
         )
 
-    # Build curriculum context
-    topic_text = ", ".join(active_topics) if active_topics else "General English skills"
+    # Build adaptive difficulty section from performance profile
+    adaptive_section = ""
+    difficulty_dist_str = """  - 3 questions with difficulty "easy" (points_value: 5)
+  - 4 questions with difficulty "medium" (points_value: 10)
+  - 3 questions with difficulty "hard" (points_value: 20)"""
 
-    # Confidence Builder override for students experiencing cognitive load
-    confidence_builder_section = ""
+    if performance_profile and not is_frustrated:
+        overall_acc = performance_profile.get("overall_accuracy", 0)
+        pillar_accuracy = performance_profile.get("pillar_accuracy", {})
+        weak_topics = performance_profile.get("weak_topics", [])
+        strong_topics = performance_profile.get("strong_topics", [])
+        diff_rec = performance_profile.get("difficulty_recommendation", "medium")
+
+        pillar_acc_lines = "\n".join(
+            f"- {p} accuracy: {acc}%" for p, acc in pillar_accuracy.items()
+        )
+        weak_lines = "\n".join(
+            f"- {t['topic']} (accuracy: {t['accuracy']}%, suggested: {t['suggested_difficulty']})"
+            for t in weak_topics
+        ) if weak_topics else "None identified"
+        strong_lines = "\n".join(
+            f"- {t['topic']} (accuracy: {t['accuracy']}%)"
+            for t in strong_topics
+        ) if strong_topics else "None identified"
+
+        adaptive_section = f"""
+
+STUDENT PERFORMANCE PROFILE (adapt difficulty accordingly):
+- Overall accuracy: {overall_acc}%
+{pillar_acc_lines}
+- Weak areas (bias toward easier questions): {weak_lines}
+- Strong areas (increase difficulty): {strong_lines}
+
+ADAPTIVE DIFFICULTY RULES:
+- For weak topics (accuracy < 40%): generate Easy questions (points_value: 5), include urdu_hint
+- For medium topics (accuracy 40-70%): generate Medium questions (points_value: 10)
+- For strong topics (accuracy > 70%): generate Hard questions (points_value: 20)
+- For mastered topics (accuracy > 90%, 5+ attempts): minimal repetition, max difficulty
+- Mix: ~40% weak topic reinforcement, ~40% current topics, ~20% strong topics at higher difficulty"""
+
+        # Override difficulty distribution based on performance
+        if diff_rec == "easy":
+            # Struggling student: more easy questions
+            difficulty_dist_str = """  - 4 questions with difficulty "easy" (points_value: 5)
+  - 4 questions with difficulty "medium" (points_value: 10)
+  - 2 questions with difficulty "hard" (points_value: 20)"""
+        elif diff_rec == "hard":
+            # Strong student: more hard questions, fewer easy
+            difficulty_dist_str = """  - 1 questions with difficulty "easy" (points_value: 5)
+  - 4 questions with difficulty "medium" (points_value: 10)
+  - 5 questions with difficulty "hard" (points_value: 20)"""
+
+    confidence_override = ""
     if is_frustrated:
-        confidence_builder_section = f"""\
+        confidence_override = f"""
+CRITICAL OVERRIDE — CONFIDENCE BUILDER MODE:
+- Reduce vocabulary complexity by 1-2 grade levels below grade {grade_level}.
+- Make correct answers obvious. Use simple sentences.
+- Frame with encouragement ("Great job!", "You can do it!").
+- Ensure 7/10 questions are easy (difficulty: "easy", points_value: 5)."""
 
-CRITICAL OVERRIDE — STUDENT IS EXPERIENCING HIGH COGNITIVE LOAD:
-The student is currently frustrated (3 consecutive incorrect answers or high time pressure).
-The next set of questions MUST be "Confidence Builders" to recover their affective state.
-
-CONFIDENCE BUILDER RULES:
-- Reduce vocabulary complexity by 1-2 grade levels BELOW the student's current grade (effective grade: {max(1, grade_level - 2)}).
-- Make the correct answer OBVIOUS (eliminate ambiguous or tricky distractors).
-- Focus on concepts and topics the student has demonstrated understanding of in past correct answers.
-- Frame all questions with extra encouragement ("You're doing great!", "Nice work!", etc.).
-- Use simpler sentence structures and shorter questions (max 10 words per question).
-- Ensure at least 7 of the 10 questions are easy wins (>90% success probability).
-- Ignore the weakness focus constraint — ALL 10 questions should be confidence builders this round."""
-
-    # Construct the LLM system prompt
     system_prompt = f"""\
-You are an expert ESL tutor for Pakistani primary school students (grades 1-8).
-You specialize in the SNC (Single National Curriculum) and create engaging, age-appropriate questions.
+You are an ESL mission designer for Pakistani primary school Grade {grade_level} students.
 
-STUDENT PROFILE:
-- Grade level: {grade_level}
-- Current curriculum topic: {topic_text}
-- Pillar (skill focus): {pillar}
+Generate EXACTLY 10 questions for the {pillar} pillar using ONLY vocabulary appropriate for Grade {grade_level}.
 
-TASK:
-{config["instruction"]}
+ACTIVE TOPICS: {topic_text}
 
-STRICT CONSTRAINTS:
-1. Generate EXACTLY {PILLAR_QUESTIONS_COUNT} questions (no more, no less)
-2. Use age and SNC-appropriate vocabulary for grade {grade_level}
-3. Mix difficulty levels: aim for 4 easy, 4 medium, 2 hard
-4. Exactly 7 questions (70%) must be based on the current weekly topic.
-   Exactly 3 questions (30%) must target the student's weakness areas listed above
-   (mark those as is_weakness_focused: true). If no weaknesses are provided, all 10 questions target the current topic.
-5. Keep language simple, clear, and encouraging
-6. Avoid religious, political, or sensitive content
-7. Use cultural context relevant to Pakistan
-8. For multiple_choice questions: always provide exactly 4 options (a, b, c, d)
-9. For fill_blank questions: correct_answer should be a single word or short phrase
-10. Each question must have an emoji_hint that relates to the topic
+TASK TYPE DISTRIBUTION (you MUST follow this exactly):
+{task_distribution_str}
 
-{weakness_context}{confidence_builder_section}
+DIFFICULTY DISTRIBUTION across all 10 questions:
+{difficulty_dist_str}
 
-RESPONSE FORMAT:
-Return ONLY a valid JSON array with exactly 10 question objects. No explanation, no markdown.
-Each question must have this exact structure:
-{{
-  "id": <number 1-10>,
-  "type": "multiple_choice" | "fill_blank",
-  "question": "<question text>",
-  "options": [<only for multiple_choice> {{"id": "a", "text": "..."}}],
-  "correct_answer": "<answer>",
-  "emoji_hint": "<single emoji>",
-  "is_weakness_focused": true|false
-}}"""
+{config["field_instructions"]}
 
-    user_message = (
-        f"Generate {pillar} questions for grade {grade_level} on topic '{topic_text}'. "
-        f"Return ONLY the JSON array, no other text."
-    )
+EVERY question MUST have these fields:
+- id (1-10), task_type, pillar ("{pillar}"), question, difficulty, points_value, correct_answer, emoji_hint, urdu_hint
 
-    content = ""
+RULES:
+1. Use age-appropriate vocabulary for Grade {grade_level} Pakistani students.
+2. Keep questions short, clear, and encouraging.
+3. Avoid religious, political, or sensitive content.
+4. Use Pakistani cultural context where relevant.
+5. For multiple choice fields (options, image_options): always provide exactly 4 items with ids "a","b","c","d".
+6. correct_answer for option-based questions must be one of "a","b","c","d".
+7. URDU_HINT: Add an urdu_hint field with the Urdu translation of the key vocabulary or sentence. Use simple Urdu appropriate for Grade {grade_level}. For example: "The cat is sleeping" → "بلی سو رہی ہے".
+{weakness_context}{confidence_override}{adaptive_section}"""
+
+    user_message = f"Generate 10 {pillar} questions for Grade {grade_level} on topics: {topic_text}."
+
     try:
-        client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY, max_retries=3)
-        response = await client.chat.completions.create(
+        llm = ChatOpenAI(
             model=settings.CHAT_MODEL,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
             temperature=0.7,
-            top_p=0.9,
+            openai_api_key=settings.OPENAI_API_KEY,
+            max_retries=3,
+            timeout=15.0,
+        ).with_structured_output(PillarMissions)
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", system_prompt),
+            ("user", user_message),
+        ])
+
+        chain = prompt | llm
+        result: PillarMissions = await asyncio.wait_for(
+            chain.ainvoke({}),
+            timeout=20.0,
         )
 
-        # Extract and parse JSON response
-        content = response.choices[0].message.content.strip()
-        logger.debug(f"LLM response (first 200 chars): {content[:200]}")
+        if result is None or not result.questions:
+            raise ValueError("LLM returned empty result")
 
-        # Try to extract JSON if it's wrapped in markdown code blocks
-        if content.startswith("```json"):
-            content = content[7:]  # remove ```json
-        if content.startswith("```"):
-            content = content[3:]  # remove ```
-        if content.endswith("```"):
-            content = content[:-3]  # remove trailing ```
+        # Normalize and validate
+        validated = []
+        for i, q in enumerate(result.questions[:PILLAR_QUESTIONS_COUNT]):
+            d = q.model_dump()
+            d["id"] = i + 1
+            d["pillar"] = pillar
+            if not d.get("task_type"):
+                d["task_type"] = "multiple_choice"
+            if not d.get("difficulty"):
+                d["difficulty"] = "medium"
+            if not d.get("points_value"):
+                d["points_value"] = POINTS_BY_DIFFICULTY.get(d["difficulty"], 10)
+            d["is_weakness_focused"] = False
+            validated.append(d)
 
-        questions_data = json.loads(content)
+        logger.info(f"Generated {len(validated)} {pillar} questions for grade {grade_level}")
+        return validated
 
-        if not isinstance(questions_data, list):
-            raise ValueError(
-                f"LLM response is not a JSON array. Got type: {type(questions_data)}"
-            )
-
-        # Validate exactly PILLAR_QUESTIONS_COUNT questions
-        if len(questions_data) != PILLAR_QUESTIONS_COUNT:
-            raise ValueError(
-                f"Expected exactly {PILLAR_QUESTIONS_COUNT} questions, got {len(questions_data)}"
-            )
-
-        # Validate and normalize each question
-        validated_questions = []
-        for i, q in enumerate(questions_data):
-            if not isinstance(q, dict):
-                raise ValueError(f"Question {i} is not a dict: {type(q)}")
-
-            # Ensure all required fields are present
-            validated_q = {
-                "id": q.get("id", i + 1),
-                "type": q.get("type", config["types_distribution"][i]),
-                "question": q.get("question", ""),
-                "correct_answer": str(q.get("correct_answer", "")),
-                "emoji_hint": q.get("emoji_hint", config["emoji"]),
-                "is_weakness_focused": bool(q.get("is_weakness_focused", False)),
-            }
-
-            # Validate required fields
-            if not validated_q["question"]:
-                raise ValueError(f"Question {i} has empty question text")
-            if not validated_q["correct_answer"]:
-                raise ValueError(f"Question {i} has empty correct_answer")
-
-            # Add type-specific fields
-            if validated_q["type"] == "multiple_choice":
-                # Ensure options array with exactly 4 options
-                options = q.get("options", [])
-                if not isinstance(options, list):
-                    raise ValueError(
-                        f"Question {i} options is not a list: {type(options)}"
-                    )
-                if len(options) < MULTIPLE_CHOICE_OPTIONS:
-                    # Pad with dummy options if needed
-                    logger.warning(
-                        f"Question {i} has only {len(options)} options, padding to {MULTIPLE_CHOICE_OPTIONS}"
-                    )
-                    while len(options) < MULTIPLE_CHOICE_OPTIONS:
-                        options.append({"id": chr(97 + len(options)), "text": "Option"})
-                elif len(options) > MULTIPLE_CHOICE_OPTIONS:
-                    # Truncate to MULTIPLE_CHOICE_OPTIONS
-                    logger.warning(
-                        f"Question {i} has {len(options)} options, truncating to {MULTIPLE_CHOICE_OPTIONS}"
-                    )
-                    options = options[:MULTIPLE_CHOICE_OPTIONS]
-
-                validated_q["options"] = [
-                    {
-                        "id": opt.get("id", chr(97 + j)) if isinstance(opt, dict) else chr(97 + j),
-                        "text": opt.get("text", str(opt)) if isinstance(opt, dict) else str(opt),
-                    }
-                    for j, opt in enumerate(options[:MULTIPLE_CHOICE_OPTIONS])
-                ]
-            else:
-                # fill_blank type doesn't have options
-                validated_q["options"] = None
-
-            validated_questions.append(validated_q)
-
-        logger.info(
-            f"Generated {len(validated_questions)} {pillar} questions for grade {grade_level}. "
-            f"Weakness-focused: {sum(1 for q in validated_questions if q['is_weakness_focused'])}"
-        )
-        return validated_questions
-
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse LLM response as JSON: {e}. Response was: {content[:100]}")
-        raise RuntimeError(f"Failed to parse LLM response as JSON: {e}. Response was: {content[:100]}")
-    except ValueError as e:
-        logger.error(f"Validation error in LLM response: {e}")
-        raise RuntimeError(f"LLM response validation failed: {e}")
+    except asyncio.TimeoutError:
+        logger.error(f"Pillar mission generation timeout for {pillar} grade {grade_level}")
+        raise RuntimeError("Mission generation timed out. Please try again.")
     except Exception as e:
-        logger.error(f"Mission generation failed: {e}", exc_info=True)
+        logger.error(f"Pillar mission generation failed: {e}", exc_info=True)
         raise RuntimeError(f"Mission generation failed: {e}")
