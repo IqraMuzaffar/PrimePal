@@ -114,7 +114,7 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
     if (isLastQuestion) {
       setShowSummary(true);
     } else {
-      setCurrentIndex(currentIndex + 1);
+      setCurrentIndex(prev => prev + 1);
       setShowFeedback(false);
       setTimerKey(k => k + 1);
       setLastScore(null);

@@ -46,16 +46,20 @@ class RewardStatusResponse(BaseModel):
 # Helper: Determine if timestamp is "today" (UTC midnight boundary)
 # ---------------------------------------------------------------------------
 
-def is_today(timestamp: datetime | None) -> bool:
+def is_today(timestamp) -> bool:
     """
     Check if a given timestamp is from today (same UTC calendar day).
     None timestamps are treated as never claimed (returns False).
+    Handles both datetime objects and ISO-format strings from Supabase.
     """
     if timestamp is None:
         return False
-
+    if isinstance(timestamp, str):
+        timestamp = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
     now_utc = datetime.now(timezone.utc)
-    return timestamp.replace(tzinfo=None).date() == now_utc.date()
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    return timestamp.date() == now_utc.date()
 
 
 # ---------------------------------------------------------------------------

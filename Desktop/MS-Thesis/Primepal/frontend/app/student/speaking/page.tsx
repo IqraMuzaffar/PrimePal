@@ -62,6 +62,7 @@ export default function SpeakingPage() {
   const recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
+  const audioBlobRef = useRef<Blob | null>(null);
   const recordingTimeRef = useRef(0);
   const recordingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -155,6 +156,7 @@ export default function SpeakingPage() {
       mediaRecorderRef.current.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
         audioChunksRef.current = [];
+        audioBlobRef.current = audioBlob;
 
         // Stop all audio tracks
         mediaRecorderRef.current?.stream.getTracks().forEach((track) => track.stop());
@@ -168,15 +170,15 @@ export default function SpeakingPage() {
   }
 
   async function submitTranscript() {
-    if (!audioChunksRef.current.length || isEvaluating) return;
+    if (!audioBlobRef.current || isEvaluating) return;
 
     setIsEvaluating(true);
     try {
       const token = getToken();
       const currentPrompt = prompts[currentPromptIndex];
 
-      // Create audio blob from chunks
-      const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+      // Use the stored audio blob from the recording
+      const audioBlob = audioBlobRef.current;
 
       // Create FormData for multipart file upload
       const formData = new FormData();
@@ -247,6 +249,7 @@ export default function SpeakingPage() {
 
   function advanceToNextPrompt() {
     audioChunksRef.current = [];
+    audioBlobRef.current = null;
     recordingTimeRef.current = 0;
 
     if (currentPromptIndex < prompts.length - 1) {
@@ -333,6 +336,7 @@ export default function SpeakingPage() {
             <button
               onClick={() => {
                 audioChunksRef.current = [];
+                audioBlobRef.current = null;
                 recordingTimeRef.current = 0;
                 setScore({ completed: 0, totalPoints: 0 });
                 fetchPrompts();
@@ -489,6 +493,7 @@ export default function SpeakingPage() {
                 whileTap={{ scale: 0.95 }}
                 onClick={async () => {
                   audioChunksRef.current = [];
+                  audioBlobRef.current = null;
                   recordingTimeRef.current = 0;
                   setTranscript('');
                   setGameState('intro');
@@ -502,7 +507,7 @@ export default function SpeakingPage() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={submitTranscript}
-                disabled={isEvaluating || !audioChunksRef.current.length}
+                disabled={isEvaluating || !audioBlobRef.current}
                 className="flex-1 py-3 bg-gradient-to-r from-rose-500 to-red-500 text-white font-bold rounded-xl hover:from-rose-600 hover:to-red-600 transition-all disabled:opacity-50"
               >
                 {isEvaluating ? 'Analyzing...' : 'Submit →'}
@@ -556,6 +561,7 @@ export default function SpeakingPage() {
                 whileTap={{ scale: 0.95 }}
                 onClick={() => {
                   audioChunksRef.current = [];
+                  audioBlobRef.current = null;
                   recordingTimeRef.current = 0;
                   setTranscript('');
                   setGameState('intro');

@@ -42,10 +42,10 @@ export function clearPendingAnswers(): void {
 }
 
 /**
- * Attempt to submit all pending answers to the server.
- * Uses exponential backoff: 1s -> 2s -> 4s (max 3 retries per answer).
- * On success, removes the answer from the queue.
- * On failure after 3 retries, leaves it in the queue.
+ * Attempt to submit all pending answers to the server as a single batch.
+ * Uses exponential backoff: 1s -> 2s -> 4s (max 3 retries).
+ * On success, clears the queue.
+ * On failure after 3 retries, leaves the queue for next attempt.
  */
 export async function flushPendingAnswers(
   token: string
@@ -53,64 +53,48 @@ export async function flushPendingAnswers(
   const queue = getPendingAnswers();
   if (queue.length === 0) return { flushed: 0, remaining: 0 };
 
-  const remaining: PendingAnswer[] = [];
-  let flushed = 0;
+  const payload = {
+    answers: queue.map((answer) => ({
+      question_correct: answer.question_correct,
+      task_type: answer.task_type,
+      pillar: answer.pillar,
+      points_value: answer.points_value,
+      submitted_at: answer.timestamp,
+    })),
+  };
 
-  for (const answer of queue) {
-    let submitted = false;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(`${BASE_URL}/missions/submit-batch`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
 
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const res = await fetch(`${BASE_URL}/missions/complete`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            question_correct: answer.question_correct,
-            task_type: answer.task_type,
-            pillar: answer.pillar,
-            points_value: answer.points_value,
-            submitted_at: answer.timestamp,
-          }),
-        });
-
-        if (res.ok) {
-          submitted = true;
-          break;
-        }
-
-        // Don't retry on 4xx client errors (except 429)
-        if (res.status >= 400 && res.status < 500 && res.status !== 429) {
-          submitted = true; // treat as "done" — server rejected it
-          break;
-        }
-      } catch {
-        // Network error — will retry
+      if (res.ok) {
+        clearPendingAnswers();
+        return { flushed: queue.length, remaining: 0 };
       }
 
-      // Exponential backoff: 1s, 2s, 4s
-      if (attempt < 2) {
-        await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+      // Don't retry on 4xx client errors (except 429)
+      if (res.status >= 400 && res.status < 500 && res.status !== 429) {
+        // Server rejected the batch — clear queue to avoid infinite retries
+        clearPendingAnswers();
+        return { flushed: queue.length, remaining: 0 };
       }
+    } catch {
+      // Network error — will retry
     }
 
-    if (submitted) {
-      flushed++;
-    } else {
-      remaining.push(answer);
+    // Exponential backoff: 1s, 2s, 4s
+    if (attempt < 2) {
+      await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
     }
   }
 
-  // Persist whatever is left
-  if (typeof window !== 'undefined') {
-    if (remaining.length > 0) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
-    } else {
-      localStorage.removeItem(STORAGE_KEY);
-    }
-  }
-
-  return { flushed, remaining: remaining.length };
+  // All retries exhausted — leave queue intact for next attempt
+  return { flushed: 0, remaining: queue.length };
 }

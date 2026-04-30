@@ -15,6 +15,7 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
+from app.utils.streak import update_streak
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -259,10 +260,14 @@ async def submit_spelling(
             "original_message": request.word,  # the word being practiced
             "correct": request.correct,
             "context_used": False,
+            "score": points,
         }).execute()
     except Exception as exc:
         logger.warning(f"Failed to log spelling interaction: {exc}")
         # Don't fail the request — logging is non-critical
+
+    # Update daily streak
+    await update_streak(student_id)
 
     return SpellingSubmitResponse(
         points_awarded=points,

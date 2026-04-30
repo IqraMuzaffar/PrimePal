@@ -1,6 +1,6 @@
 """Streak tracking utility — updates daily streak after any educational task completion."""
 import logging
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from app.core.supabase_client import get_supabase_admin
 
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ async def update_streak(student_id: str) -> dict:
     Returns: { current_streak: int, longest_streak: int, streak_updated: bool }
     """
     supabase = get_supabase_admin()
-    today = date.today()  # UTC date
+    today = datetime.now(timezone.utc).date()
     yesterday = today - timedelta(days=1)
 
     # Fetch current streak data

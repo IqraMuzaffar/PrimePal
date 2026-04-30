@@ -6,18 +6,20 @@ import WordChip from '../shared/WordChip';
 import { motion } from 'framer-motion';
 
 export default function GuidedTranslation({ question, onAnswer, showFeedback, disabled }: TaskProps) {
-  const [selectedWords, setSelectedWords] = useState<string[]>([]);
+  const [selectedIndices, setSelectedIndices] = useState<number[]>([]);
   const [submitted, setSubmitted] = useState(false);
   const wordBank = question.word_bank ?? [];
 
-  const handleTapWord = (word: string) => {
+  const handleTapWord = (index: number) => {
     if (disabled || showFeedback || submitted) return;
-    if (selectedWords.includes(word)) {
-      setSelectedWords(selectedWords.filter(w => w !== word));
+    if (selectedIndices.includes(index)) {
+      setSelectedIndices(selectedIndices.filter(i => i !== index));
     } else {
-      setSelectedWords([...selectedWords, word]);
+      setSelectedIndices([...selectedIndices, index]);
     }
   };
+
+  const selectedWords = selectedIndices.map(i => wordBank[i]);
 
   const handleSubmit = () => {
     if (disabled || submitted) return;
@@ -38,16 +40,16 @@ export default function GuidedTranslation({ question, onAnswer, showFeedback, di
       </div>
 
       <div className="min-h-[48px] p-3 bg-slate-50 rounded-xl border-2 border-dashed border-slate-300 mb-4 flex flex-wrap gap-2">
-        {selectedWords.length === 0 && (
+        {selectedIndices.length === 0 && (
           <span className="text-sm text-gray-400 italic">Tap words below to build your sentence...</span>
         )}
-        {selectedWords.map((word, i) => (
+        {selectedIndices.map((idx) => (
           <WordChip
-            key={`selected-${i}`}
-            word={word}
+            key={`selected-${idx}`}
+            word={wordBank[idx]}
             selected
             disabled={disabled || showFeedback}
-            onTap={() => handleTapWord(word)}
+            onTap={() => handleTapWord(idx)}
           />
         ))}
       </div>
@@ -57,9 +59,9 @@ export default function GuidedTranslation({ question, onAnswer, showFeedback, di
           <WordChip
             key={`bank-${i}`}
             word={word}
-            selected={selectedWords.includes(word)}
-            disabled={disabled || showFeedback || selectedWords.includes(word)}
-            onTap={() => handleTapWord(word)}
+            selected={selectedIndices.includes(i)}
+            disabled={disabled || showFeedback || selectedIndices.includes(i)}
+            onTap={() => handleTapWord(i)}
           />
         ))}
       </div>
@@ -72,7 +74,7 @@ export default function GuidedTranslation({ question, onAnswer, showFeedback, di
         </div>
       )}
 
-      {!showFeedback && selectedWords.length > 0 && (
+      {!showFeedback && selectedIndices.length > 0 && (
         <motion.button
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}

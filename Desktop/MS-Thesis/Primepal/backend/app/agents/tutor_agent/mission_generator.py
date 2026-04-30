@@ -398,36 +398,11 @@ ADAPTIVE DIFFICULTY RULES:
         # Override difficulty distribution based on performance
         if diff_rec == "easy":
             # Struggling student: more easy questions
-            # 5 easy (25) + 3 medium (30) + 2 hard (40) = 95 -> adjust: 5e+2m+3h = 25+20+60=105
-            # Use: 4 easy (20) + 4 medium (40) + 2 hard (40) = 100
             difficulty_dist_str = """  - 4 questions with difficulty "easy" (points_value: 5)
   - 4 questions with difficulty "medium" (points_value: 10)
   - 2 questions with difficulty "hard" (points_value: 20)"""
         elif diff_rec == "hard":
-            # Strong student: more hard questions
-            # 2 easy (10) + 3 medium (30) + 5 hard (100) = 140 -> adjust
-            # Use: 2 easy (10) + 4 medium (40) + 4 hard (80) = 130 -> no
-            # Use: 1 easy (5) + 3 medium (30) + 6 hard (120) = 155 -> no
-            # Must total 100: 2e(10) + 2m(20) + 6h(120) = 150, no
-            # 2 easy (10) + 4 medium (40) + 2.5 hard... must be int
-            # Keep simple: 2 easy (10) + 3 medium (30) + 3 hard (60) = 100
-            difficulty_dist_str = """  - 2 questions with difficulty "easy" (points_value: 5)
-  - 3 questions with difficulty "medium" (points_value: 10)
-  - 5 questions with difficulty "hard" (points_value: 20)"""
-            # 2*5 + 3*10 + 5*20 = 10+30+100 = 140 -> doesn't total 100
-            # Correct: keep total at 100
-            # 0 easy + 4 medium (40) + 3 hard (60) = 100
-            difficulty_dist_str = """  - 0 questions with difficulty "easy" (points_value: 5)
-  - 4 questions with difficulty "medium" (points_value: 10)
-  - 6 questions with difficulty "hard" (points_value: 20)"""
-            # 0 + 40 + 120 = 160, still not 100
-            # The math: e*5 + m*10 + h*20 = 100, e+m+h = 10
-            # Default: 3*5 + 4*10 + 3*20 = 15+40+60 = 115, not 100 either
-            # Wait, let me check the original: 3*5 + 4*10 + 3*20 = 15+40+60 = 115
-            # The spec says total must be 100, but the original doesn't hit 100 either.
-            # The LLM is asked to make total=100. Let's keep the distribution guidance
-            # and let the LLM handle the exact point values.
-            # For strong students: more hard, fewer easy
+            # Strong student: more hard questions, fewer easy
             difficulty_dist_str = """  - 1 questions with difficulty "easy" (points_value: 5)
   - 4 questions with difficulty "medium" (points_value: 10)
   - 5 questions with difficulty "hard" (points_value: 20)"""
@@ -453,8 +428,6 @@ TASK TYPE DISTRIBUTION (you MUST follow this exactly):
 
 DIFFICULTY DISTRIBUTION across all 10 questions:
 {difficulty_dist_str}
-
-Total points across all 10 questions MUST equal 100.
 
 {config["field_instructions"]}
 

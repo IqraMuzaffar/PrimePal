@@ -379,6 +379,9 @@ async def complete_mission(
 
     # ------------------------------------------------------------------
     # Step 2: Persist updated points and missions_completed (only if correct)
+    # NOTE: read-modify-write race condition exists under concurrent requests.
+    # Acceptable for thesis prototype with low concurrency. For production,
+    # use an atomic increment via Supabase RPC.
     # ------------------------------------------------------------------
     if points_awarded > 0:
         update_data = {"points": new_total, "missions_completed": current_missions_completed + 1}
@@ -399,6 +402,7 @@ async def complete_mission(
         correct=body.question_correct,
         context_used=False,
         pillar=body.pillar,
+        score=points_awarded,
     )
 
     # Update daily streak (any completed mission counts as activity)
@@ -406,6 +410,10 @@ async def complete_mission(
 
     # Invalidate performance profile cache so next mission generation uses fresh data
     background_tasks.add_task(invalidate_performance_cache, student_id)
+
+    # Check and unlock any newly earned achievements
+    from app.api.v1.endpoints.achievements import check_and_unlock_achievements
+    background_tasks.add_task(check_and_unlock_achievements, student_id)
 
     return CompleteResponse(
         points_awarded=points_awarded,
@@ -518,6 +526,7 @@ async def submit_batch(
             correct=answer.question_correct,
             context_used=False,
             pillar=answer.pillar,
+            score=pts,
         )
 
     # Persist updated totals once
@@ -526,6 +535,9 @@ async def submit_batch(
             "points": current_points,
             "missions_completed": current_missions,
         }).eq("id", student_id).execute()
+
+        # Update daily streak after batch processing
+        await update_streak(student_id)
 
     return BatchSubmitResponse(
         processed=processed,
@@ -780,11 +792,11 @@ _WHISPER_ACCENT_PROMPT = (
 
 @router.post("/submit-speaking", response_model=SpeakingSubmissionResponse, summary="Submit speaking answer for mission")
 async def submit_speaking_answer(
+    background_tasks: BackgroundTasks,
     audio_file: UploadFile = File(...),
     expected_text: str = Form(...),
     pillar: str = Form(default="speaking"),
     attempt_number: int = Form(default=1),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
     student: dict = Depends(get_current_student),
 ):
     from openai import AsyncOpenAI
@@ -897,7 +909,11 @@ async def submit_speaking_answer(
         correct=is_correct,
         context_used=False,
         pillar="speaking",
+        score=points_awarded,
     )
+
+    # Update daily streak
+    await update_streak(student_id)
 
     return SpeakingSubmissionResponse(
         is_correct=is_correct,

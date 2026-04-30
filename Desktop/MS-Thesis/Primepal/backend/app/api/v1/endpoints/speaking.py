@@ -20,6 +20,7 @@ from app.core.config import settings
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
 from app.utils.pronunciation import compare_phrases, calculate_pronunciation_score
+from app.utils.streak import update_streak
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -349,9 +350,13 @@ Keep the feedback encouraging, short (1-2 sentences), and suitable for a young c
             "correct": score > 0,
             "context_used": False,
             "pillar": "speaking",
+            "score": points_awarded,
         }).execute()
     except Exception as exc:
         logger.warning(f"Failed to log speaking interaction: {exc}")
+
+    # Update daily streak
+    await update_streak(student_id)
 
     return EvaluateFeedback(
         score=score,
@@ -580,9 +585,13 @@ If < 70, gently point out which word(s) to practice. Make it suitable for young 
             "pillar": "speaking",
             "pronunciation_data": pronunciation_data_list,  # Store word-level data
             "noise_flagged": noise_flagged,
+            "score": points_awarded,
         }).execute()
     except Exception as exc:
         logger.warning(f"Failed to log speaking interaction: {exc}")
+
+    # Update daily streak
+    await update_streak(student_id)
 
     return EvaluatePronunciationFeedback(
         score=2 if overall_correct else (1 if pronunciation_score >= 50 else 0),

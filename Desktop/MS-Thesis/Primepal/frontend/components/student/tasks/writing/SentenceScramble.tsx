@@ -1,11 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { DndContext, closestCenter, DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { TaskProps } from '@/types/missions';
 import { motion } from 'framer-motion';
+
+interface IndexedWord {
+  id: string;
+  text: string;
+}
 
 function SortableWord({ id, word, disabled }: { id: string; word: string; disabled: boolean }) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id, disabled });
@@ -25,26 +30,36 @@ function SortableWord({ id, word, disabled }: { id: string; word: string; disabl
 }
 
 export default function SentenceScramble({ question, onAnswer, showFeedback, disabled }: TaskProps) {
-  const [words, setWords] = useState<string[]>(question.word_bank ?? []);
+  const initialWords = useMemo(() => {
+    const bank = question.word_bank ?? [];
+    const indexed: IndexedWord[] = bank.map((word, i) => ({ id: `${word}_${i}`, text: word }));
+    return [...indexed].sort(() => Math.random() - 0.5);
+  }, [question.word_bank]);
+
+  const [words, setWords] = useState<IndexedWord[]>(initialWords);
   const [submitted, setSubmitted] = useState(false);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = words.indexOf(active.id as string);
-    const newIndex = words.indexOf(over.id as string);
-    setWords(arrayMove(words, oldIndex, newIndex));
+    const oldIndex = words.findIndex(w => w.id === active.id);
+    const newIndex = words.findIndex(w => w.id === over.id);
+    if (oldIndex !== -1 && newIndex !== -1) {
+      setWords(arrayMove(words, oldIndex, newIndex));
+    }
   };
 
   const handleSubmit = () => {
     if (disabled || submitted) return;
     setSubmitted(true);
     const correctOrder = question.correct_order ?? [];
-    const isCorrect = words.length === correctOrder.length && words.every((w, i) => w === correctOrder[i]);
-    onAnswer(words.join(' '), isCorrect);
+    const texts = words.map(w => w.text);
+    const isCorrect = texts.length === correctOrder.length && texts.every((w, i) => w === correctOrder[i]);
+    onAnswer(texts.join(' '), isCorrect);
   };
 
   const correctOrder = question.correct_order ?? [];
+  const currentTexts = words.map(w => w.text);
 
   return (
     <div>
@@ -52,10 +67,10 @@ export default function SentenceScramble({ question, onAnswer, showFeedback, dis
       <p className="text-sm text-gray-500 mb-4">Drag the words into the correct order.</p>
 
       <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-        <SortableContext items={words} strategy={horizontalListSortingStrategy}>
+        <SortableContext items={words.map(w => w.id)} strategy={horizontalListSortingStrategy}>
           <div className="flex flex-wrap gap-2 justify-center mb-6 min-h-[48px] p-3 bg-slate-50 rounded-xl border-2 border-dashed border-slate-300">
-            {words.map((word) => (
-              <SortableWord key={word} id={word} word={word} disabled={disabled || showFeedback} />
+            {words.map((item) => (
+              <SortableWord key={item.id} id={item.id} word={item.text} disabled={disabled || showFeedback} />
             ))}
           </div>
         </SortableContext>
@@ -63,7 +78,7 @@ export default function SentenceScramble({ question, onAnswer, showFeedback, dis
 
       {showFeedback && (
         <div className={`p-3 rounded-lg text-sm font-medium mb-4 ${
-          words.every((w, i) => w === correctOrder[i]) ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+          currentTexts.every((w, i) => w === correctOrder[i]) ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
         }`}>
           Correct order: {correctOrder.join(' ')}
         </div>
