@@ -153,12 +153,14 @@ async def update_grade_selections(
 
     # Upsert each selection
     if body.selections:
+        from datetime import datetime, timezone
+        now_ts = datetime.now(timezone.utc).isoformat()
         rows = [
             {
                 "grade_level": grade_level,
                 "topic_id": sel.topic_id,
                 "is_active": sel.is_active,
-                "updated_at": "now()",
+                "updated_at": now_ts,
             }
             for sel in body.selections
         ]

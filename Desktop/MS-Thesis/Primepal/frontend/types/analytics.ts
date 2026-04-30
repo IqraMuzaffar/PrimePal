@@ -59,4 +59,5 @@ export interface AnalyticsDashboardData {
   weakPointsByGrade: Record<number, string[]>;
   studentTableData: StudentTableData;
   sections: SectionInfo[];
+  fetchError?: boolean;
 }

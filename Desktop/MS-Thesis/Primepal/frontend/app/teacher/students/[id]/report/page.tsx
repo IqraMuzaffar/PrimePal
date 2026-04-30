@@ -8,6 +8,7 @@ import {
   BarChart3, BookOpen, Lightbulb, CheckCircle, AlertCircle, Star,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { getTeacherHeaders } from "@/lib/teacherAuth";
 
 interface PillarStat {
   pillar: string;
@@ -104,10 +105,7 @@ export default function StudentReportPage() {
   const fetchReport = useCallback(async (range?: string) => {
     setState("loading");
     try {
-      const token =
-        typeof window !== "undefined"
-          ? localStorage.getItem("primepal_teacher_token")
-          : null;
+      const headers = await getTeacherHeaders();
       const r = range ?? dateRangeFilter;
       const { from, to } = getDateRange(r);
       let url = `/evaluator/report/student/${studentId}/detailed`;
@@ -116,7 +114,7 @@ export default function StudentReportPage() {
       if (to) qp.set("date_to", to);
       if (qp.toString()) url += `?${qp.toString()}`;
       const data = await apiFetch<StudentDetailedReport>(url, {
-        headers: { Authorization: `Bearer ${token ?? ""}` },
+        headers,
       });
       setReport(data);
       setState("ready");

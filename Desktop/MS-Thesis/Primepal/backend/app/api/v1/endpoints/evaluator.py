@@ -181,7 +181,7 @@ async def classroom_report(
             supabase.table("student_interactions")
             .select("student_id, interaction_type, correct")
             .in_("student_id", student_ids)
-            .execute()
+            .limit(10000).execute()
         )
         all_interactions = interactions_resp.data or []
 
@@ -269,7 +269,7 @@ async def get_teacher_report(
             supabase.table("student_interactions")
             .select("student_id, correct")
             .in_("student_id", student_ids)
-            .execute()
+            .limit(10000).execute()
         )
         interactions = int_res.data or []
     else:
@@ -281,7 +281,7 @@ async def get_teacher_report(
     for row in interactions:
         sid = row["student_id"]
         stats[sid]["total"] += 1
-        if row["correct"]:
+        if row.get("correct") is True:
             stats[sid]["correct"] += 1
 
     def accuracy(sid: str) -> int:
@@ -388,7 +388,7 @@ async def get_dashboard_stats(
         )
         if pillar:
             int_query = int_query.eq("pillar", pillar)
-        int_res = int_query.execute()
+        int_res = int_query.limit(10000).execute()
         interactions = int_res.data or []
         total_interactions = len(interactions)
 
@@ -408,7 +408,7 @@ async def get_dashboard_stats(
         )
         if pillar:
             week_query = week_query.eq("pillar", pillar)
-        week_res = week_query.execute()
+        week_res = week_query.limit(10000).execute()
         active_this_week = len({r["student_id"] for r in (week_res.data or [])})
     else:
         total_interactions = 0
@@ -488,7 +488,7 @@ async def get_skill_accuracy(
         supabase.table("student_interactions")
         .select("student_id, pillar, correct, created_at")
         .in_("student_id", student_ids)
-        .execute()
+        .limit(10000).execute()
     )
     interactions = int_res.data or []
 
@@ -613,7 +613,7 @@ async def list_all_students(
         .select("student_id, interaction_type, correct, created_at, pillar")
         .in_("student_id", student_ids)
     )
-    int_res = int_query.execute()
+    int_res = int_query.limit(10000).execute()
     all_interactions = int_res.data or []
 
     seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
@@ -986,7 +986,7 @@ async def get_grade_report(
         int_query = int_query.gte("created_at", f"{date_from}T00:00:00")
     if date_to:
         int_query = int_query.lte("created_at", f"{date_to}T23:59:59")
-    int_resp = int_query.execute()
+    int_resp = int_query.limit(10000).execute()
     interactions = int_resp.data or []
     total_interactions = len(interactions)
 
@@ -1126,7 +1126,7 @@ async def export_grade_csv(
             supabase.table("student_interactions")
             .select("student_id, correct, pillar")
             .in_("student_id", student_ids)
-            .execute()
+            .limit(10000).execute()
         )
         interactions = int_resp.data or []
 
@@ -1294,7 +1294,7 @@ async def get_grade_overview(
         supabase.table("student_interactions")
         .select("student_id, pillar, correct")
         .in_("student_id", student_ids)
-        .execute()
+        .limit(10000).execute()
     )
     interactions = int_res.data or []
 
@@ -1419,7 +1419,7 @@ async def get_weekly_trend(
     )
     if pillar:
         int_query = int_query.eq("pillar", pillar)
-    int_res = int_query.execute()
+    int_res = int_query.limit(10000).execute()
     interactions = int_res.data or []
 
     # 5. Bucket interactions by week
@@ -1528,7 +1528,7 @@ async def generate_daily_plan(
     today_str = date.today().isoformat()
 
     # -- 1. Check cache --
-    cache_key = make_cache_key("teacher_plan", str(grade_level), today_str)
+    cache_key = make_cache_key("teacher_plan", teacher_id, str(grade_level), today_str)
     cached = await cache_get(cache_key)
     if cached:
         return TeacherDailyPlan(**cached)
@@ -1573,9 +1573,10 @@ async def generate_daily_plan(
 
     int_res = (
         supabase_admin_client.table("student_interactions")
-        .select("student_id, pillar, correct, topic")
+        .select("student_id, pillar, correct, interaction_type")
         .in_("student_id", student_ids)
         .gte("created_at", seven_days_ago)
+        .limit(10000)
         .execute()
     )
     interactions = int_res.data or []
@@ -1583,14 +1584,14 @@ async def generate_daily_plan(
     # -- 5. Compute per-pillar accuracy and per-student accuracy --
     pillar_agg: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
     student_agg: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
-    topic_agg: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
+    type_agg: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
     total_correct = 0
     total_count = 0
 
     for row in interactions:
         p = row.get("pillar")
         sid = row.get("student_id")
-        topic = row.get("topic")
+        itype = row.get("interaction_type", "")
         is_correct = row.get("correct") is True
 
         total_count += 1
@@ -1605,10 +1606,10 @@ async def generate_daily_plan(
             student_agg[sid]["total"] += 1
             if is_correct:
                 student_agg[sid]["correct"] += 1
-        if topic:
-            topic_agg[topic]["total"] += 1
+        if itype:
+            type_agg[itype]["total"] += 1
             if is_correct:
-                topic_agg[topic]["correct"] += 1
+                type_agg[itype]["correct"] += 1
 
     overall_accuracy = round(total_correct / total_count * 100, 2) if total_count > 0 else 0.0
 
@@ -1624,9 +1625,9 @@ async def generate_daily_plan(
     sorted_pillars = sorted(pillar_accuracy.items(), key=lambda x: x[1])
     weak_pillars = [p for p, acc in sorted_pillars[:2] if acc < 80]
 
-    # Identify weakest topics
-    weak_topics = sorted(
-        [(t, d["correct"] / d["total"] * 100) for t, d in topic_agg.items() if d["total"] >= 3],
+    # Identify weakest task types (proxy for topics since topic column is not available)
+    weak_types = sorted(
+        [(t, d["correct"] / d["total"] * 100) for t, d in type_agg.items() if d["total"] >= 3],
         key=lambda x: x[1],
     )[:3]
 
@@ -1680,7 +1681,7 @@ async def generate_daily_plan(
     if inactive_students:
         student_breakdown += f"Inactive students (no activity in 7 days): {', '.join(inactive_students)}\n"
 
-    weak_topics_desc = ", ".join([f"{t} ({a:.0f}%)" for t, a in weak_topics]) if weak_topics else "none identified"
+    weak_types_desc = ", ".join([f"{t} ({a:.0f}%)" for t, a in weak_types]) if weak_types else "none identified"
 
     prompt = (
         f"You are an expert ESL teaching assistant for Pakistani primary schools following the SNC curriculum.\n"
@@ -1694,7 +1695,7 @@ async def generate_daily_plan(
         f"- Writing accuracy: {pillar_accuracy.get('writing', 0)}%\n"
         f"- Listening accuracy: {pillar_accuracy.get('listening', 0)}%\n"
         f"- Speaking accuracy: {pillar_accuracy.get('speaking', 0)}%\n"
-        f"- Weakest topics: {weak_topics_desc}\n\n"
+        f"- Weakest task types: {weak_types_desc}\n\n"
         f"## Student Breakdown\n{student_breakdown}\n"
         f"## SNC Curriculum Context\n{snc_context}\n\n"
         f"## Instructions\n"
