@@ -79,7 +79,8 @@ class MissionQuestionOut(BaseModel):
     letter_options: list[str] | None = None
     sentence_start: str | None = None
     urdu_hint: str = ""
-    # correct_answer, correct_order deliberately ABSENT
+    correct_order: list[str] | None = None  # Needed for frontend validation (sentence_scramble, guided_translation)
+    # correct_answer deliberately ABSENT (stripped server-side for security)
 
 
 class DailyMissionsResponse(BaseModel):
@@ -126,7 +127,7 @@ class PillarMissionsResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 def _strip_answer(q) -> MissionQuestionOut:
-    """Strip correct_answer and correct_order before sending to client."""
+    """Strip correct_answer but keep correct_order for frontend validation."""
     if isinstance(q, dict):
         return MissionQuestionOut(
             id=q.get("id", 0),
@@ -146,6 +147,7 @@ def _strip_answer(q) -> MissionQuestionOut:
             letter_options=q.get("letter_options"),
             sentence_start=q.get("sentence_start"),
             urdu_hint=q.get("urdu_hint", ""),
+            correct_order=q.get("correct_order"),  # Include for frontend validation!
         )
     return MissionQuestionOut(
         id=q.id,
@@ -159,6 +161,7 @@ def _strip_answer(q) -> MissionQuestionOut:
         passage=getattr(q, 'passage', None),
         audio_text=getattr(q, 'audio_text', None),
         image_context=getattr(q, 'image_context', None),
+        correct_order=getattr(q, 'correct_order', None),  # Include for frontend validation!
         image_options=[QuestionOptionOut(id=o.id, text=o.text, emoji=getattr(o, 'emoji', None)) for o in q.image_options] if getattr(q, 'image_options', None) else None,
         word_bank=getattr(q, 'word_bank', None),
         word_with_blanks=getattr(q, 'word_with_blanks', None),

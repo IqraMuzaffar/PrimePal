@@ -66,7 +66,7 @@ function ScorePopup({ points, isCorrect }: { points: number; isCorrect: boolean 
           transition={{ delay: 0.4 }}
           className="text-lg font-semibold"
         >
-          {isCorrect ? 'Correct!' : 'Try Again!'}
+          {isCorrect ? 'Great Job! 🎉' : 'Try Again!'}
         </motion.p>
       </motion.div>
     </motion.div>
