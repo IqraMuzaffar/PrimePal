@@ -42,17 +42,23 @@ export default function AudioPlayButton({ text, rate = 0.85, autoPlay = false, s
   const iconSizes = { sm: 18, md: 24, lg: 32 };
 
   return (
-    <motion.button
-      whileHover={{ scale: 1.1 }}
-      whileTap={{ scale: 0.9 }}
-      onClick={speak}
-      className={`${sizeClasses[size]} rounded-full flex items-center justify-center transition-colors ${
-        isPlaying
-          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200'
-          : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
-      }`}
-    >
-      <Volume2 size={iconSizes[size]} />
-    </motion.button>
+    <div className="flex flex-col items-center gap-2">
+      <motion.button
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+        onClick={speak}
+        disabled={isPlaying}
+        className={`${sizeClasses[size]} rounded-full flex items-center justify-center transition-all shadow-lg ${
+          isPlaying
+            ? 'bg-green-500 text-white shadow-green-200 animate-pulse'
+            : 'bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-200'
+        }`}
+      >
+        <Volume2 size={iconSizes[size]} className={isPlaying ? 'animate-pulse' : ''} />
+      </motion.button>
+      <p className="text-sm font-semibold text-gray-700">
+        {isPlaying ? '🔊 Playing...' : '🎧 Click to Listen'}
+      </p>
+    </div>
   );
 }

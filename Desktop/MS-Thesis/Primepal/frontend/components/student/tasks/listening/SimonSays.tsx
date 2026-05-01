@@ -13,7 +13,9 @@ export default function SimonSays({ question, onAnswer, showFeedback, disabled }
   const handleTap = (id: string) => {
     if (disabled || showFeedback) return;
     setSelected(id);
-    onAnswer(id, id === question.correct_answer);
+    // Case-insensitive comparison and trim whitespace
+    const isCorrect = id.toLowerCase().trim() === (question.correct_answer ?? '').toLowerCase().trim();
+    onAnswer(id, isCorrect);
   };
 
   const getButtonClass = (id: string) => {
@@ -28,8 +30,10 @@ export default function SimonSays({ question, onAnswer, showFeedback, disabled }
   return (
     <div>
       <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 leading-tight">Listen and do what it says!</h2>
-      <div className="flex justify-center mb-6">
-        <AudioPlayButton text={question.audio_text ?? ''} autoPlay size="lg" />
+      <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 mb-6 border-2 border-indigo-200">
+        <div className="flex justify-center">
+          <AudioPlayButton text={question.audio_text ?? ''} autoPlay size="lg" />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         {options.map((opt) => (

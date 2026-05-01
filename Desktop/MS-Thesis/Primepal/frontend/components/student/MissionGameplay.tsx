@@ -157,7 +157,7 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
       setTimerKey(k => k + 1);
       setLastScore(null);
     }
-  }, [currentIndex, isLastQuestion]);
+  }, [isLastQuestion]);
 
   const handleAnswer = useCallback((_answer: string, isCorrect: boolean) => {
     const pointsValue = currentQuestion.points_value || 10;
@@ -216,16 +216,15 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
           </div>
         </div>
 
-        {/* Timer */}
-        <AnimatePresence mode="wait">
-          {!showFeedback && (
-            <QuestionTimer
-              key={timerKey}
-              initialSeconds={timerSeconds}
-              onTimeUp={handleTimeUp}
-            />
-          )}
-        </AnimatePresence>
+        {/* Timer - hide during feedback, remount on question change */}
+        {!showFeedback && (
+          <QuestionTimer
+            key={`timer-${currentIndex}`}
+            initialSeconds={timerSeconds}
+            onTimeUp={handleTimeUp}
+            paused={showFeedback}
+          />
+        )}
 
         {/* Task */}
         <motion.div
