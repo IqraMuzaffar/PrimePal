@@ -25,8 +25,9 @@ export default function GuidedTranslation({ question, onAnswer, showFeedback, di
     if (disabled || submitted) return;
     setSubmitted(true);
     const correctOrder = question.correct_order ?? [];
+    // Case-insensitive comparison and trim whitespace
     const isCorrect = selectedWords.length === correctOrder.length &&
-      selectedWords.every((w, i) => w === correctOrder[i]);
+      selectedWords.every((w, i) => w.toLowerCase().trim() === correctOrder[i].toLowerCase().trim());
     onAnswer(selectedWords.join(' '), isCorrect);
   };
 

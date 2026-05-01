@@ -11,7 +11,9 @@ export default function SentencePictureMatch({ question, onAnswer, showFeedback,
   const handleTap = (id: string) => {
     if (disabled || showFeedback) return;
     setSelected(id);
-    onAnswer(id, id === question.correct_answer);
+    // Case-insensitive comparison and trim whitespace
+    const isCorrect = id.toLowerCase().trim() === (question.correct_answer ?? '').toLowerCase().trim();
+    onAnswer(id, isCorrect);
   };
 
   return (
@@ -25,7 +27,7 @@ export default function SentencePictureMatch({ question, onAnswer, showFeedback,
             emoji={opt.emoji ?? '❓'}
             label={opt.text}
             selected={selected === opt.id}
-            isCorrect={opt.id === question.correct_answer}
+            isCorrect={opt.id.toLowerCase().trim() === (question.correct_answer ?? '').toLowerCase().trim()}
             showFeedback={showFeedback}
             disabled={disabled}
             onTap={handleTap}

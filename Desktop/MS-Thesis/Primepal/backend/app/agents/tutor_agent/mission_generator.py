@@ -463,7 +463,7 @@ RULES:
         chain = prompt | llm
         result: PillarMissions = await asyncio.wait_for(
             chain.ainvoke({}),
-            timeout=20.0,
+            timeout=60.0,  # Increased from 20s to 60s for complex prompts
         )
 
         if result is None or not result.questions:

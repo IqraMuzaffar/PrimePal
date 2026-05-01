@@ -11,7 +11,8 @@ export default function LegacyMultipleChoice({ question, onAnswer, showFeedback,
   const handleAnswer = (answer: string) => {
     if (disabled || showFeedback) return;
     setSelected(answer);
-    const isCorrect = answer === question.correct_answer;
+    // Case-insensitive comparison and trim whitespace
+    const isCorrect = answer.toLowerCase().trim() === (question.correct_answer ?? '').toLowerCase().trim();
     onAnswer(answer, isCorrect);
   };
 

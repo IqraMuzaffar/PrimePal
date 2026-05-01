@@ -54,7 +54,9 @@ export default function SentenceScramble({ question, onAnswer, showFeedback, dis
     setSubmitted(true);
     const correctOrder = question.correct_order ?? [];
     const texts = words.map(w => w.text);
-    const isCorrect = texts.length === correctOrder.length && texts.every((w, i) => w === correctOrder[i]);
+    // Case-insensitive comparison and trim whitespace
+    const isCorrect = texts.length === correctOrder.length &&
+      texts.every((w, i) => w.toLowerCase().trim() === correctOrder[i].toLowerCase().trim());
     onAnswer(texts.join(' '), isCorrect);
   };
 

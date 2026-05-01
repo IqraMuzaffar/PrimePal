@@ -94,14 +94,36 @@ async def get_spelling_words(student: dict = Depends(get_current_student)):
         .maybe_single()
         .execute()
     )
+
+    # Fallback: if no active week, use a random active topic from snc_topics
     if not syllabus_resp.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active week found in pacing calendar",
+        topics_resp = (
+            supabase.table("classroom_active_topics")
+            .select("topic_id")
+            .eq("classroom_id", classroom_id)
+            .limit(1)
+            .execute()
         )
 
-    topic_title: str = syllabus_resp.data["topic_title"]
-    week_number: int = syllabus_resp.data["week_number"]
+        if topics_resp.data and len(topics_resp.data) > 0:
+            topic_id = topics_resp.data[0]["topic_id"]
+            topic_resp = (
+                supabase.table("snc_topics")
+                .select("topic_name")
+                .eq("id", topic_id)
+                .maybe_single()
+                .execute()
+            )
+            topic_title = topic_resp.data["topic_name"] if topic_resp.data else "General English Vocabulary"
+            week_number = 1
+        else:
+            # Final fallback: use grade-appropriate general topic
+            topic_title = f"Grade {grade_level} English Vocabulary"
+            week_number = 1
+
+    else:
+        topic_title: str = syllabus_resp.data["topic_title"]
+        week_number: int = syllabus_resp.data["week_number"]
 
     # ------------------------------------------------------------------
     # Step 2: Generate spelling words via LLM

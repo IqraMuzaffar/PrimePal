@@ -217,11 +217,15 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
         </div>
 
         {/* Timer */}
-        <QuestionTimer
-          key={timerKey}
-          initialSeconds={timerSeconds}
-          onTimeUp={handleTimeUp}
-        />
+        <AnimatePresence mode="wait">
+          {!showFeedback && (
+            <QuestionTimer
+              key={timerKey}
+              initialSeconds={timerSeconds}
+              onTimeUp={handleTimeUp}
+            />
+          )}
+        </AnimatePresence>
 
         {/* Task */}
         <motion.div

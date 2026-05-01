@@ -72,7 +72,7 @@ export default function SpellingBeePage() {
     } catch (err) {
       console.error("Failed to fetch words:", err);
       setError("Failed to load spelling words. Please try again.");
-      setGameState("loading");
+      setGameState("playing"); // Set to playing so error screen shows
     }
   }
 
