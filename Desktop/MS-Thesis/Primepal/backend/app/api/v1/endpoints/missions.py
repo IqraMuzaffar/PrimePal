@@ -385,9 +385,14 @@ async def complete_mission(
     # ------------------------------------------------------------------
     if points_awarded > 0:
         update_data = {"points": new_total, "missions_completed": current_missions_completed + 1}
-        supabase.table("students").update(update_data).eq(
-            "id", student_id
-        ).execute()
+        try:
+            supabase.table("students").update(update_data).eq(
+                "id", student_id
+            ).execute()
+        except Exception as e:
+            # UPDATE returns 204 No Content, which postgrest-py may fail to parse
+            if "Missing response" not in str(e) and "204" not in str(e):
+                raise
 
     background_tasks.add_task(
         log_interaction,
@@ -453,23 +458,36 @@ async def submit_batch(
     supabase = get_supabase_admin()
 
     # Fetch student data once
-    student_resp = (
-        supabase.table("students")
-        .select("points, missions_completed")
-        .eq("id", student_id)
-        .maybe_single()
-        .execute()
-    )
+    try:
+        student_resp = (
+            supabase.table("students")
+            .select("points, missions_completed")
+            .eq("id", student_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as e:
+        if "Missing response" not in str(e) and "204" not in str(e):
+            raise
+        # If 204, treat as not found
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student record not found")
+
     if not student_resp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student record not found")
 
-    classroom_resp = (
-        supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
-    )
+    try:
+        classroom_resp = (
+            supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as e:
+        if "Missing response" not in str(e) and "204" not in str(e):
+            raise
+        classroom_resp = type('obj', (object,), {'data': None})()
+
     grade_level: int = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     current_points: int = student_resp.data.get("points") or 0
@@ -531,10 +549,16 @@ async def submit_batch(
 
     # Persist updated totals once
     if processed > 0:
-        supabase.table("students").update({
-            "points": current_points,
-            "missions_completed": current_missions,
-        }).eq("id", student_id).execute()
+        try:
+            supabase.table("students").update({
+                "points": current_points,
+                "missions_completed": current_missions,
+            }).eq("id", student_id).execute()
+        except Exception as e:
+            # UPDATE returns 204 No Content, which postgrest-py may fail to parse
+            # If it's just a missing response (204), we can safely ignore it
+            if "Missing response" not in str(e) and "204" not in str(e):
+                raise
 
         # Update daily streak after batch processing
         await update_streak(student_id)
@@ -569,13 +593,23 @@ async def get_student_profile(
     if cached:
         return StudentProfileResponse(**cached)
 
-    student_resp = (
-        supabase.table("students")
-        .select("student_name, avatar_url, avatar_style, theme_color, points, missions_completed")
-        .eq("id", student_id)
-        .maybe_single()
-        .execute()
-    )
+    try:
+        student_resp = (
+            supabase.table("students")
+            .select("student_name, avatar_url, avatar_style, theme_color, points, missions_completed")
+            .eq("id", student_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception as e:
+        if "Missing response" not in str(e) and "204" not in str(e):
+            raise
+        # If 204, treat as not found
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student record not found",
+        )
+
     if not student_resp.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -885,9 +919,14 @@ async def submit_speaking_answer(
 
     if points_awarded > 0 and student_resp.data:
         current_missions = student_resp.data.get("missions_completed") or 0
-        supabase.table("students").update(
-            {"points": new_total, "missions_completed": current_missions + 1}
-        ).eq("id", student_id).execute()
+        try:
+            supabase.table("students").update(
+                {"points": new_total, "missions_completed": current_missions + 1}
+            ).eq("id", student_id).execute()
+        except Exception as e:
+            # UPDATE returns 204 No Content, which postgrest-py may fail to parse
+            if "Missing response" not in str(e) and "204" not in str(e):
+                raise
 
     classroom_resp = (
         supabase.table("classrooms")

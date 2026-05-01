@@ -264,7 +264,7 @@ PILLAR_TASK_CONFIGS = {
         ],
         "field_instructions": """
 TASK TYPE FIELD REQUIREMENTS:
-- sentence_picture_match: Set question (the sentence), image_options (4 items with id, text, emoji), correct_answer (id of correct option). Example image_options: [{"id":"a","text":"cat","emoji":"🐱"},{"id":"b","text":"dog","emoji":"🐶"},{"id":"c","text":"car","emoji":"🚗"},{"id":"d","text":"book","emoji":"📖"}]
+- sentence_picture_match: Set question (the sentence), image_options (4 items with id, text, emoji), correct_answer (id of correct option). Example image_options: [{{"id":"a","text":"cat","emoji":"🐱"}},{{"id":"b","text":"dog","emoji":"🐶"}},{{"id":"c","text":"car","emoji":"🚗"}},{{"id":"d","text":"book","emoji":"📖"}}]
 - odd_one_out: Set question ("Which word does NOT belong?"), options (4 items with id and text), correct_answer (id of the outlier).
 - fill_blank_word_bank: Set question (sentence with ___ for blank), options (4 word choices with id and text), correct_answer (id of correct word).
 - passage_true_false: Set passage (3-5 sentences), question (a statement about the passage), correct_answer ("true" or "false").""",

@@ -8,6 +8,7 @@ import { getTeacherHeaders } from "@/lib/teacherAuth";
 interface GradeTopicItem {
   topic_id: number;
   topic_name: string;
+  skill: string;
   is_active: boolean;
 }
 
@@ -17,6 +18,20 @@ interface GradeSelectionsResponse {
 }
 
 const GRADES = [1, 2, 3, 4, 5];
+
+const SKILL_LABELS: Record<string, string> = {
+  listening: "Listening",
+  speaking: "Speaking",
+  reading: "Reading",
+  writing: "Writing",
+};
+
+const SKILL_COLORS: Record<string, { bg: string; text: string; border: string }> = {
+  listening: { bg: "bg-blue-50", text: "text-blue-700", border: "border-blue-200" },
+  speaking: { bg: "bg-green-50", text: "text-green-700", border: "border-green-200" },
+  reading: { bg: "bg-purple-50", text: "text-purple-700", border: "border-purple-200" },
+  writing: { bg: "bg-orange-50", text: "text-orange-700", border: "border-orange-200" },
+};
 
 export default function TopicsPage() {
   const [grade, setGrade] = useState(1);
@@ -77,17 +92,22 @@ export default function TopicsPage() {
     setError(null);
     try {
       const headers = await getTeacherHeaders();
+      const payload = {
+        selections: topics.map((t) => ({
+          topic_id: t.topic_id,
+          is_active: t.is_active,
+        })),
+      };
+
       const data = await apiFetch<GradeSelectionsResponse>(
         `/topics/grade-selections/${grade}`,
         {
           method: "PUT",
-          body: JSON.stringify({
-            selections: topics.map((t) => ({
-              topic_id: t.topic_id,
-              is_active: t.is_active,
-            })),
-          }),
-          headers,
+          headers: {
+            ...headers,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
         }
       );
       setTopics(data.topics);
@@ -103,6 +123,17 @@ export default function TopicsPage() {
 
   const activeCount = topics.filter((t) => t.is_active).length;
   const totalCount = topics.length;
+
+  // Group topics by skill
+  const topicsBySkill = topics.reduce((acc, topic) => {
+    if (!acc[topic.skill]) {
+      acc[topic.skill] = [];
+    }
+    acc[topic.skill].push(topic);
+    return acc;
+  }, {} as Record<string, GradeTopicItem[]>);
+
+  const skills = ["listening", "speaking", "reading", "writing"];
 
   return (
     <div className="bg-gray-50 min-h-full p-6">
@@ -193,51 +224,76 @@ export default function TopicsPage() {
               No topics found for Grade {grade}.
             </div>
           ) : (
-            <div className="p-5 space-y-2">
-              {topics.map((topic) => (
-                <button
-                  key={topic.topic_id}
-                  onClick={() => toggleTopic(topic.topic_id)}
-                  className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all ${
-                    topic.is_active
-                      ? "border-indigo-200 bg-indigo-50/50"
-                      : "border-gray-100 bg-gray-50 hover:border-gray-200"
-                  }`}
-                >
-                  {/* Checkbox */}
-                  <div
-                    className={`w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors ${
-                      topic.is_active
-                        ? "bg-indigo-600 text-white"
-                        : "bg-white border-2 border-gray-300"
-                    }`}
-                  >
-                    {topic.is_active && <Check size={14} strokeWidth={3} />}
-                  </div>
+            <div className="p-5 space-y-6">
+              {skills.map((skill) => {
+                const skillTopics = topicsBySkill[skill] || [];
+                if (skillTopics.length === 0) return null;
 
-                  {/* Topic info */}
-                  <div className="flex-1 min-w-0">
-                    <p
-                      className={`text-sm font-medium ${
-                        topic.is_active ? "text-gray-900" : "text-gray-500"
-                      }`}
-                    >
-                      {topic.topic_name}
-                    </p>
-                  </div>
+                const activeInSkill = skillTopics.filter((t) => t.is_active).length;
+                const colors = SKILL_COLORS[skill] || SKILL_COLORS.listening;
 
-                  {/* Status pill */}
-                  <span
-                    className={`text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${
-                      topic.is_active
-                        ? "bg-indigo-100 text-indigo-700"
-                        : "bg-gray-200 text-gray-500"
-                    }`}
-                  >
-                    {topic.is_active ? "Active" : "Inactive"}
-                  </span>
-                </button>
-              ))}
+                return (
+                  <div key={skill}>
+                    {/* Skill header */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`text-xs font-semibold px-2 py-1 rounded ${colors.bg} ${colors.text}`}>
+                        {SKILL_LABELS[skill]}
+                      </span>
+                      <span className="text-xs text-gray-400">
+                        {activeInSkill}/{skillTopics.length} active
+                      </span>
+                    </div>
+
+                    {/* Topics for this skill */}
+                    <div className="space-y-2">
+                      {skillTopics.map((topic) => (
+                        <button
+                          key={topic.topic_id}
+                          onClick={() => toggleTopic(topic.topic_id)}
+                          className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all ${
+                            topic.is_active
+                              ? `${colors.border} ${colors.bg}`
+                              : "border-gray-100 bg-gray-50 hover:border-gray-200"
+                          }`}
+                        >
+                          {/* Checkbox */}
+                          <div
+                            className={`w-5 h-5 rounded flex items-center justify-center shrink-0 transition-colors ${
+                              topic.is_active
+                                ? "bg-indigo-600 text-white"
+                                : "bg-white border-2 border-gray-300"
+                            }`}
+                          >
+                            {topic.is_active && <Check size={14} strokeWidth={3} />}
+                          </div>
+
+                          {/* Topic info */}
+                          <div className="flex-1 min-w-0">
+                            <p
+                              className={`text-sm font-medium ${
+                                topic.is_active ? "text-gray-900" : "text-gray-500"
+                              }`}
+                            >
+                              {topic.topic_name}
+                            </p>
+                          </div>
+
+                          {/* Status pill */}
+                          <span
+                            className={`text-xs font-medium px-2.5 py-1 rounded-full shrink-0 ${
+                              topic.is_active
+                                ? "bg-indigo-100 text-indigo-700"
+                                : "bg-gray-200 text-gray-500"
+                            }`}
+                          >
+                            {topic.is_active ? "Active" : "Inactive"}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 

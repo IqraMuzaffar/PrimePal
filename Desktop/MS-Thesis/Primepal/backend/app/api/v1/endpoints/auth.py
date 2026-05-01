@@ -105,10 +105,13 @@ async def get_classroom_avatars(class_code: str) -> List[AvatarResponse]:
     """
     supabase = get_supabase()
 
+    # Convert to uppercase for case-insensitive lookup
+    class_code_upper = class_code.upper()
+
     classroom_res = (
         supabase.table("classrooms")
         .select("id")
-        .eq("class_code", class_code)
+        .eq("class_code", class_code_upper)
         .maybe_single()
         .execute()
     )
@@ -142,10 +145,13 @@ async def student_login(request: StudentLoginRequest) -> TokenResponse:
     """
     supabase = get_supabase()
 
+    # Convert to uppercase for case-insensitive lookup
+    class_code_upper = request.class_code.upper()
+
     classroom_res = (
         supabase.table("classrooms")
         .select("id")
-        .eq("class_code", request.class_code)
+        .eq("class_code", class_code_upper)
         .maybe_single()
         .execute()
     )

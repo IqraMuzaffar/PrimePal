@@ -32,7 +32,7 @@ from app.schemas.classroom import (
     StudentResponse,  # noqa: F401 — referenced via ClassroomDetail
     StudentUpdate,
 )
-from app.schemas.topic import SncTopicOut
+from app.schemas.topic import SncTopicOut, TopicsBySkillResponse, SkillTopicsGroup
 from app.utils.code_generation import generate_memorable_code
 
 router = APIRouter()
@@ -181,7 +181,7 @@ async def get_classroom(
 
     students_res = (
         supabase.table("students")
-        .select("id, student_name, avatar_url, secret_pin, roll_number, email")
+        .select("id, student_name, avatar_url, secret_pin, roll_number, email, avatar_style, theme_color, points, father_name")
         .eq("classroom_id", classroom_id)
         .execute()
     )
@@ -231,14 +231,14 @@ async def update_classroom(
     request: ClassroomUpdate,
     teacher: dict = Depends(get_current_teacher),
 ):
-    """Update classroom settings (e.g., current_week_topic). Teacher ownership verified."""
+    """Update classroom settings (e.g., class_name). Teacher ownership verified."""
     supabase = get_supabase_admin()
     _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     # Build update payload with only non-None fields
     update_data = {}
-    if request.current_week_topic is not None:
-        update_data["current_week_topic"] = request.current_week_topic
+    if request.class_name is not None:
+        update_data["class_name"] = request.class_name
 
     if not update_data:
         raise HTTPException(
@@ -282,6 +282,8 @@ async def bulk_add_students(
             "classroom_id": classroom_id,
             "student_name": name,
             "avatar_url": f"https://api.dicebear.com/8.x/adventurer/svg?seed={name}",
+            "avatar_style": "adventurer",
+            "theme_color": "#6366f1",
         }
         for name in names
     ]
@@ -314,6 +316,8 @@ async def bulk_add_students_v2(
             "roll_number": s.roll_number.strip() if s.roll_number else None,
             "email": s.email.strip() if s.email else None,
             "avatar_url": f"https://api.dicebear.com/8.x/adventurer/svg?seed={s.student_name}",
+            "avatar_style": "adventurer",
+            "theme_color": "#6366f1",
         }
         for s in students
     ]
@@ -409,7 +413,7 @@ async def get_active_topics(
     if saved_ids:
         resp = (
             supabase.table("snc_topics")
-            .select("id, grade_level, topic_name")
+            .select("id, grade_level, skill, topic_name")
             .in_("id", saved_ids)
             .order("id")
             .execute()
@@ -417,7 +421,7 @@ async def get_active_topics(
     else:
         resp = (
             supabase.table("snc_topics")
-            .select("id, grade_level, topic_name")
+            .select("id, grade_level, skill, topic_name")
             .eq("grade_level", grade_level)
             .order("id")
             .execute()
@@ -496,6 +500,87 @@ async def update_classroom_active_topics(
     supabase = get_supabase_admin()
     _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
     return await save_active_topics(classroom_id, body.topic_ids, supabase)
+
+
+@router.get("/{classroom_id}/topics-by-skill", response_model=TopicsBySkillResponse)
+async def get_topics_grouped_by_skill(
+    classroom_id: str,
+    teacher: dict = Depends(get_current_teacher),
+):
+    """
+    Returns topics organized by LSRW skills for the classroom's grade.
+    Each skill has 4-5 topics. By default, all topics are active.
+    Teachers can select/deselect topics under each skill.
+    """
+    supabase = get_supabase_admin()
+    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
+
+    # Get classroom grade level
+    classroom_resp = (
+        supabase.table("classrooms")
+        .select("grade_level")
+        .eq("id", classroom_id)
+        .maybe_single()
+        .execute()
+    )
+    if not classroom_resp.data:
+        raise HTTPException(status_code=404, detail="Classroom not found")
+
+    grade_level: int = classroom_resp.data["grade_level"]
+
+    # Get all topics for this grade
+    topics_resp = (
+        supabase.table("snc_topics")
+        .select("id, grade_level, skill, topic_name")
+        .eq("grade_level", grade_level)
+        .order("skill, id")
+        .execute()
+    )
+    all_topics = topics_resp.data or []
+
+    # Get grade-level activation status
+    grade_sel_resp = (
+        supabase.table("grade_topic_selections")
+        .select("topic_id, is_active")
+        .eq("grade_level", grade_level)
+        .execute()
+    )
+    grade_status_map = {row["topic_id"]: row["is_active"] for row in (grade_sel_resp.data or [])}
+
+    # Get active topics for this classroom
+    active_resp = (
+        supabase.table("classroom_active_topics")
+        .select("topic_id")
+        .eq("classroom_id", classroom_id)
+        .execute()
+    )
+    active_ids = {row["topic_id"] for row in (active_resp.data or [])}
+
+    # If no active topics saved, all globally active topics are active by default
+    if not active_ids:
+        active_ids = {t["id"] for t in all_topics if grade_status_map.get(t["id"], True)}
+
+    # Group by skill
+    from collections import defaultdict
+    by_skill = defaultdict(list)
+    for topic in all_topics:
+        is_globally_active = grade_status_map.get(topic["id"], True)
+        topic_out = SncTopicOut(
+            id=topic["id"],
+            grade_level=topic["grade_level"],
+            skill=topic["skill"],
+            topic_name=topic["topic_name"],
+            is_globally_active=is_globally_active
+        )
+        by_skill[topic["skill"]].append(topic_out)
+
+    # Build response
+    skills = []
+    for skill in ["listening", "speaking", "reading", "writing"]:
+        if skill in by_skill:
+            skills.append(SkillTopicsGroup(skill=skill, topics=by_skill[skill]))
+
+    return TopicsBySkillResponse(grade_level=grade_level, skills=skills)
 
 
 # ---------------------------------------------------------------------------

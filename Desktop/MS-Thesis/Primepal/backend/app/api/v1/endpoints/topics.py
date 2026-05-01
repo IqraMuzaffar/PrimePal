@@ -28,6 +28,7 @@ class GradeTopicSelection(BaseModel):
 class GradeTopicItem(BaseModel):
     topic_id: int
     topic_name: str
+    skill: str
     is_active: bool
 
 
@@ -98,9 +99,9 @@ async def get_grade_selections(
     # Fetch all topics for this grade
     topics_resp = (
         supabase.table("snc_topics")
-        .select("id, topic_name")
+        .select("id, topic_name, skill")
         .eq("grade_level", grade_level)
-        .order("id")
+        .order("skill, id")
         .execute()
     )
     all_topics = topics_resp.data or []
@@ -121,6 +122,7 @@ async def get_grade_selections(
         GradeTopicItem(
             topic_id=t["id"],
             topic_name=t["topic_name"],
+            skill=t["skill"],
             is_active=selections_map.get(t["id"], True),
         )
         for t in all_topics

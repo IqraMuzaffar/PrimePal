@@ -15,7 +15,6 @@ class ClassroomResponse(BaseModel):
     class_code: str
     grade_level: int
     section: str | None = None
-    current_week_topic: str | None = None
     created_at: str
 
 
@@ -26,6 +25,10 @@ class StudentResponse(BaseModel):
     secret_pin: str
     roll_number: str | None = None
     email: str | None = None
+    avatar_style: str = "adventurer"
+    theme_color: str = "#6366f1"
+    points: int | None = None
+    father_name: str | None = None
 
 
 class StudentUpdate(BaseModel):
@@ -53,4 +56,4 @@ class StudentBulkCreateV2(BaseModel):
 
 
 class ClassroomUpdate(BaseModel):
-    current_week_topic: str | None = None
+    class_name: str | None = None  # Optional: update classroom display name

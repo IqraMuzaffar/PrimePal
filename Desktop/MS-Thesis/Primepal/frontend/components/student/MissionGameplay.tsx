@@ -24,13 +24,51 @@ export interface GameResult {
 function ScorePopup({ points, isCorrect }: { points: number; isCorrect: boolean }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 0, scale: 0.5 }}
-      animate={{ opacity: 1, y: -40, scale: 1 }}
-      exit={{ opacity: 0, y: -80 }}
-      transition={{ duration: 0.8 }}
-      className={`absolute top-2 right-4 text-2xl font-black ${isCorrect ? 'text-green-500' : 'text-red-400'}`}
+      initial={{ opacity: 0, scale: 0.3 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.3 }}
+      transition={{
+        type: "spring",
+        stiffness: 500,
+        damping: 20
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
     >
-      {isCorrect ? `+${points}` : '0'}
+      <motion.div
+        initial={{ scale: 0 }}
+        animate={{ scale: [0, 1.2, 1] }}
+        transition={{ duration: 0.5 }}
+        className={`${
+          isCorrect
+            ? 'bg-gradient-to-br from-green-400 to-green-600'
+            : 'bg-gradient-to-br from-red-400 to-red-600'
+        } text-white rounded-3xl p-8 shadow-2xl flex flex-col items-center gap-4`}
+      >
+        <motion.div
+          initial={{ rotate: -180, scale: 0 }}
+          animate={{ rotate: 0, scale: 1 }}
+          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+          className="text-7xl"
+        >
+          {isCorrect ? '⭐' : '❌'}
+        </motion.div>
+        <motion.div
+          initial={{ y: 20, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.3 }}
+          className="text-4xl font-black"
+        >
+          {isCorrect ? `+${points}` : '0'}
+        </motion.div>
+        <motion.p
+          initial={{ y: 10, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="text-lg font-semibold"
+        >
+          {isCorrect ? 'Correct!' : 'Try Again!'}
+        </motion.p>
+      </motion.div>
     </motion.div>
   );
 }
@@ -134,9 +172,10 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
     const newResults = [...results, result];
     setResults(newResults);
     setShowFeedback(true);
-    setLastScore({ points: pointsValue, isCorrect });
+    setLastScore({ points: isCorrect ? pointsValue : 0, isCorrect });
 
-    setTimeout(() => advance(newResults), 2000);
+    // Show feedback longer (2.5 seconds) so students can see the popup
+    setTimeout(() => advance(newResults), 2500);
   }, [currentQuestion, taskType, results, advance]);
 
   const handleTimeUp = useCallback(() => {
