@@ -93,14 +93,17 @@ async def get_current_teacher(
     if cached_role:
         return {"id": user_id, "role": cached_role, "is_admin": cached_role == "admin"}
 
-    result = (
-        supabase.table("teachers")
-        .select("role")
-        .eq("id", user_id)
-        .maybe_single()
-        .execute()
-    )
-    role = result.data.get("role", "teacher") if result.data else "teacher"
+    try:
+        result = (
+            supabase.table("teachers")
+            .select("role")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+        role = result.data.get("role", "teacher") if result.data else "teacher"
+    except Exception:
+        role = "teacher"
     await cache_set(f"teacher_role:{user_id}", role, ttl=3600)
 
     return {"id": user_id, "role": role, "is_admin": role == "admin"}
