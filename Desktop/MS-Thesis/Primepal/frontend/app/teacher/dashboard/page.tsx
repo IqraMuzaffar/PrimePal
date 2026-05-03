@@ -13,10 +13,10 @@ function skillColor(pct: number): string {
 }
 
 function DashboardContent() {
-  const { gradeLevel, pillar } = useFilterParams();
+  const { gradeLevel } = useFilterParams();
 
   const { data: classrooms = [], isLoading: classroomsLoading } = useTeacherClassrooms();
-  const { data: stats, isLoading: statsLoading } = useTeacherDashboardStats({ gradeLevel, pillar });
+  const { data: stats, isLoading: statsLoading } = useTeacherDashboardStats({ gradeLevel });
   const { data: skillAccuracy, isLoading: skillLoading } = useTeacherSkillAccuracy(gradeLevel);
 
   const loading = classroomsLoading || statsLoading || skillLoading;
@@ -32,7 +32,7 @@ function DashboardContent() {
 
         {/* Filter Bar */}
         <div className="mb-6">
-          <FilterBar showSearch={false} />
+          <FilterBar showSearch={false} showPillar={false} />
         </div>
 
         {/* Stats Grid */}
