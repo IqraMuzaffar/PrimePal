@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import confetti from "canvas-confetti";
 
 interface DailyChestModalProps {
   isOpen: boolean;
@@ -35,73 +34,79 @@ export default function DailyChestModal({
   const isChestOpened = tapCount >= 3;
 
   // Trigger confetti explosion on tap 3
-  useEffect(() => {
-    if (isChestOpened && showReward && confettiRef.current) {
-      // Multi-stage confetti burst
-      const duration = 2000;
-      const animationEnd = Date.now() + duration;
+  const triggerConfetti = async () => {
+    const confetti = (await import("canvas-confetti")).default;
 
-      // Stage 1: Initial burst from center
+    // Multi-stage confetti burst
+    const duration = 2000;
+    const animationEnd = Date.now() + duration;
+
+    // Stage 1: Initial burst from center
+    confetti({
+      particleCount: 60,
+      angle: 90,
+      spread: 180,
+      origin: { x: 0.5, y: 0.4 },
+      gravity: 0.8,
+      ticks: 200,
+      decay: 0.96,
+      colors: ["#FFD700", "#FFA500", "#FF69B4", "#00CED1", "#9370DB"],
+    });
+
+    // Stage 2: Left side burst (delayed 100ms)
+    setTimeout(() => {
       confetti({
-        particleCount: 60,
-        angle: 90,
-        spread: 180,
-        origin: { x: 0.5, y: 0.4 },
+        particleCount: 40,
+        angle: 60,
+        spread: 100,
+        origin: { x: 0.2, y: 0.3 },
         gravity: 0.8,
-        ticks: 200,
-        decay: 0.96,
-        colors: ["#FFD700", "#FFA500", "#FF69B4", "#00CED1", "#9370DB"],
+        ticks: 180,
+        decay: 0.95,
+        colors: ["#FFD700", "#FF69B4", "#9370DB"],
+      });
+    }, 100);
+
+    // Stage 3: Right side burst (delayed 200ms)
+    setTimeout(() => {
+      confetti({
+        particleCount: 40,
+        angle: 120,
+        spread: 100,
+        origin: { x: 0.8, y: 0.3 },
+        gravity: 0.8,
+        ticks: 180,
+        decay: 0.95,
+        colors: ["#FFD700", "#00CED1", "#9370DB"],
+      });
+    }, 200);
+
+    // Stage 4: Continuous smaller bursts for 1 second
+    let _burstCount = 0;
+    const burstInterval = setInterval(() => {
+      if (Date.now() > animationEnd - 1000) {
+        clearInterval(burstInterval);
+        return;
+      }
+
+      confetti({
+        particleCount: 15,
+        angle: 90 + Math.random() * 60 - 30,
+        spread: 60,
+        origin: { x: 0.5 + (Math.random() - 0.5) * 0.2, y: 0.4 },
+        gravity: 0.6,
+        ticks: 100,
+        decay: 0.94,
+        colors: ["#FFD700", "#FFA500"],
       });
 
-      // Stage 2: Left side burst (delayed 100ms)
-      setTimeout(() => {
-        confetti({
-          particleCount: 40,
-          angle: 60,
-          spread: 100,
-          origin: { x: 0.2, y: 0.3 },
-          gravity: 0.8,
-          ticks: 180,
-          decay: 0.95,
-          colors: ["#FFD700", "#FF69B4", "#9370DB"],
-        });
-      }, 100);
+      _burstCount++;
+    }, 150);
+  };
 
-      // Stage 3: Right side burst (delayed 200ms)
-      setTimeout(() => {
-        confetti({
-          particleCount: 40,
-          angle: 120,
-          spread: 100,
-          origin: { x: 0.8, y: 0.3 },
-          gravity: 0.8,
-          ticks: 180,
-          decay: 0.95,
-          colors: ["#FFD700", "#00CED1", "#9370DB"],
-        });
-      }, 200);
-
-      // Stage 4: Continuous smaller bursts for 1 second
-      let _burstCount = 0;
-      const burstInterval = setInterval(() => {
-        if (Date.now() > animationEnd - 1000) {
-          clearInterval(burstInterval);
-          return;
-        }
-
-        confetti({
-          particleCount: 15,
-          angle: 90 + Math.random() * 60 - 30,
-          spread: 60,
-          origin: { x: 0.5 + (Math.random() - 0.5) * 0.2, y: 0.4 },
-          gravity: 0.6,
-          ticks: 100,
-          decay: 0.94,
-          colors: ["#FFD700", "#FFA500"],
-        });
-
-        _burstCount++;
-      }, 150);
+  useEffect(() => {
+    if (isChestOpened && showReward && confettiRef.current) {
+      triggerConfetti();
     }
   }, [isChestOpened, showReward]);
 
