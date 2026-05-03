@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Upload, BookOpen } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { useTeacherRole } from "@/lib/useTeacherRole";
 import UploadBookModal from "@/components/teacher/UploadBookModal";
 import type { SncTopic } from "@/types";
 
@@ -38,6 +39,7 @@ export default function CurriculumPage() {
   const [loading, setLoading] = useState(true);
   const [modalGrade, setModalGrade] = useState<number | null>(null);
   const [gradeTopics, setGradeTopics] = useState<SncTopic[]>([]);
+  const { isAdmin } = useTeacherRole();
 
   const fetchUploads = useCallback(async () => {
     try {
@@ -99,27 +101,29 @@ export default function CurriculumPage() {
                 <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${colors.badge}`}>
                   Grade {grade}
                 </span>
-                <button
-                  onClick={async () => {
-                    setModalGrade(grade);
-                    try {
-                      const { data: { session } } = await supabase.auth.getSession();
-                      if (!session) return;
-                      const topicsBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-                      const res = await fetch(`${topicsBase}/topics?grade_level=${grade}`, {
-                        headers: { Authorization: `Bearer ${session.access_token}` },
-                      });
-                      if (res.ok) setGradeTopics(await res.json());
-                      else setGradeTopics([]);
-                    } catch {
-                      setGradeTopics([]);
-                    }
-                  }}
-                  className={`flex items-center gap-1.5 text-xs font-medium text-white px-3 py-1.5 rounded-lg transition-colors ${colors.button}`}
-                >
-                  <Upload size={12} />
-                  Upload Book
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={async () => {
+                      setModalGrade(grade);
+                      try {
+                        const { data: { session } } = await supabase.auth.getSession();
+                        if (!session) return;
+                        const topicsBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+                        const res = await fetch(`${topicsBase}/topics?grade_level=${grade}`, {
+                          headers: { Authorization: `Bearer ${session.access_token}` },
+                        });
+                        if (res.ok) setGradeTopics(await res.json());
+                        else setGradeTopics([]);
+                      } catch {
+                        setGradeTopics([]);
+                      }
+                    }}
+                    className={`flex items-center gap-1.5 text-xs font-medium text-white px-3 py-1.5 rounded-lg transition-colors ${colors.button}`}
+                  >
+                    <Upload size={12} />
+                    Upload Book
+                  </button>
+                )}
               </div>
 
               {/* Upload history list */}

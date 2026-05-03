@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { motion } from "framer-motion";
-import { apiFetch } from "@/lib/api";
 
 interface Message {
   id: number;
@@ -62,7 +61,7 @@ export default function ChatPage() {
     const text = input.trim();
     if (!text || loading) return;
 
-    // Add student message
+    // Add student message immediately
     const studentMsg: Message = { id: nextId.current++, role: "student", text };
     setMessages((prev) => [...prev, studentMsg]);
     setInput("");
@@ -74,32 +73,75 @@ export default function ChatPage() {
 
     setLoading(true);
 
+    // Add empty tutor message that will be filled token by token
+    const tutorMsgId = nextId.current++;
+    setMessages((prev) => [
+      ...prev,
+      { id: tutorMsgId, role: "tutor", text: "" },
+    ]);
+
+    const BASE_URL =
+      process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+    const token = localStorage.getItem("primepal_student_token");
+
     try {
-      const token = localStorage.getItem("primepal_student_token");
-      const data = await apiFetch<ChatApiResponse>("/chat", {
+      const response = await fetch(`${BASE_URL}/chat/stream`, {
         method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
         body: JSON.stringify({ message: text }),
       });
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: nextId.current++,
-          role: "tutor",
-          text: data.reply,           // bilingual reply shown by default
-          englishReply: data.english_reply,  // stored for toggle
-        },
-      ]);
+      if (!response.ok || !response.body) throw new Error("Stream failed");
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Only process complete lines (ending with \n)
+        const lastNewline = buffer.lastIndexOf("\n");
+        if (lastNewline === -1) continue;
+
+        const complete = buffer.slice(0, lastNewline);
+        buffer = buffer.slice(lastNewline + 1);
+
+        const lines = complete
+          .split("\n")
+          .filter((line) => line.startsWith("data: "));
+
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === "token") {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === tutorMsgId
+                    ? { ...msg, text: msg.text + data.content }
+                    : msg
+                )
+              );
+            }
+          } catch {
+            // Skip malformed JSON chunks gracefully
+          }
+        }
+      }
     } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: nextId.current++,
-          role: "tutor",
-          text: "Oops! Something went wrong 😅 Try again!",
-        },
-      ]);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg.id === tutorMsgId && msg.text === ""
+            ? { ...msg, text: "Oops! Something went wrong 😅 Try again!" }
+            : msg
+        )
+      );
     } finally {
       setLoading(false);
     }

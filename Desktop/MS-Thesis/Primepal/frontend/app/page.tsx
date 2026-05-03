@@ -1,6 +1,3 @@
-"use client";
-
-import { motion } from "framer-motion";
 import {
   GraduationCap,
   Gamepad2,
@@ -9,6 +6,16 @@ import {
   PenLine,
 } from "lucide-react";
 import Link from "next/link";
+import {
+  FloatingEmojis,
+  AnimatedHeroSection,
+  AnimatedHeroItem,
+  AnimatedHeroH1,
+  AnimatedHeroP,
+  AnimatedCard,
+  AnimatedCardInner,
+  AnimatedFooter,
+} from "@/components/landing/AnimatedHero";
 
 const floatingItems = [
   { emoji: "📚", x: "8%", y: "18%", delay: 0, dur: 6 },
@@ -28,16 +35,6 @@ const pillars = [
   { icon: Mic, label: "Speaking" },
 ];
 
-const stagger = {
-  container: {
-    animate: { transition: { staggerChildren: 0.12 } },
-  },
-  item: {
-    initial: { opacity: 0, y: 24 },
-    animate: { opacity: 1, y: 0, transition: { duration: 0.5, ease: "easeOut" } },
-  },
-} as const satisfies Record<string, import("framer-motion").Variants>;
-
 export default function LandingPage() {
   return (
     <div className="h-screen bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 relative overflow-hidden flex flex-col items-center justify-center px-4 selection:bg-white/20">
@@ -49,53 +46,23 @@ export default function LandingPage() {
       </div>
 
       {/* ── floating emoji ── */}
-      {floatingItems.map((f, i) => (
-        <motion.span
-          key={i}
-          aria-hidden
-          className="absolute text-2xl sm:text-3xl opacity-[0.15] pointer-events-none select-none"
-          style={{ left: f.x, top: f.y }}
-          animate={{ y: [-8, 8, -8], rotate: [-4, 4, -4] }}
-          transition={{
-            duration: f.dur,
-            repeat: Infinity,
-            delay: f.delay,
-            ease: "easeInOut",
-          }}
-        >
-          {f.emoji}
-        </motion.span>
-      ))}
+      <FloatingEmojis items={floatingItems} />
 
       {/* ── hero ── */}
-      <motion.div
-        variants={stagger.container}
-        initial="initial"
-        animate="animate"
-        className="text-center mb-8 relative z-10 max-w-lg"
-      >
-        <motion.div
-          variants={stagger.item}
-          className="inline-flex items-center justify-center w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl mb-4 border border-white/20 shadow-lg shadow-black/10"
-        >
+      <AnimatedHeroSection>
+        <AnimatedHeroItem className="inline-flex items-center justify-center w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl mb-4 border border-white/20 shadow-lg shadow-black/10">
           <span className="text-3xl leading-none">⭐</span>
-        </motion.div>
+        </AnimatedHeroItem>
 
-        <motion.h1
-          variants={stagger.item}
-          className="text-5xl sm:text-7xl font-black text-white tracking-tight leading-none"
-        >
+        <AnimatedHeroH1 className="text-5xl sm:text-7xl font-black text-white tracking-tight leading-none">
           PrimePal
-        </motion.h1>
+        </AnimatedHeroH1>
 
-        <motion.p
-          variants={stagger.item}
-          className="text-indigo-200 text-lg sm:text-xl font-semibold mt-4"
-        >
+        <AnimatedHeroP className="text-indigo-200 text-lg sm:text-xl font-semibold mt-4">
           Learn English the fun way!
-        </motion.p>
+        </AnimatedHeroP>
 
-        <motion.div variants={stagger.item} className="flex items-center justify-center gap-4 mt-4">
+        <AnimatedHeroItem className="flex items-center justify-center gap-4 mt-4">
           {pillars.map(({ icon: Icon, label }) => (
             <span
               key={label}
@@ -105,24 +72,15 @@ export default function LandingPage() {
               {label}
             </span>
           ))}
-        </motion.div>
-      </motion.div>
+        </AnimatedHeroItem>
+      </AnimatedHeroSection>
 
       {/* ── role cards ── */}
       <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 w-full max-w-2xl relative z-10">
         {/* student */}
-        <motion.div
-          initial={{ opacity: 0, x: -36 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.55, delay: 0.5, ease: "easeOut" }}
-          className="flex-1"
-        >
+        <AnimatedCard xOffset={-36} delay={0.5} className="flex-1">
           <Link href="/student/play" className="block group">
-            <motion.div
-              whileHover={{ scale: 1.03, y: -5 }}
-              whileTap={{ scale: 0.97 }}
-              className="relative bg-gradient-to-br from-amber-400 to-orange-500 rounded-[1.5rem] p-6 sm:p-7 shadow-2xl shadow-orange-600/20 border border-amber-300/30 overflow-hidden"
-            >
+            <AnimatedCardInner className="relative bg-gradient-to-br from-amber-400 to-orange-500 rounded-[1.5rem] p-6 sm:p-7 shadow-2xl shadow-orange-600/20 border border-amber-300/30 overflow-hidden">
               <div className="absolute -right-6 -bottom-6 text-[8rem] opacity-[0.08] leading-none select-none pointer-events-none">
                 🎮
               </div>
@@ -147,23 +105,14 @@ export default function LandingPage() {
                 <span>Enter Class Code</span>
                 <span className="text-base transition-transform duration-200 group-hover:translate-x-0.5">→</span>
               </div>
-            </motion.div>
+            </AnimatedCardInner>
           </Link>
-        </motion.div>
+        </AnimatedCard>
 
         {/* teacher */}
-        <motion.div
-          initial={{ opacity: 0, x: 36 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.55, delay: 0.6, ease: "easeOut" }}
-          className="flex-1"
-        >
+        <AnimatedCard xOffset={36} delay={0.6} className="flex-1">
           <Link href="/teacher/login" className="block group">
-            <motion.div
-              whileHover={{ scale: 1.03, y: -5 }}
-              whileTap={{ scale: 0.97 }}
-              className="relative bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[1.5rem] p-6 sm:p-7 shadow-2xl shadow-teal-600/20 border border-emerald-400/30 overflow-hidden"
-            >
+            <AnimatedCardInner className="relative bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[1.5rem] p-6 sm:p-7 shadow-2xl shadow-teal-600/20 border border-emerald-400/30 overflow-hidden">
               <div className="absolute -right-6 -bottom-6 text-[8rem] opacity-[0.08] leading-none select-none pointer-events-none">
                 📊
               </div>
@@ -188,21 +137,16 @@ export default function LandingPage() {
                 <span>Sign In</span>
                 <span className="text-base transition-transform duration-200 group-hover:translate-x-0.5">→</span>
               </div>
-            </motion.div>
+            </AnimatedCardInner>
           </Link>
-        </motion.div>
+        </AnimatedCard>
       </div>
 
       {/* ── footer tagline ── */}
-      <motion.p
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 1.2, duration: 0.6 }}
-        className="text-indigo-300/40 text-xs font-medium mt-8 relative z-10 text-center"
-      >
+      <AnimatedFooter className="text-indigo-300/40 text-xs font-medium mt-8 relative z-10 text-center">
         AI-powered English learning for Pakistan&apos;s future &mdash; tackling the
         &ldquo;Mute English&rdquo; phenomenon
-      </motion.p>
+      </AnimatedFooter>
     </div>
   );
 }

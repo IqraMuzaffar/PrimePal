@@ -13,7 +13,11 @@ Flow:
 The grade_level filter is resolved server-side from the student's JWT and
 classroom record — the frontend never sends or controls the grade.
 """
+import asyncio
+import json
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.core.security import get_current_student
@@ -22,6 +26,7 @@ from app.agents.tutor_agent.chatbot import (
     translate_to_english,
     retrieve_grade_filtered_chunks,
     get_guardrailed_response,
+    stream_guardrailed_response,
 )
 from app.agents.evaluator_agent.interaction_logger import log_interaction
 
@@ -118,3 +123,71 @@ async def chat(
         context_used=len(context_chunks) > 0,
         translated_query=translated_query,
     )
+
+
+@router.post("/stream", summary="Streaming guardrailed bilingual student chat (SSE)")
+async def chat_stream(
+    body: ChatRequest,
+    student: dict = Depends(get_current_student),
+):
+    """
+    Stream a grade-appropriate, SNC-grounded bilingual reply token by token.
+
+    Authentication: student JWT (Bearer token from localStorage 'primepal_student_token').
+    Returns a text/event-stream response with SSE events:
+      - {"type": "status", "content": "Thinking..."}
+      - {"type": "token", "content": "<token>"}  (repeated)
+      - {"type": "done"}
+    """
+    classroom_id: str = student["classroom_id"]
+    supabase = get_supabase_admin()
+
+    # Resolve grade_level — hard guardrail
+    classroom_resp = (
+        supabase.table("classrooms")
+        .select("grade_level")
+        .eq("id", classroom_id)
+        .maybe_single()
+        .execute()
+    )
+    if not classroom_resp.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Classroom not found for this student",
+        )
+    grade_level: int = classroom_resp.data["grade_level"]
+
+    translated_query = await translate_to_english(body.message)
+    context_chunks = await retrieve_grade_filtered_chunks(
+        query=translated_query,
+        grade_level=grade_level,
+        supabase_admin_client=supabase,
+    )
+
+    async def event_stream():
+        yield f"data: {json.dumps({'type': 'status', 'content': 'Thinking...'})}\n\n"
+
+        accumulated_response: list[str] = []
+        async for token in stream_guardrailed_response(
+            translated_query, context_chunks, grade_level
+        ):
+            accumulated_response.append(token)
+            yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+        # Log the interaction in a thread to avoid blocking the event loop
+        # (log_interaction is synchronous and does a network call)
+        await asyncio.to_thread(
+            log_interaction,
+            student_id=student["sub"],
+            classroom_id=classroom_id,
+            grade_level=grade_level,
+            interaction_type="chat",
+            original_message=body.message,
+            translated_message=translated_query,
+            correct=None,
+            context_used=len(context_chunks) > 0,
+        )
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getAdminHeaders } from "@/lib/adminAuth";
+import { useState } from "react";
 import {
   Plus,
   Edit2,
@@ -11,32 +10,26 @@ import {
   KeyRound,
   Copy,
 } from "lucide-react";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-
-interface Student {
-  id: string;
-  student_name: string;
-  roll_number?: string;
-  email?: string;
-  classroom_id: string;
-  classroom_name: string;
-  grade_level: number | null;
-  secret_pin?: string;
-}
-
-interface Classroom {
-  id: string;
-  class_name: string;
-  grade_level: number;
-}
+import {
+  useAdminStudents,
+  useAdminClassrooms,
+  useCreateAdminStudent,
+  useUpdateAdminStudent,
+  useDeleteAdminStudent,
+  useResetStudentPin,
+  type AdminStudent,
+} from "@/lib/hooks/admin-queries";
 
 export default function StudentsPage() {
-  const [students, setStudents] = useState<Student[]>([]);
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: students = [], isLoading: studentsLoading, error: studentsError } = useAdminStudents();
+  const { data: classrooms = [], isLoading: classroomsLoading } = useAdminClassrooms();
+  const createStudent = useCreateAdminStudent();
+  const updateStudent = useUpdateAdminStudent();
+  const deleteStudent = useDeleteAdminStudent();
+  const resetPin = useResetStudentPin();
+
+  const loading = studentsLoading || classroomsLoading;
+  const error = studentsError instanceof Error ? studentsError.message : studentsError ? String(studentsError) : "";
 
   // Filters
   const [search, setSearch] = useState("");
@@ -48,93 +41,47 @@ export default function StudentsPage() {
   const [createRoll, setCreateRoll] = useState("");
   const [createEmail, setCreateEmail] = useState("");
   const [createClassroom, setCreateClassroom] = useState("");
-  const [creating, setCreating] = useState(false);
   const [createdPin, setCreatedPin] = useState("");
+  const creating = createStudent.isPending;
 
   // Edit modal
-  const [editModal, setEditModal] = useState<Student | null>(null);
+  const [editModal, setEditModal] = useState<AdminStudent | null>(null);
   const [editName, setEditName] = useState("");
   const [editRoll, setEditRoll] = useState("");
   const [editEmail, setEditEmail] = useState("");
   const [editClassroom, setEditClassroom] = useState("");
-  const [saving, setSaving] = useState(false);
+  const saving = updateStudent.isPending;
 
   // Delete modal
-  const [deleteModal, setDeleteModal] = useState<Student | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [deleteModal, setDeleteModal] = useState<AdminStudent | null>(null);
+  const deleting = deleteStudent.isPending;
 
   // Reset PIN modal
-  const [resetPinModal, setResetPinModal] = useState<Student | null>(null);
-  const [resettingPin, setResettingPin] = useState(false);
+  const [resetPinModal, setResetPinModal] = useState<AdminStudent | null>(null);
   const [newPin, setNewPin] = useState("");
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setError("");
-    try {
-      const headers = await getAdminHeaders();
-
-      const [studentsRes, classroomsRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/students`, { headers }),
-        fetch(`${API_BASE}/admin/classrooms`, { headers }),
-      ]);
-
-      if (!studentsRes.ok) throw new Error("Failed to fetch students");
-      if (!classroomsRes.ok) throw new Error("Failed to fetch classrooms");
-
-      const studentsData = await studentsRes.json();
-      const classroomsData = await classroomsRes.json();
-
-      setStudents(studentsData);
-      setClassrooms(classroomsData);
-    } catch (err: any) {
-      setError(err.message || "Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const resettingPin = resetPin.isPending;
 
   const handleCreate = async () => {
     if (!createName.trim() || !createClassroom) return;
-    setCreating(true);
     try {
-      const headers = await getAdminHeaders();
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         student_name: createName.trim(),
         classroom_id: createClassroom,
       };
       if (createRoll.trim()) body.roll_number = createRoll.trim();
       if (createEmail.trim()) body.email = createEmail.trim();
-
-      const response = await fetch(`${API_BASE}/admin/students`, {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setCreatedPin(data.secret_pin || "");
-        setCreateName("");
-        setCreateRoll("");
-        setCreateEmail("");
-        setCreateClassroom("");
-        await fetchData();
-      } else {
-        const data = await response.json();
-        alert(data.detail || "Failed to create student");
-      }
-    } catch {
-      alert("Failed to create student");
-    } finally {
-      setCreating(false);
+      const data = await createStudent.mutateAsync(body);
+      setCreatedPin(data.secret_pin || "");
+      setCreateName("");
+      setCreateRoll("");
+      setCreateEmail("");
+      setCreateClassroom("");
+    } catch (err: any) {
+      alert(err.message || "Failed to create student");
     }
   };
 
-  const openEditModal = (s: Student) => {
+  const openEditModal = (s: AdminStudent) => {
     setEditModal(s);
     setEditName(s.student_name);
     setEditRoll(s.roll_number || "");
@@ -144,89 +91,39 @@ export default function StudentsPage() {
 
   const handleEdit = async () => {
     if (!editModal) return;
-    setSaving(true);
     try {
-      const headers = await getAdminHeaders();
-      const response = await fetch(
-        `${API_BASE}/admin/students/${editModal.id}`,
-        {
-          method: "PUT",
-          headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            student_name: editName.trim(),
-            roll_number: editRoll.trim() || null,
-            email: editEmail.trim() || null,
-            classroom_id: editClassroom,
-          }),
-        }
-      );
-
-      if (response.ok) {
-        setEditModal(null);
-        await fetchData();
-      } else {
-        const data = await response.json();
-        alert(data.detail || "Failed to update student");
-      }
-    } catch {
-      alert("Failed to update student");
-    } finally {
-      setSaving(false);
+      await updateStudent.mutateAsync({
+        id: editModal.id,
+        body: {
+          student_name: editName.trim(),
+          roll_number: editRoll.trim() || null,
+          email: editEmail.trim() || null,
+          classroom_id: editClassroom,
+        },
+      });
+      setEditModal(null);
+    } catch (err: any) {
+      alert(err.message || "Failed to update student");
     }
   };
 
   const handleDelete = async () => {
     if (!deleteModal) return;
-    setDeleting(true);
     try {
-      const headers = await getAdminHeaders();
-      const response = await fetch(
-        `${API_BASE}/admin/students/${deleteModal.id}`,
-        {
-          method: "DELETE",
-          headers: { ...headers, "Content-Type": "application/json" },
-        }
-      );
-
-      if (response.ok) {
-        setDeleteModal(null);
-        await fetchData();
-      } else {
-        const data = await response.json();
-        alert(data.detail || "Failed to delete student");
-      }
-    } catch {
-      alert("Failed to delete student");
-    } finally {
-      setDeleting(false);
+      await deleteStudent.mutateAsync(deleteModal.id);
+      setDeleteModal(null);
+    } catch (err: any) {
+      alert(err.message || "Failed to delete student");
     }
   };
 
   const handleResetPin = async () => {
     if (!resetPinModal) return;
-    setResettingPin(true);
     try {
-      const headers = await getAdminHeaders();
-      const response = await fetch(
-        `${API_BASE}/admin/students/${resetPinModal.id}/reset-pin`,
-        {
-          method: "POST",
-          headers: { ...headers, "Content-Type": "application/json" },
-        }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        setNewPin(data.new_pin);
-        await fetchData();
-      } else {
-        const data = await response.json();
-        alert(data.detail || "Failed to reset PIN");
-      }
-    } catch {
-      alert("Failed to reset PIN");
-    } finally {
-      setResettingPin(false);
+      const data = await resetPin.mutateAsync(resetPinModal.id);
+      setNewPin(data.new_pin);
+    } catch (err: any) {
+      alert(err.message || "Failed to reset PIN");
     }
   };
 

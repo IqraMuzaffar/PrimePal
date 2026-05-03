@@ -2,18 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+import { useEvalStatus, useEvalQuestions } from "@/lib/hooks/queries";
+import { studentMutate } from "@/lib/api-helpers";
 
 // ── Types ────────────────────────────────────────────────────────────────────
-
-interface EvalStatus {
-  needs_pre_test: boolean;
-  needs_post_test: boolean;
-  pre_completed: boolean;
-  post_completed: boolean;
-}
 
 interface Option {
   label: string;
@@ -47,76 +39,57 @@ function getToken(): string | null {
   return localStorage.getItem("primepal_student_token");
 }
 
-function authHeaders(): HeadersInit {
-  const token = getToken();
-  if (!token) throw new Error("Not logged in");
-  return { Authorization: `Bearer ${token}` };
-}
-
-async function apiFetchRaw<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...opts.headers },
-    ...opts,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err?.detail ?? `API error ${res.status}`);
-  }
-  return res.json() as Promise<T>;
-}
-
 // ── Component ────────────────────────────────────────────────────────────────
 
 export default function EvaluationPage() {
   const router = useRouter();
 
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: evalStatus, isLoading: statusLoading, error: statusError } = useEvalStatus();
   const [evalType, setEvalType] = useState<"pre" | "post" | null>(null);
+  const { data: questionsData, isLoading: questionsLoading } = useEvalQuestions(evalType);
+
   const [questions, setQuestions] = useState<EvalQuestion[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
   const [answers, setAnswers] = useState<Map<string, AnswerRecord>>(new Map());
   const [questionStartTime, setQuestionStartTime] = useState(Date.now());
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [error, setError] = useState("");
 
-  // Check status and load questions
+  const loading = statusLoading || (!!evalType && questionsLoading);
+
+  // Redirect if not logged in
   useEffect(() => {
     if (!getToken()) {
       router.push("/student/play");
-      return;
     }
-
-    (async () => {
-      try {
-        const status = await apiFetchRaw<EvalStatus>("/evaluations/status");
-
-        let type: "pre" | "post" | null = null;
-        if (status.needs_pre_test) {
-          type = "pre";
-        } else if (status.needs_post_test) {
-          type = "post";
-        }
-
-        if (!type) {
-          router.push("/student/home");
-          return;
-        }
-
-        setEvalType(type);
-
-        const qs = await apiFetchRaw<EvalQuestion[]>(
-          `/evaluations/questions?type=${type}`
-        );
-        setQuestions(qs);
-        setQuestionStartTime(Date.now());
-      } catch (err: any) {
-        setError(err.message || "Failed to load evaluation");
-      } finally {
-        setLoading(false);
-      }
-    })();
   }, [router]);
+
+  // Determine eval type from status
+  useEffect(() => {
+    if (!evalStatus) return;
+    if (evalStatus.needs_pre_test) {
+      setEvalType("pre");
+    } else if (evalStatus.needs_post_test) {
+      setEvalType("post");
+    } else {
+      router.push("/student/home");
+    }
+  }, [evalStatus, router]);
+
+  useEffect(() => {
+    if (statusError) {
+      setError((statusError as Error).message || "Failed to load evaluation");
+    }
+  }, [statusError]);
+
+  // Populate questions once fetched
+  useEffect(() => {
+    if (questionsData) {
+      setQuestions(questionsData as EvalQuestion[]);
+      setQuestionStartTime(Date.now());
+    }
+  }, [questionsData]);
 
   const currentQuestion = questions[currentIdx] ?? null;
 
@@ -159,12 +132,9 @@ export default function EvaluationPage() {
     if (!evalType) return;
     setSubmitting(true);
     try {
-      await apiFetchRaw("/evaluations/submit", {
-        method: "POST",
-        body: JSON.stringify({
-          evaluation_type: evalType,
-          answers: Array.from(answers.values()),
-        }),
+      await studentMutate("/evaluations/submit", {
+        evaluation_type: evalType,
+        answers: Array.from(answers.values()),
       });
       setCompleted(true);
     } catch (err: any) {

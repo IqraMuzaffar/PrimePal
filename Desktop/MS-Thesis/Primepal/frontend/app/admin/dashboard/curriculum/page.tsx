@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { getAdminHeaders } from "@/lib/adminAuth";
 import { BookOpen, Upload, Trash2, Eye, X, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { useAdminBooks, adminQueryKeys } from "@/lib/hooks/admin-queries";
+import { useQueryClient } from "@tanstack/react-query";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
@@ -44,6 +46,9 @@ const STATUS_STYLES: Record<string, string> = {
 const PIPELINE_STAGES = ["pending", "extracting", "chunking", "embedding", "success"];
 
 export default function CurriculumManagementPage() {
+  const queryClient = useQueryClient();
+  const { data: books = [], isLoading: loadingBooks } = useAdminBooks();
+
   // Upload state
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
   const [bookTitle, setBookTitle] = useState("");
@@ -53,9 +58,7 @@ export default function CurriculumManagementPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Books state
-  const [books, setBooks] = useState<Book[]>([]);
-  const [loadingBooks, setLoadingBooks] = useState(true);
+  // Books filters / delete
   const [gradeFilter, setGradeFilter] = useState<number | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -68,31 +71,9 @@ export default function CurriculumManagementPage() {
   // Polling ref
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const fetchBooks = useCallback(async () => {
-    try {
-      const headers = await getAdminHeaders();
-      const res = await fetch(`${API_BASE}/admin/curriculum/books`, { headers });
-      if (res.ok) {
-        const data: Book[] = await res.json();
-        setBooks(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch books:", err);
-    } finally {
-      setLoadingBooks(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchBooks();
-  }, [fetchBooks]);
-
-  // Cleanup polling on unmount
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
-  }, []);
+  const refreshBooks = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: adminQueryKeys.books });
+  }, [queryClient]);
 
   const startStatusPolling = useCallback(
     (bookId: string) => {
@@ -110,7 +91,7 @@ export default function CurriculumManagementPage() {
               if (data.status === "failed") {
                 setUploadError(data.error_message || "Pipeline failed");
               }
-              fetchBooks();
+              refreshBooks();
             }
           }
         } catch {
@@ -118,7 +99,7 @@ export default function CurriculumManagementPage() {
         }
       }, 3000);
     },
-    [fetchBooks]
+    [refreshBooks]
   );
 
   const handleUpload = async () => {
@@ -158,7 +139,7 @@ export default function CurriculumManagementPage() {
         setSelectedGrade(null);
         setSelectedFile(null);
         if (fileInputRef.current) fileInputRef.current.value = "";
-        fetchBooks();
+        refreshBooks();
 
         // Use the actual status from the API response
         if (data.status === "success") {
@@ -191,7 +172,7 @@ export default function CurriculumManagementPage() {
         headers,
       });
       if (res.ok) {
-        setBooks((prev) => prev.filter((b) => b.id !== book.id));
+        refreshBooks();
         if (viewingBook?.id === book.id) {
           setViewingBook(null);
           setChunks(null);

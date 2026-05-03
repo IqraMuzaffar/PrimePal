@@ -2,38 +2,9 @@
 
 import { useState } from 'react';
 import { Sparkles, Loader2, Clock, Users, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
-import { apiFetch } from '@/lib/api';
-import { getTeacherHeaders } from '@/lib/teacherAuth';
+import { useGenerateDailyPlan } from '@/lib/hooks/teacher-queries';
 
-/* ── Types ─────────────────────────────────────────────────────────────── */
-
-interface FocusArea {
-  topic: string;
-  pillar: string;
-  reason: string;
-}
-
-interface SuggestedActivity {
-  title: string;
-  description: string;
-  target_pillar: string;
-  estimated_minutes: number;
-}
-
-interface StudentGroup {
-  group_name: string;
-  student_names: string[];
-  recommendation: string;
-}
-
-interface TeacherDailyPlan {
-  summary: string;
-  focus_areas: FocusArea[];
-  suggested_activities: SuggestedActivity[];
-  student_groups: StudentGroup[];
-  snc_references: string[];
-  generated_at: string;
-}
+import type { TeacherDailyPlan } from '@/lib/hooks/teacher-queries';
 
 /* ── Helpers ───────────────────────────────────────────────────────────── */
 
@@ -62,31 +33,19 @@ function pillarDot(pillar: string): string {
 export default function TeacherAssistantPage() {
   const [selectedGrade, setSelectedGrade] = useState<number | null>(null);
   const [plan, setPlan] = useState<TeacherDailyPlan | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [sncOpen, setSncOpen] = useState(false);
+  const generatePlan = useGenerateDailyPlan();
+  const loading = generatePlan.isPending;
+  const error = generatePlan.error instanceof Error ? generatePlan.error.message : null;
 
   async function handleGenerate() {
     if (selectedGrade === null) return;
-    setLoading(true);
-    setError(null);
     setPlan(null);
-
     try {
-      const headers = await getTeacherHeaders();
-      const result = await apiFetch<TeacherDailyPlan>(
-        '/evaluator/teacher-assistant/daily-plan',
-        {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ grade_level: selectedGrade }),
-        },
-      );
+      const result = await generatePlan.mutateAsync(selectedGrade);
       setPlan(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to generate plan. Please try again.');
-    } finally {
-      setLoading(false);
+    } catch {
+      // error is handled via generatePlan.error
     }
   }
 

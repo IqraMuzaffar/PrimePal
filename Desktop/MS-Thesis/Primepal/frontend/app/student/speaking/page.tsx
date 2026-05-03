@@ -4,20 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mic, MicOff, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
-import { apiFetch } from '@/lib/api';
+import { useQueryClient } from '@tanstack/react-query';
 import SpeakingPronunciationFeedback from '@/components/student/SpeakingPronunciationFeedback';
-
-interface SpeakingPrompt {
-  id: number;
-  prompt: string;
-  hint: string;
-}
-
-interface PromptsData {
-  prompts: SpeakingPrompt[];
-  topic: string;
-  week_number: number;
-}
+import { useSpeakingPrompts, queryKeys } from '@/lib/hooks/queries';
 
 interface PronunciationWord {
   word: string;
@@ -44,8 +33,11 @@ const _SpeechRecognitionAPI = typeof window !== 'undefined'
 
 export default function SpeakingPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+  const { data: promptsData, isLoading: promptsLoading, error: promptsError } = useSpeakingPrompts();
+
   const [gameState, setGameState] = useState<GameState>('loading');
-  const [prompts, setPrompts] = useState<SpeakingPrompt[]>([]);
+  const [prompts, setPrompts] = useState<Array<{ id: number; prompt: string; hint: string }>>([]);
   const [currentPromptIndex, setCurrentPromptIndex] = useState(0);
   const [transcript, setTranscript] = useState('');
   const [isRecording, setIsRecording] = useState(false);
@@ -59,6 +51,7 @@ export default function SpeakingPage() {
   const [retryMessage, setRetryMessage] = useState('');
   const [noiseToastShown, setNoiseToastShown] = useState(false);
   const [showNoiseToast, setShowNoiseToast] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
   const _recognitionRef = useRef<any>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -75,35 +68,29 @@ export default function SpeakingPage() {
     if (!AudioAPI) {
       setBrowserSupported(false);
     }
-    fetchPrompts();
   }, []);
 
-  async function fetchPrompts() {
-    try {
-      setGameState('loading');
+  // Initialise game once query data arrives
+  useEffect(() => {
+    if (promptsLoading) return;
+    if (promptsError) {
+      setError('Failed to load prompts. Please try again.');
+      return;
+    }
+    if (promptsData && !gameStarted) {
       const token = getToken();
-      if (!token) {
-        router.push('/student/play');
-        return;
-      }
-
-      const data = await apiFetch<PromptsData>('/speaking/prompts', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      setPrompts(data.prompts);
-      setTopic(data.topic);
+      if (!token) { router.push('/student/play'); return; }
+      setPrompts(promptsData.prompts);
+      setTopic(promptsData.topic);
       setGameState('intro');
       setCurrentPromptIndex(0);
       setTranscript('');
       setScore({ completed: 0, totalPoints: 0 });
       setFeedback(null);
-    } catch (err) {
-      console.error('Failed to fetch prompts:', err);
-      setError('Failed to load prompts. Please try again.');
-      setGameState('loading');
+      setGameStarted(true);
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [promptsLoading, promptsData, promptsError]);
 
   async function startRecording() {
     if (!AudioAPI || !browserSupported) return;
@@ -339,7 +326,13 @@ export default function SpeakingPage() {
                 audioBlobRef.current = null;
                 recordingTimeRef.current = 0;
                 setScore({ completed: 0, totalPoints: 0 });
-                fetchPrompts();
+                setCurrentPromptIndex(0);
+                setTranscript('');
+                setFeedback(null);
+                setAttemptNumber(1);
+                setGameStarted(false);
+                setGameState('loading');
+                queryClient.invalidateQueries({ queryKey: queryKeys.speakingPrompts });
               }}
               className="flex-1 px-4 py-3 bg-rose-500 text-white font-bold rounded-lg hover:bg-rose-600 transition-colors"
             >

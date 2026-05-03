@@ -19,6 +19,8 @@ import os
 os.environ["USE_TF"] = "0"
 os.environ["USE_TORCH"] = "1"
 
+from typing import AsyncGenerator
+
 from langchain_openai import ChatOpenAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
@@ -184,3 +186,41 @@ async def get_guardrailed_response(
         }
     )
     return result
+
+
+async def stream_guardrailed_response(
+    query: str,
+    context_chunks: list[str],
+    grade_level: int,
+) -> AsyncGenerator[str, None]:
+    """Stream bilingual tutor response token by token.
+
+    Uses the translated query as both original_message and translated_message
+    since the caller has already translated the student's input.
+    """
+    if context_chunks:
+        context_text = "\n\n---\n\n".join(context_chunks)
+    else:
+        context_text = (
+            "No curriculum content has been loaded for this grade yet. "
+            f"Rely only on basic Grade {grade_level} English knowledge."
+        )
+
+    llm = ChatOpenAI(
+        model=settings.CHAT_MODEL,
+        temperature=0.3,
+        openai_api_key=settings.OPENAI_API_KEY,
+        max_retries=3,
+        streaming=True,
+    )
+
+    chain = _BILINGUAL_PROMPT | llm
+
+    async for chunk in chain.astream({
+        "grade_level": grade_level,
+        "original_message": query,
+        "translated_message": query,
+        "context": context_text,
+    }):
+        if hasattr(chunk, "content") and chunk.content:
+            yield chunk.content

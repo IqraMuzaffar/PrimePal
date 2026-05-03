@@ -97,7 +97,7 @@ def _get_student_stats(student_id: str) -> dict[str, int]:
     # Fetch student record
     student_resp = (
         supabase.table("students")
-        .select("points, missions_completed, current_streak")
+        .select("points, current_streak")
         .eq("id", student_id)
         .maybe_single()
         .execute()
@@ -111,7 +111,15 @@ def _get_student_stats(student_id: str) -> dict[str, int]:
 
     data = student_resp.data
     points = data.get("points") or 0
-    missions_total = data.get("missions_completed") or 0
+
+    missions_count_resp = (
+        supabase.table("student_interactions")
+        .select("id", count="exact")
+        .eq("student_id", student_id)
+        .like("interaction_type", "mission%")
+        .execute()
+    )
+    missions_total = missions_count_resp.count or 0
 
     # current_streak may not exist yet (added by S07) — default to 0
     try:
@@ -126,16 +134,14 @@ def _get_student_stats(student_id: str) -> dict[str, int]:
         "streak": streak,
     }
 
-    for threshold_type, pillar_value in PILLAR_MAP.items():
-        count_resp = (
-            supabase.table("student_interactions")
-            .select("id", count="exact")
-            .eq("student_id", student_id)
-            .eq("pillar", pillar_value)
-            .eq("correct", True)
-            .execute()
-        )
-        stats[threshold_type] = count_resp.count if count_resp.count is not None else 0
+    rpc_result = supabase.rpc(
+        "get_student_achievement_stats", {"p_student_id": student_id}
+    ).execute()
+    pillar_counts = rpc_result.data if rpc_result.data else {}
+    stats["missions_reading"] = pillar_counts.get("reading_correct", 0)
+    stats["missions_writing"] = pillar_counts.get("writing_correct", 0)
+    stats["missions_listening"] = pillar_counts.get("listening_correct", 0)
+    stats["missions_speaking"] = pillar_counts.get("speaking_correct", 0)
 
     return stats
 

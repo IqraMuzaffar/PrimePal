@@ -1,35 +1,22 @@
 // frontend/app/teacher/classroom/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { Plus, Copy, Check, BookOpen, Settings, Trash2 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
-import { getTeacherHeaders } from "@/lib/teacherAuth";
+import { useTeacherRole } from "@/lib/useTeacherRole";
+import { useTeacherClassrooms } from "@/lib/hooks/teacher-queries";
+import { useQueryClient } from "@tanstack/react-query";
+import { teacherQueryKeys } from "@/lib/hooks/teacher-queries";
 import CreateClassroomModal from "@/components/teacher/CreateClassroomModal";
 import type { Classroom } from "@/types";
 
 export default function ClassroomPage() {
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: classrooms = [], isLoading: loading } = useTeacherClassrooms();
+  const queryClient = useQueryClient();
   const [showCreate, setShowCreate] = useState(false);
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
-
-  async function fetchClassrooms() {
-    try {
-      const headers = await getTeacherHeaders();
-      const data = await apiFetch<Classroom[]>("/classroom/", { headers });
-      setClassrooms(data);
-    } catch {
-      // Session expired or unauthenticated — show empty state
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    fetchClassrooms();
-  }, []);
+  const { isAdmin } = useTeacherRole();
 
   async function copyCode(e: React.MouseEvent, code: string) {
     e.preventDefault();
@@ -49,13 +36,15 @@ export default function ClassroomPage() {
               <h1 className="text-3xl font-bold text-gray-900">Classroom Manager</h1>
               <p className="text-gray-600 mt-1">Create, manage, and organize your classrooms</p>
             </div>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-lg transition-colors shrink-0"
-            >
-              <Plus size={18} />
-              New Classroom
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setShowCreate(true)}
+                className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-lg transition-colors shrink-0"
+              >
+                <Plus size={18} />
+                New Classroom
+              </button>
+            )}
           </div>
 
           {/* Info banner */}
@@ -85,14 +74,18 @@ export default function ClassroomPage() {
           <div className="text-center py-24 bg-white rounded-2xl border-2 border-dashed border-gray-200">
             <BookOpen size={40} className="mx-auto mb-4 text-gray-300" />
             <p className="font-semibold text-gray-700 text-lg">No classrooms yet</p>
-            <p className="text-sm text-gray-500 mt-2">Create your first classroom to start managing students.</p>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="mt-6 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-lg transition-colors mx-auto"
-            >
-              <Plus size={18} />
-              Create Classroom
-            </button>
+            <p className="text-sm text-gray-500 mt-2">
+              {isAdmin ? "Create your first classroom to start managing students." : "No classrooms have been assigned to you yet."}
+            </p>
+            {isAdmin && (
+              <button
+                onClick={() => setShowCreate(true)}
+                className="mt-6 flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium px-5 py-2.5 rounded-lg transition-colors mx-auto"
+              >
+                <Plus size={18} />
+                Create Classroom
+              </button>
+            )}
           </div>
         )}
 
@@ -165,12 +158,14 @@ export default function ClassroomPage() {
                               <Settings size={16} />
                               Manage
                             </Link>
-                            <button
-                              className="flex items-center justify-center p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                              title="Delete classroom"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {isAdmin && (
+                              <button
+                                className="flex items-center justify-center p-2.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                                title="Delete classroom"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -213,8 +208,8 @@ export default function ClassroomPage() {
       {showCreate && (
         <CreateClassroomModal
           onClose={() => setShowCreate(false)}
-          onCreated={(newClassroom) => {
-            setClassrooms((prev) => [newClassroom, ...prev]);
+          onCreated={(_newClassroom) => {
+            queryClient.invalidateQueries({ queryKey: teacherQueryKeys.classrooms });
             setShowCreate(false);
           }}
         />

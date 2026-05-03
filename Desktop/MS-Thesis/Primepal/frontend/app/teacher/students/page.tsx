@@ -1,30 +1,18 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { useState, Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { GraduationCap, FileText, ChevronRight, AlertCircle, RefreshCw, UserPlus, Pencil, Trash2, Lock } from "lucide-react";
 import { motion } from "framer-motion";
-import { apiFetch } from "@/lib/api";
-import { getTeacherHeaders } from "@/lib/teacherAuth";
+import { teacherMutate } from "@/lib/api-helpers";
+import { useTeacherRole } from "@/lib/useTeacherRole";
 import FilterBar, { useFilterParams } from "@/components/teacher/FilterBar";
+import { useTeacherStudents, teacherQueryKeys } from "@/lib/hooks/teacher-queries";
+import { useQueryClient } from "@tanstack/react-query";
 import BulkAddStudentsModal from "@/components/teacher/BulkAddStudentsModal";
 import EditStudentModal from "@/components/teacher/EditStudentModal";
 import type { Student } from "@/types";
-
-interface StudentRow {
-  student_id: string;
-  student_name: string;
-  roll_number: string | null;
-  avatar_url: string | null;
-  classroom_id: string;
-  classroom_name: string;
-  grade_level: number;
-  total_points: number;
-  total_interactions: number;
-  mission_accuracy_pct: number;
-  active_this_week: boolean;
-}
 
 const GRADE_COLORS: Record<number, string> = {
   1: "bg-emerald-100 text-emerald-700",
@@ -41,10 +29,7 @@ function accuracyColor(pct: number) {
 }
 
 function StudentsContent() {
-  const [students, setStudents] = useState<StudentRow[]>([]);
-  const [classroomDetails, setClassroomDetails] = useState<Record<string, { id: string; students: Student[] }>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [filterClassroom, setFilterClassroom] = useState("all");
 
   // Management states
@@ -59,57 +44,27 @@ function StudentsContent() {
   const [deleting, setDeleting] = useState<string | null>(null);
 
   const { gradeLevel, pillar, search } = useFilterParams();
+  const { isAdmin } = useTeacherRole();
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const headers = await getTeacherHeaders();
-        const params = new URLSearchParams();
-        if (gradeLevel) params.set("grade_level", String(gradeLevel));
-        if (pillar) params.set("pillar", pillar);
-        if (search) params.set("search", search);
-        const qs = params.toString();
-        const suffix = qs ? `?${qs}` : "";
+  const {
+    data: studentsData,
+    isLoading: loading,
+    error: fetchError,
+    refetch,
+  } = useTeacherStudents({ gradeLevel, pillar, search });
 
-        const data = await apiFetch<{ students: StudentRow[] }>(`/evaluator/students${suffix}`, { headers });
-        setStudents(data.students || []);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        setError(msg);
-        console.error("Students load error:", msg);
-      } finally {
-        setLoading(false);
-      }
-    }
-    load();
-  }, [gradeLevel, pillar, search]);
-
-  async function fetchClassroomDetails(classroomId: string) {
-    if (classroomDetails[classroomId]) return;
-    try {
-      const headers = await getTeacherHeaders();
-      const data = await apiFetch<{ id: string; students: Student[] }>(
-        `/classroom/${classroomId}`,
-        { headers }
-      );
-      setClassroomDetails((prev) => ({ ...prev, [classroomId]: data }));
-    } catch (err) {
-      console.error("Failed to fetch classroom details:", err);
-    }
-  }
+  const students = studentsData?.students ?? [];
+  const error = fetchError instanceof Error ? fetchError.message : null;
 
   async function savePin(studentId: string, pin: string) {
     setPinSaving(true);
     setPinSaveError(null);
     try {
-      const headers = await getTeacherHeaders();
-      await apiFetch(`/classroom/${filterClassroom}/students/${studentId}`, {
-        headers,
-        method: "PATCH",
-        body: JSON.stringify({ secret_pin: pin }),
-      });
+      await teacherMutate(
+        `/classroom/${filterClassroom}/students/${studentId}`,
+        { secret_pin: pin },
+        "PATCH"
+      );
       setPinSaved(true);
       setTimeout(() => {
         setPinStudent(null);
@@ -127,13 +82,18 @@ function StudentsContent() {
     setDeleting(studentId);
     setRemoveError(null);
     try {
-      const headers = await getTeacherHeaders();
-      await apiFetch(`/classroom/${filterClassroom}/students/${studentId}`, {
-        headers,
-        method: "DELETE",
-      });
-      // Refresh the data
-      window.location.reload();
+      const qs = new URLSearchParams();
+      if (gradeLevel) qs.set("grade_level", String(gradeLevel));
+      if (pillar) qs.set("pillar", pillar);
+      if (search) qs.set("search", search);
+      const suffix = qs.toString() ? `?${qs.toString()}` : "";
+      await teacherMutate(
+        `/classroom/${filterClassroom}/students/${studentId}`,
+        {},
+        "DELETE"
+      );
+      queryClient.invalidateQueries({ queryKey: teacherQueryKeys.students(suffix) });
+      setDeleting(null);
     } catch (err) {
       setRemoveError(err instanceof Error ? err.message : "Failed to remove student");
       setDeleting(null);
@@ -165,7 +125,7 @@ function StudentsContent() {
           </div>
           {error && (
             <button
-              onClick={() => { setError(null); setLoading(true); window.location.reload(); }}
+              onClick={() => refetch()}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-700"
             >
               <RefreshCw size={14} /> Retry
@@ -196,9 +156,6 @@ function StudentsContent() {
               value={filterClassroom}
               onChange={e => {
                 setFilterClassroom(e.target.value);
-                if (e.target.value !== "all") {
-                  fetchClassroomDetails(e.target.value);
-                }
               }}
               className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
             >
@@ -208,8 +165,8 @@ function StudentsContent() {
               ))}
             </select>
 
-            {/* Action buttons - only visible when classroom selected */}
-            {filterClassroom !== "all" && (
+            {/* Action buttons - only visible when classroom selected and user is admin */}
+            {filterClassroom !== "all" && isAdmin && (
               <button
                 onClick={() => {
                   setShowBulkAdd(true);
@@ -333,7 +290,7 @@ function StudentsContent() {
 
                     {/* Actions */}
                     <div className={`flex items-center gap-2 shrink-0 ${filterClassroom !== "all" ? "justify-end" : ""}`}>
-                      {filterClassroom !== "all" ? (
+                      {filterClassroom !== "all" && isAdmin ? (
                         <>
                           <button
                             onClick={() => setEditStudent({ id: s.student_id, student_name: s.student_name, avatar_url: s.avatar_url || "", roll_number: s.roll_number, email: null, secret_pin: "" })}
@@ -388,7 +345,7 @@ function StudentsContent() {
             onClose={() => setShowBulkAdd(false)}
             onAdded={() => {
               setShowBulkAdd(false);
-              window.location.reload();
+              refetch();
             }}
           />
         )}
@@ -400,7 +357,7 @@ function StudentsContent() {
             onClose={() => setEditStudent(null)}
             onSaved={() => {
               setEditStudent(null);
-              window.location.reload();
+              refetch();
             }}
           />
         )}

@@ -2,26 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState, useContext } from "react";
 import Image from "next/image";
-import { Volume2, VolumeX } from "lucide-react";
-import { apiFetch } from "@/lib/api";
-import { usePrimeSounds } from "@/lib/use-sound";
+import { useQueryClient } from "@tanstack/react-query";
+import { useStudentProfile, useStreak } from "@/lib/hooks/queries";
 import AnimatedBackground from "@/components/student/AnimatedBackground";
 import DynamicBackground from "@/components/student/DynamicBackground";
-import { AudioProvider, AudioContext } from "@/components/student/AudioProvider";
 import OfflineBanner from "@/components/student/OfflineBanner";
 import StreakCounter from "@/components/student/StreakCounter";
-
-interface StudentProfile {
-  student_id: string;
-  student_name: string;
-  avatar_url: string | null;
-  avatar_style: string;
-  theme_color: string;
-  points: number;
-  missions_completed: number;
-}
 
 const NAV_LINKS = [
   { href: "/student/home",         label: "Home",        icon: "🏠" },
@@ -35,49 +22,17 @@ const NAV_LINKS = [
 function StudentLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const audioContext = useContext(AudioContext);
-  const isMuted = audioContext?.isMuted ?? false;
-  const toggleMute = audioContext?.toggleMute ?? (() => {});
-  const { play: playClick } = usePrimeSounds("pop");
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [streak, setStreak] = useState<{ current_streak: number; longest_streak: number }>({ current_streak: 0, longest_streak: 0 });
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const token = localStorage.getItem("primepal_student_token");
-    if (!token) { setLoading(false); return; }
-
-    apiFetch<StudentProfile>("/missions/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((data) => setProfile(data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-
-    // Fetch streak data (best-effort, non-blocking)
-    apiFetch<{ current_streak: number; longest_streak: number; last_activity_date: string | null }>("/rewards/streak", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((data) => setStreak({ current_streak: data.current_streak, longest_streak: data.longest_streak }))
-      .catch(() => {});
-  }, []);
+  const { data: profile, isLoading: loading } = useStudentProfile();
+  const { data: streak } = useStreak();
 
   function handleLogout() {
-    playClick();
     localStorage.removeItem("primepal_student_token");
     localStorage.removeItem("primepal_student_name");
     localStorage.removeItem("primepal_student_avatar");
+    queryClient.clear();
     router.push("/student/play");
-  }
-
-  function handleNavClick() {
-    playClick();
-  }
-
-  function handleMuteToggle() {
-    playClick();
-    toggleMute();
   }
 
   return (
@@ -106,7 +61,6 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
                 <Link
                   key={href}
                   href={href}
-                  onClick={handleNavClick}
                   className={[
                     "flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
                     active
@@ -121,7 +75,7 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
             })}
           </nav>
 
-          {/* Right: avatar + points + audio toggle + logout */}
+          {/* Right: avatar + points + logout */}
           <div className="flex items-center gap-2 shrink-0">
             {loading && (
               <div className="flex items-center gap-2 animate-pulse">
@@ -145,26 +99,15 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
                     {profile.student_name.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <StreakCounter currentStreak={streak.current_streak} longestStreak={streak.longest_streak} />
+                <StreakCounter
+                  currentStreak={streak?.current_streak ?? 0}
+                  longestStreak={streak?.longest_streak ?? 0}
+                />
                 <span className="bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
                   ⭐ {profile.points}
                 </span>
               </>
             )}
-
-            {/* Audio Toggle Button */}
-            <button
-              onClick={handleMuteToggle}
-              className="text-slate-600 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all duration-150"
-              title={isMuted ? "Unmute sounds" : "Mute sounds"}
-              aria-label={isMuted ? "Unmute" : "Mute"}
-            >
-              {isMuted ? (
-                <VolumeX size={18} className="text-red-500" />
-              ) : (
-                <Volume2 size={18} className="text-indigo-600" />
-              )}
-            </button>
 
             <button
               onClick={handleLogout}
@@ -188,8 +131,6 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
 
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
   return (
-    <AudioProvider>
-      <StudentLayoutContent>{children}</StudentLayoutContent>
-    </AudioProvider>
+    <StudentLayoutContent>{children}</StudentLayoutContent>
   );
 }

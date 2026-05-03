@@ -319,11 +319,11 @@ async def complete_mission(
     supabase = get_supabase_admin()
 
     # ------------------------------------------------------------------
-    # Step 1: Fetch current points and missions_completed
+    # Step 1: Fetch current points
     # ------------------------------------------------------------------
     student_resp = (
         supabase.table("students")
-        .select("points, missions_completed")
+        .select("points")
         .eq("id", student_id)
         .maybe_single()
         .execute()
@@ -346,7 +346,6 @@ async def complete_mission(
     grade_level: int = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     current_points: int = student_resp.data.get("points") or 0
-    current_missions_completed: int = student_resp.data.get("missions_completed") or 0
 
     # ------------------------------------------------------------------
     # Idempotency check: look for a duplicate interaction within 60s
@@ -378,24 +377,19 @@ async def complete_mission(
             pass  # If submitted_at is malformed, skip idempotency check
 
     points_awarded = (body.points_value or _POINTS_PER_CORRECT) if body.question_correct else 0
-    new_total = current_points + points_awarded
 
     # ------------------------------------------------------------------
-    # Step 2: Persist updated points and missions_completed (only if correct)
-    # NOTE: read-modify-write race condition exists under concurrent requests.
-    # Acceptable for thesis prototype with low concurrency. For production,
-    # use an atomic increment via Supabase RPC.
+    # Step 2: Atomically increment points via RPC
     # ------------------------------------------------------------------
     if points_awarded > 0:
-        update_data = {"points": new_total, "missions_completed": current_missions_completed + 1}
-        try:
-            supabase.table("students").update(update_data).eq(
-                "id", student_id
-            ).execute()
-        except Exception as e:
-            # UPDATE returns 204 No Content, which postgrest-py may fail to parse
-            if "Missing response" not in str(e) and "204" not in str(e):
-                raise
+        rpc_result = supabase.rpc("increment_student_points", {
+            "p_student_id": student_id,
+            "p_points": points_awarded,
+        }).execute()
+        result_data = rpc_result.data[0] if rpc_result.data else {}
+        new_total = result_data.get("new_points", current_points + points_awarded)
+    else:
+        new_total = current_points
 
     background_tasks.add_task(
         log_interaction,
@@ -464,7 +458,7 @@ async def submit_batch(
     try:
         student_resp = (
             supabase.table("students")
-            .select("points, missions_completed")
+            .select("points")
             .eq("id", student_id)
             .maybe_single()
             .execute()
@@ -472,7 +466,6 @@ async def submit_batch(
     except Exception as e:
         if "Missing response" not in str(e) and "204" not in str(e):
             raise
-        # If 204, treat as not found
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student record not found")
 
     if not student_resp.data:
@@ -494,7 +487,6 @@ async def submit_batch(
     grade_level: int = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     current_points: int = student_resp.data.get("points") or 0
-    current_missions: int = student_resp.data.get("missions_completed") or 0
     processed = 0
     skipped = 0
 
@@ -550,18 +542,16 @@ async def submit_batch(
             score=pts,
         )
 
-    # Persist updated totals once
+    # Persist updated totals atomically via RPC once
+    final_total = student_resp.data.get("points") or 0
     if processed > 0:
-        try:
-            supabase.table("students").update({
-                "points": current_points,
-                "missions_completed": current_missions,
-            }).eq("id", student_id).execute()
-        except Exception as e:
-            # UPDATE returns 204 No Content, which postgrest-py may fail to parse
-            # If it's just a missing response (204), we can safely ignore it
-            if "Missing response" not in str(e) and "204" not in str(e):
-                raise
+        total_points_earned = current_points - (student_resp.data.get("points") or 0)
+        rpc_result = supabase.rpc("increment_student_points", {
+            "p_student_id": student_id,
+            "p_points": total_points_earned,
+        }).execute()
+        result_data = rpc_result.data[0] if rpc_result.data else {}
+        final_total = result_data.get("new_points", current_points)
 
         # Update daily streak after batch processing
         await update_streak(student_id)
@@ -569,7 +559,7 @@ async def submit_batch(
     return BatchSubmitResponse(
         processed=processed,
         skipped=skipped,
-        new_total=current_points,
+        new_total=final_total,
     )
 
 
@@ -599,7 +589,7 @@ async def get_student_profile(
     try:
         student_resp = (
             supabase.table("students")
-            .select("student_name, avatar_url, avatar_style, theme_color, points, missions_completed")
+            .select("student_name, avatar_url, avatar_style, theme_color, points")
             .eq("id", student_id)
             .maybe_single()
             .execute()
@@ -620,12 +610,22 @@ async def get_student_profile(
         )
 
     data = student_resp.data
+
+    missions_count_resp = (
+        supabase.table("student_interactions")
+        .select("id", count="exact")
+        .eq("student_id", student_id)
+        .like("interaction_type", "mission%")
+        .execute()
+    )
+    missions_done = missions_count_resp.count or 0
+
     response = StudentProfileResponse(
         student_id=student_id,
         student_name=data["student_name"],
         avatar_url=data.get("avatar_url"),
         points=data.get("points") or 0,
-        missions_completed=data.get("missions_completed") or 0,
+        missions_completed=missions_done,
         avatar_style=data.get("avatar_style") or "adventurer",
         theme_color=data.get("theme_color") or "#6366f1",
     )
@@ -912,24 +912,22 @@ async def submit_speaking_answer(
 
     student_resp = (
         supabase.table("students")
-        .select("points, missions_completed")
+        .select("points")
         .eq("id", student_id)
         .maybe_single()
         .execute()
     )
     current_points = (student_resp.data.get("points") or 0) if student_resp.data else 0
-    new_total = current_points + points_awarded
 
-    if points_awarded > 0 and student_resp.data:
-        current_missions = student_resp.data.get("missions_completed") or 0
-        try:
-            supabase.table("students").update(
-                {"points": new_total, "missions_completed": current_missions + 1}
-            ).eq("id", student_id).execute()
-        except Exception as e:
-            # UPDATE returns 204 No Content, which postgrest-py may fail to parse
-            if "Missing response" not in str(e) and "204" not in str(e):
-                raise
+    if points_awarded > 0:
+        rpc_result = supabase.rpc("increment_student_points", {
+            "p_student_id": student_id,
+            "p_points": points_awarded,
+        }).execute()
+        result_data = rpc_result.data[0] if rpc_result.data else {}
+        new_total = result_data.get("new_points", current_points + points_awarded)
+    else:
+        new_total = current_points
 
     classroom_resp = (
         supabase.table("classrooms")

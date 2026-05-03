@@ -5,7 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { isCurrentUserAdmin } from "@/lib/adminAuth";
 import Link from "next/link";
-import { BarChart2, ClipboardCheck, Download, FileText, LayoutDashboard, LogOut, Menu, Sparkles, X } from "lucide-react";
+import { ClipboardCheck, Download, LayoutDashboard, LogOut, Menu, Sparkles, X } from "lucide-react";
 
 export default function AdminLayout({
   children,
@@ -173,28 +173,6 @@ export default function AdminLayout({
               Dashboard
             </Link>
             <Link
-              href="/teacher/analytics"
-              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
-                pathname.startsWith("/teacher/analytics")
-                  ? "border-emerald-500 text-white"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              <BarChart2 size={14} />
-              Analytics
-            </Link>
-            <Link
-              href="/teacher/reports"
-              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
-                pathname.startsWith("/teacher/reports")
-                  ? "border-emerald-500 text-white"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              <FileText size={14} />
-              Reports
-            </Link>
-            <Link
               href="/teacher/assistant"
               className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
                 pathname.startsWith("/teacher/assistant")
@@ -304,30 +282,6 @@ export default function AdminLayout({
               >
                 <LayoutDashboard size={14} />
                 Dashboard
-              </Link>
-              <Link
-                href="/teacher/analytics"
-                onClick={() => setShowMobileMenu(false)}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
-                  pathname.startsWith("/teacher/analytics")
-                    ? "bg-emerald-600 text-white"
-                    : "text-gray-300 hover:text-white hover:bg-slate-700"
-                }`}
-              >
-                <BarChart2 size={14} />
-                Analytics
-              </Link>
-              <Link
-                href="/teacher/reports"
-                onClick={() => setShowMobileMenu(false)}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
-                  pathname.startsWith("/teacher/reports")
-                    ? "bg-emerald-600 text-white"
-                    : "text-gray-300 hover:text-white hover:bg-slate-700"
-                }`}
-              >
-                <FileText size={14} />
-                Reports
               </Link>
               <Link
                 href="/teacher/assistant"

@@ -1,64 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
-import { apiFetch } from "@/lib/api";
-
-interface LeaderboardEntry {
-  rank: number;
-  student_id: string;
-  student_name: string;
-  avatar_url: string | null;
-  points: number;
-  is_current_student: boolean;
-}
-
-interface LeaderboardResponse {
-  entries: LeaderboardEntry[];
-  current_student_rank: number;
-  total_students: number;
-}
+import { useStudentLeaderboard } from "@/lib/hooks/queries";
 
 export default function LeaderboardPage() {
   const router = useRouter();
-  const [data, setData] = useState<LeaderboardResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  function getToken(): string | null {
-    if (typeof window === "undefined") return null;
-    return localStorage.getItem("primepal_student_token");
-  }
-
-  useEffect(() => {
-    fetchLeaderboard();
-  }, []);
-
-  async function fetchLeaderboard() {
-    try {
-      setLoading(true);
-      const token = getToken();
-      if (!token) {
-        router.push("/student/play");
-        return;
-      }
-
-      const response = await apiFetch<LeaderboardResponse>(
-        "/missions/leaderboard",
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setData(response);
-      setError(null);
-    } catch (err) {
-      console.error("Failed to fetch leaderboard:", err);
-      setError("Failed to load leaderboard");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { data, isLoading: loading, error } = useStudentLeaderboard();
 
   if (loading) {
     return (
@@ -76,7 +26,7 @@ export default function LeaderboardPage() {
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-yellow-50 to-amber-50 px-4">
         <div className="bg-white rounded-2xl border border-red-200 p-8 max-w-sm text-center">
           <p className="text-red-600 font-semibold mb-4">
-            {error || "Failed to load leaderboard"}
+            {error instanceof Error ? error.message : "Failed to load leaderboard"}
           </p>
           <button
             onClick={() => router.push("/student/home")}

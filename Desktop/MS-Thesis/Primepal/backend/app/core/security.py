@@ -10,6 +10,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from app.core.config import settings
+from app.core.cache import cache_get, cache_set
 
 _bearer = HTTPBearer(auto_error=True)
 
@@ -69,65 +70,97 @@ def get_current_student(
 from app.core.supabase_client import get_supabase
 
 
-def get_current_teacher(
+async def get_current_teacher(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> dict:
     """FastAPI dependency — validates a Supabase GoTrue JWT for a teacher session.
 
-    Returns {"id": "<teacher_uuid>", "is_admin": bool} on success.
+    Returns {"id": "<teacher_uuid>", "role": str, "is_admin": bool} on success.
     Raises 401 if the token is invalid or expired.
+    Role is cached in Redis for 1 hour to avoid repeated DB queries.
     """
     supabase = get_supabase()
-    response = supabase.auth.get_user(credentials.credentials)
+    try:
+        response = supabase.auth.get_user(credentials.credentials)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired teacher session")
     if not response or not response.user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid or expired teacher session",
-        )
+        raise HTTPException(status_code=401, detail="Invalid or expired teacher session")
+
     user_id = str(response.user.id)
 
-    # Check if user is admin (for global data access)
-    is_admin = False
+    cached_role = await cache_get(f"teacher_role:{user_id}")
+    if cached_role:
+        return {"id": user_id, "role": cached_role, "is_admin": cached_role == "admin"}
+
     try:
-        result = supabase.table("teachers").select("role").eq("id", user_id).maybe_single().execute()
-        if result.data and result.data.get("role") == "admin":
-            is_admin = True
+        result = (
+            supabase.table("teachers")
+            .select("role")
+            .eq("id", user_id)
+            .maybe_single()
+            .execute()
+        )
+        role = result.data.get("role", "teacher") if result.data else "teacher"
     except Exception:
-        pass
+        role = "teacher"
+    await cache_set(f"teacher_role:{user_id}", role, ttl=3600)
 
-    return {"id": user_id, "is_admin": is_admin}
+    return {"id": user_id, "role": role, "is_admin": role == "admin"}
 
 
-def get_current_admin(
+async def get_current_admin(
     credentials: HTTPAuthorizationCredentials = Depends(_bearer),
 ) -> dict:
     """FastAPI dependency — validates an admin JWT.
 
     Returns {"id": "<admin_uuid>"} on success.
     Raises 403 if user is not admin, 401 if token is invalid.
+    Role is cached in Redis for 1 hour to avoid repeated DB queries.
     """
     supabase = get_supabase()
-    response = supabase.auth.get_user(credentials.credentials)
+    try:
+        response = supabase.auth.get_user(credentials.credentials)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or expired session",
+        )
     if not response or not response.user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired session",
         )
 
-    # Query teachers table for role
-    try:
-        result = supabase.table("teachers").select("role").eq("id", str(response.user.id)).execute()
-        if not result.data or result.data[0]["role"] != "admin":
+    user_id = str(response.user.id)
+
+    cached_role = await cache_get(f"teacher_role:{user_id}")
+    if cached_role:
+        if cached_role != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied — admin role required",
             )
+        return {"id": user_id}
+
+    # Cache miss — query DB
+    try:
+        result = supabase.table("teachers").select("role").eq("id", user_id).execute()
+        if not result.data or result.data[0]["role"] != "admin":
+            # Cache the non-admin role so subsequent calls are fast
+            if result.data:
+                await cache_set(f"teacher_role:{user_id}", result.data[0].get("role", "teacher"), ttl=3600)
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Access denied — admin role required",
+            )
+        await cache_set(f"teacher_role:{user_id}", "admin", ttl=3600)
     except HTTPException:
         raise
-    except Exception as e:
+    except Exception:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Failed to verify admin role",
         )
 
-    return {"id": str(response.user.id)}
+    return {"id": user_id}

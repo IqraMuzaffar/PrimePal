@@ -1,27 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
-import { getAdminHeaders } from "@/lib/adminAuth";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-interface StudentResult {
-  student_id: string;
-  student_name: string | null;
-  evaluation_type: string;
-  total: number;
-  correct: number;
-  psychometric_avg: number | null;
-}
-
-interface Classroom {
-  id: string;
-  class_name: string;
-  grade_level: number;
-}
+import { useState, useEffect } from "react";
+import {
+  useAdminClassrooms,
+  useAdminEvalResults,
+  useTriggerPostTest,
+} from "@/lib/hooks/admin-queries";
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -30,81 +14,35 @@ export default function AdminDashboardPage() {
   const [scope, setScope] = useState<"global" | "grade" | "classroom">("global");
   const [gradeTarget, setGradeTarget] = useState("1");
   const [classroomTarget, setClassroomTarget] = useState("");
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [triggering, setTriggering] = useState(false);
   const [triggerResult, setTriggerResult] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  // Results state
-  const [results, setResults] = useState<StudentResult[]>([]);
-  const [loadingResults, setLoadingResults] = useState(true);
-  const [resultsError, setResultsError] = useState("");
+  const { data: classrooms = [] } = useAdminClassrooms();
+  const { data: evalData, isLoading: loadingResults, error: resultsError } = useAdminEvalResults();
+  const triggerPostTest = useTriggerPostTest();
 
-  // Fetch classrooms for dropdown
+  // Set default classroom target when classrooms load
   useEffect(() => {
-    (async () => {
-      try {
-        const headers = await getAdminHeaders();
-        const res = await fetch(`${API_BASE}/admin/classrooms`, { headers });
-        if (res.ok) {
-          const data = await res.json();
-          setClassrooms(data);
-          if (data.length > 0) setClassroomTarget(data[0].id);
-        }
-      } catch {
-        // best-effort
-      }
-    })();
-  }, []);
-
-  // Fetch evaluation results
-  const fetchResults = useCallback(async () => {
-    setLoadingResults(true);
-    setResultsError("");
-    try {
-      const headers = await getAdminHeaders();
-      const res = await fetch(`${API_BASE}/evaluations/results`, { headers });
-      if (!res.ok) throw new Error("Failed to fetch results");
-      const data = await res.json();
-      setResults(data.results || []);
-    } catch (err: any) {
-      setResultsError(err.message || "Error loading results");
-    } finally {
-      setLoadingResults(false);
+    if (classrooms.length > 0 && !classroomTarget) {
+      setClassroomTarget(classrooms[0].id);
     }
-  }, []);
+  }, [classrooms, classroomTarget]);
 
-  useEffect(() => {
-    fetchResults();
-  }, [fetchResults]);
+  const results = evalData?.results ?? [];
+  const triggering = triggerPostTest.isPending;
 
   // Trigger handler
   const handleTrigger = async () => {
-    setTriggering(true);
     setTriggerResult(null);
     try {
-      const headers = await getAdminHeaders();
       const body: Record<string, string> = { scope };
       if (scope === "grade") body.target_id = gradeTarget;
       if (scope === "classroom") body.target_id = classroomTarget;
-
-      const res = await fetch(`${API_BASE}/evaluations/trigger-post-test`, {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.detail || "Trigger failed");
-      }
-      const data = await res.json();
+      const data = await triggerPostTest.mutateAsync(body);
       setTriggerResult(`Post-test unlocked for ${data.students_unlocked} student(s).`);
       setConfirmOpen(false);
-      fetchResults();
     } catch (err: any) {
       setTriggerResult(`Error: ${err.message}`);
-    } finally {
-      setTriggering(false);
     }
   };
 
@@ -112,7 +50,7 @@ export default function AdminDashboardPage() {
   const preResults = results.filter((r) => r.evaluation_type === "pre");
   const postResults = results.filter((r) => r.evaluation_type === "post");
 
-  const avgScore = (items: StudentResult[]) => {
+  const avgScore = (items: typeof results) => {
     if (items.length === 0) return "N/A";
     const totalCorrect = items.reduce((s, r) => s + r.correct, 0);
     const totalQ = items.reduce((s, r) => s + r.total, 0);
@@ -120,14 +58,12 @@ export default function AdminDashboardPage() {
     return `${Math.round((totalCorrect / totalQ) * 100)}%`;
   };
 
-  // Group by grade for results table
-  const gradeGroups: Record<string, StudentResult[]> = {};
+  // (grouped by evaluation_type for summary — kept for future use)
+  const _gradeGroups: Record<string, typeof results> = {};
   for (const r of results) {
-    // We don't have grade in result directly, but we have it in the data
-    // Group by evaluation_type for summary
     const key = r.evaluation_type;
-    if (!gradeGroups[key]) gradeGroups[key] = [];
-    gradeGroups[key].push(r);
+    if (!_gradeGroups[key]) _gradeGroups[key] = [];
+    _gradeGroups[key].push(r);
   }
 
   return (
@@ -250,7 +186,9 @@ export default function AdminDashboardPage() {
           <p className="text-sm text-slate-400">Loading results...</p>
         )}
         {resultsError && (
-          <p className="text-sm text-red-400">{resultsError}</p>
+          <p className="text-sm text-red-400">
+            {resultsError instanceof Error ? resultsError.message : "Error loading results"}
+          </p>
         )}
 
         {!loadingResults && !resultsError && (

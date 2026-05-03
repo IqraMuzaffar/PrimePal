@@ -137,7 +137,7 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
   const [currentIndex, setCurrentIndex] = useState(0);
   const [results, setResults] = useState<GameResult[]>([]);
   const [showFeedback, setShowFeedback] = useState(false);
-  const [timerKey, setTimerKey] = useState(0);
+  const [_timerKey, setTimerKey] = useState(0);
   const [showSummary, setShowSummary] = useState(false);
   const [lastScore, setLastScore] = useState<{ points: number; isCorrect: boolean } | null>(null);
 
