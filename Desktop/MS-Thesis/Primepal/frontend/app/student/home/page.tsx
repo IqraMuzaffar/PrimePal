@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil, Megaphone } from "lucide-react";
+import { Pencil } from "lucide-react";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,7 +13,6 @@ import {
   useDailySummary,
   useRewardStatus,
   useAchievements,
-  useAnnouncement,
   queryKeys,
   type AchievementProgress,
 } from "@/lib/hooks/queries";
@@ -110,7 +109,6 @@ export default function HomePage() {
   const { data: dailySummary } = useDailySummary();
   const { data: rewardStatus } = useRewardStatus();
   const { data: achievementsData } = useAchievements();
-  const { data: announcement } = useAnnouncement();
 
   // ── Reward claim mutation ──
   const claimReward = useClaimReward();
@@ -204,25 +202,6 @@ export default function HomePage() {
 
   return (
     <div className="max-w-md mx-auto space-y-6 pb-10">
-
-      {/* Announcement Banner */}
-      {announcement && (
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, ease: "easeOut" }}
-          className="w-full rounded-2xl bg-gradient-to-r from-yellow-300 to-amber-300 p-4 shadow-lg border-2 border-amber-200"
-        >
-          <div className="flex items-start gap-3">
-            <Megaphone className="w-6 h-6 text-amber-700 mt-0.5 shrink-0" />
-            <div className="flex-1 min-w-0">
-              <p className="text-lg font-bold text-amber-900 mb-1 break-words leading-snug">
-                {announcement.message_en}
-              </p>
-            </div>
-          </div>
-        </motion.div>
-      )}
 
       {/* Streak reset banner */}
       {streakResetBanner && (

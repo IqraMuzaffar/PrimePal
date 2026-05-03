@@ -47,26 +47,12 @@ export interface AchievementsResponse {
   achievements: AchievementProgress[];
 }
 
-export interface Announcement {
-  id: string;
-  classroom_id: string | null;
-  teacher_id: string;
-  message_en: string;
-  message_ur: string;
-  scope: string;
-  target_grade_level: null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export const queryKeys = {
   studentProfile: ["studentProfile"] as const,
   streak: ["streak"] as const,
   dailySummary: ["dailySummary"] as const,
   rewardStatus: ["rewardStatus"] as const,
   achievements: ["achievements"] as const,
-  announcement: (classroomId: string) => ["announcement", classroomId] as const,
   leaderboard: (classroomId: string) => ["leaderboard", classroomId] as const,
   studentLeaderboard: ["studentLeaderboard"] as const,
   spellingWords: ["spellingWords"] as const,
@@ -134,19 +120,6 @@ export interface LeaderboardResponse {
 
 export function useClassroomId(): string | null {
   return typeof window !== "undefined" ? getStudentClassroomId() : null;
-}
-
-export function useAnnouncement() {
-  const classroomId = useClassroomId();
-  return useQuery({
-    queryKey: queryKeys.announcement(classroomId ?? ""),
-    queryFn: () =>
-      studentFetch<Announcement | null>(
-        `/announcements/${classroomId}/active`
-      ),
-    enabled: !!classroomId,
-    staleTime: 10 * 60 * 1000,
-  });
 }
 
 export function useLeaderboard(classroomId: string | undefined) {
