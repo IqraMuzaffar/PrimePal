@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Mic, MicOff, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 import SpeakingPronunciationFeedback from '@/components/student/SpeakingPronunciationFeedback';
-import { useSpeakingPrompts } from '@/lib/hooks/queries';
+import { useSpeakingPrompts, queryKeys } from '@/lib/hooks/queries';
 
 interface PronunciationWord {
   word: string;
@@ -32,6 +33,7 @@ const _SpeechRecognitionAPI = typeof window !== 'undefined'
 
 export default function SpeakingPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: promptsData, isLoading: promptsLoading, error: promptsError } = useSpeakingPrompts();
 
   const [gameState, setGameState] = useState<GameState>('loading');
@@ -324,7 +326,13 @@ export default function SpeakingPage() {
                 audioBlobRef.current = null;
                 recordingTimeRef.current = 0;
                 setScore({ completed: 0, totalPoints: 0 });
-                window.location.reload();
+                setCurrentPromptIndex(0);
+                setTranscript('');
+                setFeedback(null);
+                setAttemptNumber(1);
+                setGameStarted(false);
+                setGameState('loading');
+                queryClient.invalidateQueries({ queryKey: queryKeys.speakingPrompts });
               }}
               className="flex-1 px-4 py-3 bg-rose-500 text-white font-bold rounded-lg hover:bg-rose-600 transition-colors"
             >

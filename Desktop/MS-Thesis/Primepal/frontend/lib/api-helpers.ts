@@ -2,6 +2,20 @@ import { apiFetch } from "./api";
 import { getAdminHeaders } from "./adminAuth";
 import { getTeacherHeaders } from "./teacherAuth";
 
+export function getStudentClassroomId(): string | null {
+  const token =
+    typeof window !== "undefined"
+      ? localStorage.getItem("primepal_student_token")
+      : null;
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    return payload.classroom_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 export async function adminFetch<T>(path: string): Promise<T> {

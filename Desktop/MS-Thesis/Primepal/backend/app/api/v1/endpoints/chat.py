@@ -13,6 +13,7 @@ Flow:
 The grade_level filter is resolved server-side from the student's JWT and
 classroom record — the frontend never sends or controls the grade.
 """
+import asyncio
 import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
@@ -166,11 +167,27 @@ async def chat_stream(
     async def event_stream():
         yield f"data: {json.dumps({'type': 'status', 'content': 'Thinking...'})}\n\n"
 
+        accumulated_response: list[str] = []
         async for token in stream_guardrailed_response(
             translated_query, context_chunks, grade_level
         ):
+            accumulated_response.append(token)
             yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
+
+        # Log the interaction in a thread to avoid blocking the event loop
+        # (log_interaction is synchronous and does a network call)
+        await asyncio.to_thread(
+            log_interaction,
+            student_id=student["sub"],
+            classroom_id=classroom_id,
+            grade_level=grade_level,
+            interaction_type="chat",
+            original_message=body.message,
+            translated_message=translated_query,
+            correct=None,
+            context_used=len(context_chunks) > 0,
+        )
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")

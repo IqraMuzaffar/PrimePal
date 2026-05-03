@@ -1,54 +1,63 @@
 import { useQuery } from "@tanstack/react-query";
-import { studentFetch } from "../api-helpers";
+import { studentFetch, getStudentClassroomId } from "../api-helpers";
 import type { MissionQuestion } from "@/types/missions";
 
-interface StudentProfile {
-  id: string;
+export interface StudentProfile {
+  student_id: string;
   student_name: string;
-  avatar_url: string;
-  classroom_id: string;
+  avatar_url: string | null;
   points: number;
   missions_completed: number;
-  current_streak: number;
-  longest_streak: number;
+  avatar_style: string;
+  theme_color: string;
 }
 
-interface StreakData {
+export interface StreakData {
   current_streak: number;
   longest_streak: number;
   last_activity_date: string | null;
 }
 
-interface DailySummary {
-  points_today: number;
+export interface DailySummary {
+  today_points: number;
   total_points: number;
   missions_today: number;
 }
 
-interface RewardStatus {
-  claimed_today: boolean;
+export interface RewardStatus {
+  has_claimed_today: boolean;
+  last_claimed_at: string | null;
 }
 
-interface Badge {
+export interface AchievementProgress {
   id: string;
   name: string;
   description: string;
+  description_ur: string;
   icon: string;
+  tier: string;
+  threshold_type: string;
+  threshold_value: number;
   unlocked: boolean;
-  progress: number;
-  threshold: number;
+  unlocked_at: string | null;
+  current_progress: number;
 }
 
-interface AchievementsResponse {
-  achievements: Badge[];
-  total_unlocked: number;
+export interface AchievementsResponse {
+  achievements: AchievementProgress[];
 }
 
-interface Announcement {
+export interface Announcement {
   id: string;
-  title: string;
-  message: string;
+  classroom_id: string | null;
+  teacher_id: string;
+  message_en: string;
+  message_ur: string;
+  scope: string;
+  target_grade_level: null;
+  is_active: boolean;
   created_at: string;
+  updated_at: string;
 }
 
 export const queryKeys = {
@@ -108,7 +117,27 @@ export function useAchievements() {
   });
 }
 
-export function useAnnouncement(classroomId: string | undefined) {
+export interface LeaderboardEntry {
+  rank: number;
+  student_id: string;
+  student_name: string;
+  avatar_url: string | null;
+  points: number;
+  is_current_student: boolean;
+}
+
+export interface LeaderboardResponse {
+  entries: LeaderboardEntry[];
+  current_student_rank: number;
+  total_students: number;
+}
+
+export function useClassroomId(): string | null {
+  return typeof window !== "undefined" ? getStudentClassroomId() : null;
+}
+
+export function useAnnouncement() {
+  const classroomId = useClassroomId();
   return useQuery({
     queryKey: queryKeys.announcement(classroomId ?? ""),
     queryFn: () =>
@@ -124,27 +153,12 @@ export function useLeaderboard(classroomId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.leaderboard(classroomId ?? ""),
     queryFn: () =>
-      studentFetch<{ students: Array<{ id: string; student_name: string; avatar_url: string; points: number }> }>(
-        `/missions/leaderboard/${classroomId}`
+      studentFetch<LeaderboardResponse>(
+        `/missions/leaderboard`
       ),
     enabled: !!classroomId,
     staleTime: 60 * 1000,
   });
-}
-
-interface LeaderboardEntry {
-  rank: number;
-  student_id: string;
-  student_name: string;
-  avatar_url: string | null;
-  points: number;
-  is_current_student: boolean;
-}
-
-interface LeaderboardResponse {
-  entries: LeaderboardEntry[];
-  current_student_rank: number;
-  total_students: number;
 }
 
 interface SpellingWord {

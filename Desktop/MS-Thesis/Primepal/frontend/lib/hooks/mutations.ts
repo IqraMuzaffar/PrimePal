@@ -3,9 +3,11 @@ import { studentMutate } from "../api-helpers";
 import { queryKeys } from "./queries";
 
 interface DailyReward {
-  points_awarded: number;
+  reward_type: string;
+  amount: number;
   new_total: number;
   message: string;
+  new_achievements: unknown[];
 }
 
 interface CompleteResponse {

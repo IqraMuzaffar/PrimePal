@@ -4,13 +4,15 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Volume2, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
-import { useStoryTime } from '@/lib/hooks/queries';
+import { useStoryTime, queryKeys } from '@/lib/hooks/queries';
 
 type GameState = 'loading' | 'reading' | 'questioning' | 'finished';
 
 export default function StoryTimePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: storyData, isLoading: storyLoading, error: storyError } = useStoryTime();
 
   const [gameState, setGameState] = useState<GameState>('loading');
@@ -174,7 +176,13 @@ export default function StoryTimePage() {
             <button
               onClick={() => {
                 setScore({ correct: 0, totalPoints: 0 });
-                window.location.reload();
+                setCurrentQuestionIndex(0);
+                setSelectedAnswer(null);
+                setAnswerResult(null);
+                setStory(null);
+                setGameStarted(false);
+                setGameState('loading');
+                queryClient.invalidateQueries({ queryKey: queryKeys.storyTime });
               }}
               className="flex-1 px-4 py-3 bg-emerald-500 text-white font-bold rounded-lg hover:bg-emerald-600 transition-colors"
             >

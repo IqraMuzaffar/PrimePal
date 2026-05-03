@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { motion } from "framer-motion";
-import { apiFetch } from "@/lib/api";
 
 interface Message {
   id: number;
@@ -99,26 +98,39 @@ export default function ChatPage() {
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
+      let buffer = "";
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk
+        buffer += decoder.decode(value, { stream: true });
+
+        // Only process complete lines (ending with \n)
+        const lastNewline = buffer.lastIndexOf("\n");
+        if (lastNewline === -1) continue;
+
+        const complete = buffer.slice(0, lastNewline);
+        buffer = buffer.slice(lastNewline + 1);
+
+        const lines = complete
           .split("\n")
           .filter((line) => line.startsWith("data: "));
 
         for (const line of lines) {
-          const data = JSON.parse(line.slice(6));
-          if (data.type === "token") {
-            setMessages((prev) =>
-              prev.map((msg) =>
-                msg.id === tutorMsgId
-                  ? { ...msg, text: msg.text + data.content }
-                  : msg
-              )
-            );
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === "token") {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === tutorMsgId
+                    ? { ...msg, text: msg.text + data.content }
+                    : msg
+                )
+              );
+            }
+          } catch {
+            // Skip malformed JSON chunks gracefully
           }
         }
       }

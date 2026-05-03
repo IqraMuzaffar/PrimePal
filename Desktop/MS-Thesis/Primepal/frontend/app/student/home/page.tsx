@@ -15,6 +15,7 @@ import {
   useAchievements,
   useAnnouncement,
   queryKeys,
+  type AchievementProgress,
 } from "@/lib/hooks/queries";
 import { useClaimReward } from "@/lib/hooks/mutations";
 import AvatarCustomizeModal from "@/components/student/AvatarCustomizeModal";
@@ -109,7 +110,7 @@ export default function HomePage() {
   const { data: dailySummary } = useDailySummary();
   const { data: rewardStatus } = useRewardStatus();
   const { data: achievementsData } = useAchievements();
-  const { data: announcement } = useAnnouncement(profile?.classroom_id);
+  const { data: announcement } = useAnnouncement();
 
   // ── Reward claim mutation ──
   const claimReward = useClaimReward();
@@ -134,7 +135,7 @@ export default function HomePage() {
 
   // Open daily chest when reward status loads and not yet claimed
   useEffect(() => {
-    if (rewardStatus && !rewardStatus.claimed_today) {
+    if (rewardStatus && !rewardStatus.has_claimed_today) {
       setIsDailyChestOpen(true);
     }
   }, [rewardStatus]);
@@ -171,8 +172,8 @@ export default function HomePage() {
       onSuccess: (data) => {
         // Map mutation response to the local reward shape
         const mapped: DailyRewardLocal = {
-          reward_type: "stars",
-          amount: data.points_awarded,
+          reward_type: data.reward_type,
+          amount: data.amount,
           new_total: data.new_total,
           message: data.message,
         };
@@ -216,7 +217,7 @@ export default function HomePage() {
             <Megaphone className="w-6 h-6 text-amber-700 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-lg font-bold text-amber-900 mb-1 break-words leading-snug">
-                {announcement.message}
+                {announcement.message_en}
               </p>
             </div>
           </div>
@@ -260,9 +261,9 @@ export default function HomePage() {
             </motion.button>
           </div>
           <div className="flex items-center gap-2">
-            {dailySummary && dailySummary.points_today > 0 && (
+            {dailySummary && dailySummary.today_points > 0 && (
               <div className="flex flex-col items-center bg-white/20 rounded-2xl px-3 py-3 border-2 border-white/30">
-                <span className="text-white font-extrabold text-xl leading-tight">+{dailySummary.points_today}</span>
+                <span className="text-white font-extrabold text-xl leading-tight">+{dailySummary.today_points}</span>
                 <span className="text-white/70 text-[10px] font-semibold">Today</span>
               </div>
             )}
@@ -385,7 +386,7 @@ export default function HomePage() {
               <span className="text-xs font-bold text-slate-400">No badges yet — keep learning!</span>
             </div>
           )}
-          {achievementsData?.achievements.filter((b) => b.unlocked).slice(0, 5).map((badge) => (
+          {achievementsData?.achievements.filter((b: AchievementProgress) => b.unlocked).slice(0, 5).map((badge: AchievementProgress) => (
             <div
               key={badge.id}
               className="flex flex-col items-center gap-1 px-4 py-3 rounded-2xl border-2 shrink-0 w-24 text-center transition-all shadow-sm border-indigo-200 bg-amber-50"
@@ -396,7 +397,7 @@ export default function HomePage() {
               <span className="text-[10px] text-indigo-600 font-extrabold bg-indigo-100 rounded-full px-1.5">Earned</span>
             </div>
           ))}
-          {achievementsData?.achievements.filter((b) => !b.unlocked).slice(0, Math.max(0, 5 - (achievementsData?.achievements.filter((b) => b.unlocked).length ?? 0))).map((badge) => (
+          {achievementsData?.achievements.filter((b: AchievementProgress) => !b.unlocked).slice(0, Math.max(0, 5 - (achievementsData?.achievements.filter((b: AchievementProgress) => b.unlocked).length ?? 0))).map((badge: AchievementProgress) => (
             <div
               key={badge.id}
               className="flex flex-col items-center gap-1 px-4 py-3 rounded-2xl border-2 shrink-0 w-24 text-center transition-all bg-slate-50 border-slate-200 opacity-40"
@@ -404,7 +405,7 @@ export default function HomePage() {
             >
               <span className="text-2xl grayscale">{badge.icon}</span>
               <span className="text-xs font-bold leading-tight text-slate-400">{badge.name}</span>
-              <span className="text-[10px] text-slate-400 font-semibold">{badge.progress}/{badge.threshold}</span>
+              <span className="text-[10px] text-slate-400 font-semibold">{badge.current_progress}/{badge.threshold_value}</span>
             </div>
           ))}
         </div>

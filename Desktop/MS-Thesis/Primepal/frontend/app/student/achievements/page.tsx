@@ -2,23 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { useAchievements } from "@/lib/hooks/queries";
+import { useAchievements, type AchievementProgress } from "@/lib/hooks/queries";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-interface Achievement {
-  id: string;
-  name: string;
-  description: string;
-  description_ur: string;
-  icon: string;
-  tier: string;
-  threshold_type: string;
-  threshold_value: number;
-  unlocked: boolean;
-  unlocked_at: string | null;
-  current_progress: number;
-}
+type Achievement = AchievementProgress;
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -152,7 +140,7 @@ export default function AchievementsPage() {
   const router = useRouter();
   const { data, isLoading: loading, error } = useAchievements();
 
-  const achievements = (data?.achievements ?? []) as unknown as Achievement[];
+  const achievements: Achievement[] = data?.achievements ?? [];
   const unlocked = achievements.filter((a) => a.unlocked);
   const locked = achievements.filter((a) => !a.unlocked);
 

@@ -4,13 +4,15 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Volume2, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
+import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
-import { useSpellingWords } from "@/lib/hooks/queries";
+import { useSpellingWords, queryKeys } from "@/lib/hooks/queries";
 
 type GameState = "loading" | "playing" | "result" | "finished";
 
 export default function SpellingBeePage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: wordsData, isLoading: wordsLoading, error: wordsError } = useSpellingWords();
 
   const [gameState, setGameState] = useState<GameState>("loading");
@@ -210,9 +212,14 @@ export default function SpellingBeePage() {
             <button
               onClick={() => {
                 setScore({ correct: 0, totalPoints: 0 });
+                setCurrentWordIndex(0);
+                setUserInput("");
+                setAttemptCount(1);
+                setResultMessage("");
+                setPointsAwarded(0);
                 setGameStarted(false);
                 setGameState("loading");
-                window.location.reload();
+                queryClient.invalidateQueries({ queryKey: queryKeys.spellingWords });
               }}
               className="flex-1 px-4 py-3 bg-amber-500 text-white font-bold rounded-lg hover:bg-amber-600 transition-colors"
             >
