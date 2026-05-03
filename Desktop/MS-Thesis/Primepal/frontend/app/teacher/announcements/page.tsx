@@ -34,7 +34,7 @@ export default function AnnouncementsPage() {
   const [targetGrade, setTargetGrade] = useState<number | null>(null);
 
   const loading = classroomsLoading;
-  const [loadingClassrooms, setLoadingClassrooms] = useState(false);
+  const [loadingClassrooms, _setLoadingClassrooms] = useState(false);
   const [posting, setPosting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
 
@@ -48,7 +48,7 @@ export default function AnnouncementsPage() {
     }
   }, [classrooms, selectedClassroom]);
 
-  const { data: announcementsData, isLoading: announcementsLoading } = useTeacherAnnouncements(
+  const { data: announcementsData, isLoading: _announcementsLoading } = useTeacherAnnouncements(
     selectedClassroom || undefined
   );
   const announcements = (announcementsData?.announcements ?? []) as Announcement[];

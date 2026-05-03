@@ -9,7 +9,6 @@ import { useTeacherClassrooms } from "@/lib/hooks/teacher-queries";
 import { useQueryClient } from "@tanstack/react-query";
 import { teacherQueryKeys } from "@/lib/hooks/teacher-queries";
 import CreateClassroomModal from "@/components/teacher/CreateClassroomModal";
-import type { Classroom } from "@/types";
 
 export default function ClassroomPage() {
   const { data: classrooms = [], isLoading: loading } = useTeacherClassrooms();

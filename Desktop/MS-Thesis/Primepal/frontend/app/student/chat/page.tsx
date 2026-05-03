@@ -10,14 +10,6 @@ interface Message {
   englishReply?: string;  // only present on tutor messages
 }
 
-interface ChatApiResponse {
-  reply: string;
-  english_reply: string;
-  grade_level: number;
-  context_used: boolean;
-  translated_query: string;
-}
-
 export default function ChatPage() {
   const [studentName, setStudentName] = useState<string>("there");
   const [messages, setMessages] = useState<Message[]>([]);

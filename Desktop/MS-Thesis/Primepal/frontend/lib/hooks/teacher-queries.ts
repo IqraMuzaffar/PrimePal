@@ -228,7 +228,7 @@ export function useToggleAnnouncement() {
   return useMutation({
     mutationFn: ({
       id,
-      classroomId,
+      classroomId: _classroomId,
     }: {
       id: string;
       classroomId: string;
