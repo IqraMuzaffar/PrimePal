@@ -51,19 +51,6 @@ export interface TeacherDailyPlan {
   generated_at: string;
 }
 
-export interface TeacherAnnouncement {
-  id: string;
-  classroom_id: string | null;
-  teacher_id: string;
-  message_en: string;
-  message_ur: string;
-  scope: "classroom" | "grade_level" | "school_wide";
-  target_grade_level: number | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-}
-
 export interface GradeTopicItem {
   topic_id: number;
   topic_name: string;
@@ -109,8 +96,6 @@ export interface SkillAccuracy {
 export const teacherQueryKeys = {
   classrooms: ["teacher", "classrooms"] as const,
   classroom: (id: string) => ["teacher", "classroom", id] as const,
-  announcements: (classroomId: string) =>
-    ["teacher", "announcements", classroomId] as const,
   topics: (grade: number) => ["teacher", "topics", grade] as const,
   missionReport: (classroomId: string) =>
     ["teacher", "missionReport", classroomId] as const,
@@ -142,18 +127,6 @@ export function useTeacherClassroom(id: string) {
       >(`/classroom/${id}`),
     staleTime: 2 * 60 * 1000,
     enabled: !!id,
-  });
-}
-
-export function useTeacherAnnouncements(classroomId: string | undefined) {
-  return useQuery({
-    queryKey: teacherQueryKeys.announcements(classroomId ?? ""),
-    queryFn: () =>
-      teacherFetch<{ announcements: TeacherAnnouncement[]; total_count: number }>(
-        `/announcements/classroom/${classroomId}`
-      ),
-    enabled: !!classroomId,
-    staleTime: 60 * 1000,
   });
 }
 
@@ -206,45 +179,6 @@ export function useTeacherSkillAccuracy(gradeLevel?: number) {
 }
 
 // ── Mutations ─────────────────────────────────────────────────────────────────
-
-export function useCreateAnnouncement() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: Record<string, unknown>) =>
-      teacherMutate<TeacherAnnouncement>("/announcements/", body),
-    onSuccess: (_data, variables) => {
-      const cid = variables.classroom_id as string | undefined;
-      if (cid) {
-        queryClient.invalidateQueries({
-          queryKey: teacherQueryKeys.announcements(cid),
-        });
-      }
-    },
-  });
-}
-
-export function useToggleAnnouncement() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      id,
-      classroomId: _classroomId,
-    }: {
-      id: string;
-      classroomId: string;
-    }) =>
-      teacherMutate<TeacherAnnouncement>(
-        `/announcements/${id}/toggle`,
-        {},
-        "PATCH"
-      ),
-    onSuccess: (_data, variables) => {
-      queryClient.invalidateQueries({
-        queryKey: teacherQueryKeys.announcements(variables.classroomId),
-      });
-    },
-  });
-}
 
 export function useSaveTopics() {
   const queryClient = useQueryClient();
