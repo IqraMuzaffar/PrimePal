@@ -6,75 +6,34 @@ import { useRouter } from "next/navigation";
 import { Pencil, Megaphone } from "lucide-react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { apiFetch } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  useStudentProfile,
+  useStreak,
+  useDailySummary,
+  useRewardStatus,
+  useAchievements,
+  useAnnouncement,
+  queryKeys,
+} from "@/lib/hooks/queries";
+import { useClaimReward } from "@/lib/hooks/mutations";
 import AvatarCustomizeModal from "@/components/student/AvatarCustomizeModal";
 import DailyChestModal from "@/components/student/DailyChestModal";
 import AchievementPopup from "@/components/student/AchievementPopup";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
-interface StudentProfile {
-  student_id: string;
-  student_name: string;
-  avatar_url: string | null;
-  avatar_style: string;
-  theme_color: string;
-  points: number;
-  missions_completed: number;
-}
-
-interface DailyReward {
+// Shape expected by DailyChestModal
+interface DailyRewardLocal {
   reward_type: string;
   amount: number;
   new_total: number;
   message: string;
-  new_achievements?: Array<{ name: string; icon: string; tier: string }>;
-}
-
-interface RewardStatus {
-  has_claimed_today: boolean;
-  last_claimed_at: string | null;
-}
-
-interface DailySummary {
-  today_points: number;
-  total_points: number;
-  missions_today: number;
-}
-
-interface Announcement {
-  id: string;
-  classroom_id: string;
-  message_en: string;
-  message_ur: string;
-  is_active: boolean;
-  created_at: string;
-}
-
-interface AchievementBadge {
-  id: string;
-  name: string;
-  icon: string;
-  tier: string;
-  unlocked: boolean;
-  unlocked_at: string | null;
-  current_progress: number;
-  threshold_value: number;
-}
-
-interface AchievementsResponse {
-  achievements: AchievementBadge[];
 }
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
 const COMING_SOON: Array<{ id: string; icon: string; label: string; tagline: string }> = [];
-
-const TIER_BORDER: Record<string, string> = {
-  bronze: "border-[#CD7F32]",
-  silver: "border-[#C0C0C0]",
-  gold: "border-[#FFD700]",
-};
 
 const QUOTES = [
   "Every word you learn is a superpower! 💪",
@@ -83,11 +42,6 @@ const QUOTES = [
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("primepal_student_token");
-}
 
 function dicebearUrl(style: string, seed: string) {
   return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
@@ -147,108 +101,53 @@ function LockedCard({ icon, label, tagline }: { icon: string; label: string; tag
 
 export default function HomePage() {
   const router = useRouter();
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [loadingProfile, setLoadingProfile] = useState(true);
-  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const queryClient = useQueryClient();
+
+  // ── Data fetching via TanStack Query (all fire in parallel) ──
+  const { data: profile, isLoading: loadingProfile } = useStudentProfile();
+  const { data: streak } = useStreak();
+  const { data: dailySummary } = useDailySummary();
+  const { data: rewardStatus } = useRewardStatus();
+  const { data: achievementsData } = useAchievements();
+  const { data: announcement } = useAnnouncement(profile?.classroom_id);
+
+  // ── Reward claim mutation ──
+  const claimReward = useClaimReward();
+
+  // ── Local UI state ──
   const [showModal, setShowModal] = useState(false);
+  const [avatarStyle, setAvatarStyle] = useState("adventurer");
+  const [themeColor, setThemeColor] = useState("#6366f1");
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [quoteFading, setQuoteFading] = useState(false);
   const [isDailyChestOpen, setIsDailyChestOpen] = useState(false);
   const [claimingReward, setClaimingReward] = useState(false);
-  const [dailyReward, setDailyReward] = useState<DailyReward | null>(null);
-  const [dailySummary, setDailySummary] = useState<DailySummary | null>(null);
-  const [badges, setBadges] = useState<AchievementBadge[]>([]);
+  const [dailyReward, setDailyReward] = useState<DailyRewardLocal | null>(null);
   const [achievementPopup, setAchievementPopup] = useState<{ name: string; icon: string; tier: "bronze" | "silver" | "gold" } | null>(null);
   const [streakResetBanner, setStreakResetBanner] = useState(false);
 
+  // Redirect if no token
   useEffect(() => {
-    const token = getToken();
-    if (!token) { router.push("/student/play"); return; }
-
-    apiFetch<StudentProfile>("/missions/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((profileData) => {
-        setProfile(profileData);
-        // Fetch announcement for this classroom
-        if (profileData) {
-          fetchAnnouncement(profileData);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoadingProfile(false));
-
-    // Fetch daily summary (best-effort, non-blocking)
-    apiFetch<DailySummary>("/rewards/daily-summary", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((summary) => setDailySummary(summary))
-      .catch(() => {});
-
-    // Fetch streak to detect reset (best-effort)
-    apiFetch<{ current_streak: number; longest_streak: number; last_activity_date: string | null }>("/rewards/streak", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((data) => {
-        if (data.current_streak === 0 && data.longest_streak > 0) {
-          setStreakResetBanner(true);
-          setTimeout(() => setStreakResetBanner(false), 6000);
-        }
-      })
-      .catch(() => {});
-
-    // Fetch achievements/badges (best-effort, non-blocking)
-    apiFetch<AchievementsResponse>("/achievements/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((data) => setBadges(data.achievements))
-      .catch(() => {});
+    const token = typeof window !== "undefined" ? localStorage.getItem("primepal_student_token") : null;
+    if (!token) { router.push("/student/play"); }
   }, [router]);
 
-  async function fetchAnnouncement(_profileData: StudentProfile) {
-    try {
-      // We need the classroom_id from the JWT or profile
-      // For now, we'll extract it from the JWT token
-      const token = getToken();
-      if (!token) return;
-
-      // Decode the JWT to get classroom_id (base64 decode payload)
-      const parts = token.split(".");
-      if (parts.length !== 3) return;
-
-      const decodedPayload = JSON.parse(atob(parts[1]));
-      const classroomId = decodedPayload.classroom_id;
-
-      if (!classroomId) return;
-
-      const ann = await apiFetch<Announcement | null>(
-        `/announcements/${classroomId}/active`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      if (ann) {
-        setAnnouncement(ann);
-      }
-    } catch (err) {
-      // Silently fail - announcements are optional
-      console.debug("Could not fetch announcement:", err);
-    }
-  }
-
+  // Open daily chest when reward status loads and not yet claimed
   useEffect(() => {
-    const token = getToken();
-    if (!token || loadingProfile) return;
+    if (rewardStatus && !rewardStatus.claimed_today) {
+      setIsDailyChestOpen(true);
+    }
+  }, [rewardStatus]);
 
-    apiFetch<RewardStatus>("/rewards/status", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((status) => {
-        if (!status.has_claimed_today) {
-          setIsDailyChestOpen(true);
-        }
-      })
-      .catch(() => {});
-  }, [loadingProfile]);
+  // Detect streak reset
+  useEffect(() => {
+    if (streak && streak.current_streak === 0 && streak.longest_streak > 0) {
+      setStreakResetBanner(true);
+      setTimeout(() => setStreakResetBanner(false), 6000);
+    }
+  }, [streak]);
 
+  // Quote rotation timer
   useEffect(() => {
     const t = setInterval(() => {
       setQuoteFading(true);
@@ -258,66 +157,49 @@ export default function HomePage() {
   }, []);
 
   function handleCustomizeSave(style: string, color: string) {
-    if (!profile) return;
-    const newUrl = dicebearUrl(style, profile.student_name);
-    setProfile({ ...profile, avatar_style: style, theme_color: color, avatar_url: newUrl });
+    setAvatarStyle(style);
+    setThemeColor(color);
     setShowModal(false);
+    // Invalidate profile so layout also picks up the new avatar_url
+    queryClient.invalidateQueries({ queryKey: queryKeys.studentProfile });
   }
 
-  async function handleClaimReward(_reward: DailyReward) {
+  async function handleClaimReward(_reward: DailyRewardLocal) {
     setClaimingReward(true);
-    const token = getToken();
-    if (!token) return;
 
-    try {
-      const claimedReward = await apiFetch<DailyReward>("/rewards/claim-daily", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    claimReward.mutate(undefined, {
+      onSuccess: (data) => {
+        // Map mutation response to the local reward shape
+        const mapped: DailyRewardLocal = {
+          reward_type: "stars",
+          amount: data.points_awarded,
+          new_total: data.new_total,
+          message: data.message,
+        };
+        setDailyReward(mapped);
 
-      // Update reward state with actual reward details
-      setDailyReward(claimedReward);
-
-      // Update profile with new point total
-      if (profile) {
-        setProfile({ ...profile, points: claimedReward.new_total });
-      }
-
-      // Show achievement popup if any new achievements were unlocked
-      if (claimedReward.new_achievements && claimedReward.new_achievements.length > 0) {
-        const first = claimedReward.new_achievements[0];
+        // Close modal after brief delay
         setTimeout(() => {
-          setAchievementPopup({
-            name: first.name,
-            icon: first.icon,
-            tier: first.tier as "bronze" | "silver" | "gold",
-          });
-        }, 2500);
-        // Re-fetch badges to update the shelf
-        apiFetch<AchievementsResponse>("/achievements/me", {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-          .then((data) => setBadges(data.achievements))
-          .catch(() => {});
-      }
-
-      // Close modal after brief delay to let user see the actual reward
-      setTimeout(() => {
+          setIsDailyChestOpen(false);
+          setDailyReward(null);
+        }, 2000);
+      },
+      onError: () => {
         setIsDailyChestOpen(false);
-        setDailyReward(null);
-      }, 2000);
-    } catch (error) {
-      console.error("Failed to claim daily reward:", error);
-      setIsDailyChestOpen(false);
-    } finally {
-      setClaimingReward(false);
-    }
+      },
+      onSettled: () => {
+        setClaimingReward(false);
+      },
+    });
   }
 
   const points = profile?.points ?? 0;
   const name = profile?.student_name
     ?? (typeof window !== "undefined" ? localStorage.getItem("primepal_student_name") : null)
     ?? "Champion";
+
+  // Resolve avatar URL: prefer profile value, fall back to generated dicebear
+  const resolvedAvatarUrl = profile?.avatar_url || dicebearUrl(avatarStyle, name);
 
   return (
     <div className="max-w-md mx-auto space-y-6 pb-10">
@@ -333,13 +215,8 @@ export default function HomePage() {
           <div className="flex items-start gap-3">
             <Megaphone className="w-6 h-6 text-amber-700 mt-0.5 shrink-0" />
             <div className="flex-1 min-w-0">
-              {/* Urdu Message (Prominent) */}
               <p className="text-lg font-bold text-amber-900 mb-1 break-words leading-snug">
-                {announcement.message_ur}
-              </p>
-              {/* English Message (Smaller) */}
-              <p className="text-xs text-amber-800 break-words opacity-85">
-                {announcement.message_en}
+                {announcement.message}
               </p>
             </div>
           </div>
@@ -383,15 +260,15 @@ export default function HomePage() {
             </motion.button>
           </div>
           <div className="flex items-center gap-2">
-            {dailySummary && dailySummary.today_points > 0 && (
+            {dailySummary && dailySummary.points_today > 0 && (
               <div className="flex flex-col items-center bg-white/20 rounded-2xl px-3 py-3 border-2 border-white/30">
-                <span className="text-white font-extrabold text-xl leading-tight">+{dailySummary.today_points}</span>
+                <span className="text-white font-extrabold text-xl leading-tight">+{dailySummary.points_today}</span>
                 <span className="text-white/70 text-[10px] font-semibold">Today</span>
               </div>
             )}
             <div className="flex flex-col items-center bg-white/20 rounded-2xl px-4 py-3 border-2 border-white/30">
-              {profile?.avatar_url ? (
-                <Image src={profile.avatar_url} alt={name} width={48} height={48} className="rounded-full border-2 border-white/60 mb-1" />
+              {resolvedAvatarUrl ? (
+                <Image src={resolvedAvatarUrl} alt={name} width={48} height={48} className="rounded-full border-2 border-white/60 mb-1" />
               ) : (
                 <span className="text-3xl leading-none mb-1">⭐</span>
               )}
@@ -502,20 +379,16 @@ export default function HomePage() {
           </Link>
         </div>
         <div className="flex gap-3 overflow-x-auto pb-1 no-scrollbar">
-          {badges.length === 0 && !loadingProfile && (
+          {(!achievementsData || achievementsData.achievements.length === 0) && !loadingProfile && (
             <div className="flex flex-col items-center gap-1 px-4 py-3 rounded-2xl border-2 border-slate-200 bg-slate-50 w-full text-center">
               <span className="text-2xl">🏅</span>
               <span className="text-xs font-bold text-slate-400">No badges yet — keep learning!</span>
             </div>
           )}
-          {badges.filter((b) => b.unlocked).slice(0, 5).map((badge) => (
+          {achievementsData?.achievements.filter((b) => b.unlocked).slice(0, 5).map((badge) => (
             <div
               key={badge.id}
-              className={[
-                "flex flex-col items-center gap-1 px-4 py-3 rounded-2xl border-2 shrink-0 w-24 text-center transition-all shadow-sm",
-                TIER_BORDER[badge.tier] || "border-indigo-200",
-                badge.tier === "gold" ? "bg-yellow-50" : badge.tier === "silver" ? "bg-slate-50" : "bg-amber-50",
-              ].join(" ")}
+              className="flex flex-col items-center gap-1 px-4 py-3 rounded-2xl border-2 shrink-0 w-24 text-center transition-all shadow-sm border-indigo-200 bg-amber-50"
               title={badge.name}
             >
               <span className="text-2xl">{badge.icon}</span>
@@ -523,7 +396,7 @@ export default function HomePage() {
               <span className="text-[10px] text-indigo-600 font-extrabold bg-indigo-100 rounded-full px-1.5">Earned</span>
             </div>
           ))}
-          {badges.filter((b) => !b.unlocked).slice(0, Math.max(0, 5 - badges.filter((b) => b.unlocked).length)).map((badge) => (
+          {achievementsData?.achievements.filter((b) => !b.unlocked).slice(0, Math.max(0, 5 - (achievementsData?.achievements.filter((b) => b.unlocked).length ?? 0))).map((badge) => (
             <div
               key={badge.id}
               className="flex flex-col items-center gap-1 px-4 py-3 rounded-2xl border-2 shrink-0 w-24 text-center transition-all bg-slate-50 border-slate-200 opacity-40"
@@ -531,7 +404,7 @@ export default function HomePage() {
             >
               <span className="text-2xl grayscale">{badge.icon}</span>
               <span className="text-xs font-bold leading-tight text-slate-400">{badge.name}</span>
-              <span className="text-[10px] text-slate-400 font-semibold">{badge.current_progress}/{badge.threshold_value}</span>
+              <span className="text-[10px] text-slate-400 font-semibold">{badge.progress}/{badge.threshold}</span>
             </div>
           ))}
         </div>
@@ -558,8 +431,8 @@ export default function HomePage() {
       {showModal && profile && (
         <AvatarCustomizeModal
           studentName={profile.student_name}
-          currentStyle={profile.avatar_style}
-          currentColor={profile.theme_color}
+          currentStyle={avatarStyle}
+          currentColor={themeColor}
           onSave={handleCustomizeSave}
           onClose={() => setShowModal(false)}
         />

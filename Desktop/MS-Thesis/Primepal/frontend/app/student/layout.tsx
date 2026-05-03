@@ -2,23 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 import Image from "next/image";
-import { apiFetch } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { useStudentProfile, useStreak } from "@/lib/hooks/queries";
 import AnimatedBackground from "@/components/student/AnimatedBackground";
 import DynamicBackground from "@/components/student/DynamicBackground";
 import OfflineBanner from "@/components/student/OfflineBanner";
 import StreakCounter from "@/components/student/StreakCounter";
-
-interface StudentProfile {
-  student_id: string;
-  student_name: string;
-  avatar_url: string | null;
-  avatar_style: string;
-  theme_color: string;
-  points: number;
-  missions_completed: number;
-}
 
 const NAV_LINKS = [
   { href: "/student/home",         label: "Home",        icon: "🏠" },
@@ -32,34 +22,16 @@ const NAV_LINKS = [
 function StudentLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [streak, setStreak] = useState<{ current_streak: number; longest_streak: number }>({ current_streak: 0, longest_streak: 0 });
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const token = localStorage.getItem("primepal_student_token");
-    if (!token) { setLoading(false); return; }
-
-    apiFetch<StudentProfile>("/missions/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((data) => setProfile(data))
-      .catch(() => {})
-      .finally(() => setLoading(false));
-
-    // Fetch streak data (best-effort, non-blocking)
-    apiFetch<{ current_streak: number; longest_streak: number; last_activity_date: string | null }>("/rewards/streak", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((data) => setStreak({ current_streak: data.current_streak, longest_streak: data.longest_streak }))
-      .catch(() => {});
-  }, []);
+  const { data: profile, isLoading: loading } = useStudentProfile();
+  const { data: streak } = useStreak();
 
   function handleLogout() {
     localStorage.removeItem("primepal_student_token");
     localStorage.removeItem("primepal_student_name");
     localStorage.removeItem("primepal_student_avatar");
+    queryClient.clear();
     router.push("/student/play");
   }
 
@@ -127,7 +99,10 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
                     {profile.student_name.charAt(0).toUpperCase()}
                   </div>
                 )}
-                <StreakCounter currentStreak={streak.current_streak} longestStreak={streak.longest_streak} />
+                <StreakCounter
+                  currentStreak={streak?.current_streak ?? 0}
+                  longestStreak={streak?.longest_streak ?? 0}
+                />
                 <span className="bg-indigo-100 text-indigo-700 rounded-full px-2 py-0.5 text-xs font-bold whitespace-nowrap">
                   ⭐ {profile.points}
                 </span>
