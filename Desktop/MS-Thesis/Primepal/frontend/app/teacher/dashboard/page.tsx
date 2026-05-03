@@ -1,27 +1,10 @@
 "use client";
 
-import { useEffect, useState, Suspense } from "react";
+import { Suspense } from "react";
 import Link from "next/link";
 import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Zap, Activity, BookOpenCheck, Headphones, MessageSquare } from "lucide-react";
-import { apiFetch } from "@/lib/api";
-import { getTeacherHeaders } from "@/lib/teacherAuth";
 import FilterBar, { useFilterParams } from "@/components/teacher/FilterBar";
-import type { Classroom } from "@/types";
-
-interface DashboardStats {
-  total_students: number;
-  total_interactions: number;
-  avg_accuracy: number;
-  active_this_week: number;
-}
-
-interface SkillAccuracy {
-  reading: number;
-  writing: number;
-  listening: number;
-  speaking: number;
-  active_today: number;
-}
+import { useTeacherClassrooms, useTeacherDashboardStats, useTeacherSkillAccuracy } from "@/lib/hooks/teacher-queries";
 
 function skillColor(pct: number): string {
   if (pct >= 70) return "text-emerald-600 bg-emerald-50 border-emerald-200";
@@ -30,48 +13,13 @@ function skillColor(pct: number): string {
 }
 
 function DashboardContent() {
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [skillAccuracy, setSkillAccuracy] = useState<SkillAccuracy | null>(null);
-  const [loading, setLoading] = useState(true);
-
   const { gradeLevel, pillar } = useFilterParams();
 
-  useEffect(() => {
-    async function fetchData() {
-      setLoading(true);
-      try {
-        const headers = await getTeacherHeaders();
+  const { data: classrooms = [], isLoading: classroomsLoading } = useTeacherClassrooms();
+  const { data: stats, isLoading: statsLoading } = useTeacherDashboardStats({ gradeLevel, pillar });
+  const { data: skillAccuracy, isLoading: skillLoading } = useTeacherSkillAccuracy(gradeLevel);
 
-        // Build query params for filters
-        const params = new URLSearchParams();
-        if (gradeLevel) params.set("grade_level", String(gradeLevel));
-        if (pillar) params.set("pillar", pillar);
-        const qs = params.toString();
-        const suffix = qs ? `?${qs}` : "";
-
-        // Fetch classrooms, dashboard stats, and skill accuracy in parallel
-        const [classroomData, dashboardStats, skills] = await Promise.all([
-          apiFetch<Classroom[]>("/classroom/", { headers }),
-          apiFetch<DashboardStats>(`/evaluator/dashboard-stats${suffix}`, { headers }),
-          apiFetch<SkillAccuracy>(
-            `/evaluator/skill-accuracy${gradeLevel ? `?grade_level=${gradeLevel}` : ""}`,
-            { headers }
-          ),
-        ]);
-
-        setClassrooms(classroomData);
-        setStats(dashboardStats);
-        setSkillAccuracy(skills);
-      } catch (err) {
-        console.error("Failed to fetch data:", err);
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchData();
-  }, [gradeLevel, pillar]);
+  const loading = classroomsLoading || statsLoading || skillLoading;
 
   return (
     <div className="bg-gray-50 min-h-full">

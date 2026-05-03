@@ -7,8 +7,7 @@ import {
   ArrowLeft, Download, TrendingUp, TrendingDown, Minus,
   BarChart3, BookOpen, Lightbulb, CheckCircle, AlertCircle, Star,
 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
-import { getTeacherHeaders } from "@/lib/teacherAuth";
+import { teacherFetch } from "@/lib/api-helpers";
 
 interface PillarStat {
   pillar: string;
@@ -105,7 +104,6 @@ export default function StudentReportPage() {
   const fetchReport = useCallback(async (range?: string) => {
     setState("loading");
     try {
-      const headers = await getTeacherHeaders();
       const r = range ?? dateRangeFilter;
       const { from, to } = getDateRange(r);
       let url = `/evaluator/report/student/${studentId}/detailed`;
@@ -113,9 +111,7 @@ export default function StudentReportPage() {
       if (from) qp.set("date_from", from);
       if (to) qp.set("date_to", to);
       if (qp.toString()) url += `?${qp.toString()}`;
-      const data = await apiFetch<StudentDetailedReport>(url, {
-        headers,
-      });
+      const data = await teacherFetch<StudentDetailedReport>(url);
       setReport(data);
       setState("ready");
     } catch (err: unknown) {

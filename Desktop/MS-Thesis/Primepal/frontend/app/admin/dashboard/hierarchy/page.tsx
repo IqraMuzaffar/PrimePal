@@ -1,33 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { getAdminHeaders } from "@/lib/adminAuth";
+import { useMemo, useState } from "react";
 import { Plus, Edit2, Trash2, X } from "lucide-react";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-
-interface Classroom {
-  id: string;
-  class_name: string;
-  grade_level: number;
-  section?: string;
-  class_code: string;
-  teacher_id: string;
-  teachers?: { full_name: string };
-  student_count?: number;
-}
-
-interface Teacher {
-  id: string;
-  full_name: string;
-}
+import {
+  useAdminClassrooms,
+  useAdminTeachers,
+  useAdminStudents,
+  useCreateAdminClassroom,
+  useUpdateAdminClassroom,
+  useDeleteAdminClassroom,
+  type AdminClassroom,
+} from "@/lib/hooks/admin-queries";
 
 export default function ClassroomsPage() {
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: rawClassrooms = [], isLoading: classroomsLoading, error: classroomsError } = useAdminClassrooms();
+  const { data: teachers = [], isLoading: teachersLoading } = useAdminTeachers();
+  const { data: allStudents = [] } = useAdminStudents();
+  const createClassroom = useCreateAdminClassroom();
+  const updateClassroom = useUpdateAdminClassroom();
+  const deleteClassroom = useDeleteAdminClassroom();
+
+  const loading = classroomsLoading || teachersLoading;
+  const error = classroomsError instanceof Error ? classroomsError.message : classroomsError ? String(classroomsError) : "";
+
+  // Enrich classrooms with student counts derived from query data
+  const classrooms = useMemo(() => {
+    const countMap: Record<string, number> = {};
+    for (const s of allStudents) {
+      if (s.classroom_id) countMap[s.classroom_id] = (countMap[s.classroom_id] || 0) + 1;
+    }
+    return rawClassrooms.map((c) => ({ ...c, student_count: countMap[c.id] || 0 }));
+  }, [rawClassrooms, allStudents]);
+
   const [gradeFilter, setGradeFilter] = useState<number | "">("");
 
   // Create modal
@@ -36,106 +40,40 @@ export default function ClassroomsPage() {
   const [createGrade, setCreateGrade] = useState(1);
   const [createSection, setCreateSection] = useState("");
   const [createTeacher, setCreateTeacher] = useState("");
-  const [creating, setCreating] = useState(false);
+  const creating = createClassroom.isPending;
 
   // Edit modal
-  const [editModal, setEditModal] = useState<Classroom | null>(null);
+  const [editModal, setEditModal] = useState<AdminClassroom | null>(null);
   const [editName, setEditName] = useState("");
   const [editGrade, setEditGrade] = useState(1);
   const [editSection, setEditSection] = useState("");
-  const [saving, setSaving] = useState(false);
+  const saving = updateClassroom.isPending;
 
   // Delete modal
-  const [deleteModal, setDeleteModal] = useState<Classroom | null>(null);
-  const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setError("");
-    try {
-      const headers = await getAdminHeaders();
-
-      const [classroomsRes, teachersRes] = await Promise.all([
-        fetch(`${API_BASE}/admin/classrooms`, { headers }),
-        fetch(`${API_BASE}/admin/teachers`, { headers }),
-      ]);
-
-      if (!classroomsRes.ok) throw new Error("Failed to fetch classrooms");
-      if (!teachersRes.ok) throw new Error("Failed to fetch teachers");
-
-      const classroomsData = await classroomsRes.json();
-      const teachersData = await teachersRes.json();
-
-      // Count students per classroom
-      let studentsRes;
-      try {
-        studentsRes = await fetch(`${API_BASE}/admin/students`, { headers });
-      } catch {
-        studentsRes = null;
-      }
-      const studentsData =
-        studentsRes && studentsRes.ok ? await studentsRes.json() : [];
-
-      const countMap: Record<string, number> = {};
-      for (const s of studentsData) {
-        const cid = s.classroom_id;
-        if (cid) countMap[cid] = (countMap[cid] || 0) + 1;
-      }
-
-      const enriched = classroomsData.map((c: Classroom) => ({
-        ...c,
-        student_count: countMap[c.id] || 0,
-      }));
-
-      setClassrooms(enriched);
-      setTeachers(teachersData);
-    } catch (err: any) {
-      setError(err.message || "Failed to load data");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [deleteModal, setDeleteModal] = useState<AdminClassroom | null>(null);
+  const deleting = deleteClassroom.isPending;
 
   const handleCreate = async () => {
     if (!createName.trim() || !createTeacher) return;
-    setCreating(true);
     try {
-      const headers = await getAdminHeaders();
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         class_name: createName.trim(),
         grade_level: createGrade,
         teacher_id: createTeacher,
       };
       if (createSection.trim()) body.section = createSection.trim();
-
-      const response = await fetch(`${API_BASE}/admin/classrooms`, {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (response.ok) {
-        setShowCreateModal(false);
-        setCreateName("");
-        setCreateGrade(1);
-        setCreateSection("");
-        setCreateTeacher("");
-        await fetchData();
-      } else {
-        const data = await response.json();
-        alert(data.detail || "Failed to create classroom");
-      }
-    } catch {
-      alert("Failed to create classroom");
-    } finally {
-      setCreating(false);
+      await createClassroom.mutateAsync(body);
+      setShowCreateModal(false);
+      setCreateName("");
+      setCreateGrade(1);
+      setCreateSection("");
+      setCreateTeacher("");
+    } catch (err: any) {
+      alert(err.message || "Failed to create classroom");
     }
   };
 
-  const openEditModal = (c: Classroom) => {
+  const openEditModal = (c: AdminClassroom) => {
     setEditModal(c);
     setEditName(c.class_name);
     setEditGrade(c.grade_level);
@@ -144,60 +82,28 @@ export default function ClassroomsPage() {
 
   const handleEdit = async () => {
     if (!editModal) return;
-    setSaving(true);
     try {
-      const headers = await getAdminHeaders();
-      const response = await fetch(
-        `${API_BASE}/admin/classrooms/${editModal.id}`,
-        {
-          method: "PUT",
-          headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            class_name: editName.trim(),
-            grade_level: editGrade,
-            section: editSection.trim() || null,
-          }),
-        }
-      );
-
-      if (response.ok) {
-        setEditModal(null);
-        await fetchData();
-      } else {
-        const data = await response.json();
-        alert(data.detail || "Failed to update classroom");
-      }
-    } catch {
-      alert("Failed to update classroom");
-    } finally {
-      setSaving(false);
+      await updateClassroom.mutateAsync({
+        id: editModal.id,
+        body: {
+          class_name: editName.trim(),
+          grade_level: editGrade,
+          section: editSection.trim() || null,
+        },
+      });
+      setEditModal(null);
+    } catch (err: any) {
+      alert(err.message || "Failed to update classroom");
     }
   };
 
   const handleDelete = async () => {
     if (!deleteModal) return;
-    setDeleting(true);
     try {
-      const headers = await getAdminHeaders();
-      const response = await fetch(
-        `${API_BASE}/admin/classrooms/${deleteModal.id}`,
-        {
-          method: "DELETE",
-          headers: { ...headers, "Content-Type": "application/json" },
-        }
-      );
-
-      if (response.ok) {
-        setDeleteModal(null);
-        await fetchData();
-      } else {
-        const data = await response.json();
-        alert(data.detail || "Failed to delete classroom");
-      }
-    } catch {
-      alert("Failed to delete classroom");
-    } finally {
-      setDeleting(false);
+      await deleteClassroom.mutateAsync(deleteModal.id);
+      setDeleteModal(null);
+    } catch (err: any) {
+      alert(err.message || "Failed to delete classroom");
     }
   };
 

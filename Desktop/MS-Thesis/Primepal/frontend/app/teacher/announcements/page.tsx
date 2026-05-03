@@ -3,8 +3,13 @@
 import { useEffect, useState } from "react";
 import { Megaphone, Loader, CheckCircle2, AlertCircle, ToggleRight, ToggleLeft } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { apiFetch } from "@/lib/api";
-import { getTeacherHeaders } from "@/lib/teacherAuth";
+import { teacherMutate } from "@/lib/api-helpers";
+import {
+  useTeacherClassrooms,
+  useTeacherAnnouncements,
+  teacherQueryKeys,
+} from "@/lib/hooks/teacher-queries";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Announcement {
   id: string;
@@ -19,21 +24,16 @@ interface Announcement {
   updated_at: string;
 }
 
-interface Classroom {
-  id: string;
-  class_name: string;
-  grade_level: number;
-}
-
 export default function AnnouncementsPage() {
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const queryClient = useQueryClient();
+  const { data: classrooms = [], isLoading: classroomsLoading } = useTeacherClassrooms();
+
   const [selectedClassroom, setSelectedClassroom] = useState<string>("");
   const [messageEn, setMessageEn] = useState("");
-  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [scope, setScope] = useState<"classroom" | "grade_level" | "school_wide">("classroom");
   const [targetGrade, setTargetGrade] = useState<number | null>(null);
 
-  const [loading, setLoading] = useState(true);
+  const loading = classroomsLoading;
   const [loadingClassrooms, setLoadingClassrooms] = useState(false);
   const [posting, setPosting] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
@@ -41,54 +41,22 @@ export default function AnnouncementsPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Load classrooms on mount
+  // Set default classroom when classrooms load
   useEffect(() => {
-    async function loadClassrooms() {
-      try {
-        const headers = await getTeacherHeaders();
-        const data = await apiFetch<Classroom[]>("/classroom/", { headers });
-        setClassrooms(data || []);
-        if (data && data.length > 0) {
-          setSelectedClassroom(data[0].id);
-        }
-      } catch (err) {
-        console.error("Failed to load classrooms:", err);
-        setErrorMessage("Failed to load classrooms");
-      } finally {
-        setLoading(false);
-      }
+    if (classrooms.length > 0 && !selectedClassroom) {
+      setSelectedClassroom(classrooms[0].id);
     }
-    loadClassrooms();
-  }, []);
+  }, [classrooms, selectedClassroom]);
 
-  // Load announcements when classroom is selected (or on component mount)
-  useEffect(() => {
-    if (selectedClassroom) {
-      loadAnnouncements(selectedClassroom);
-    }
-  }, [selectedClassroom]);
+  const { data: announcementsData, isLoading: announcementsLoading } = useTeacherAnnouncements(
+    selectedClassroom || undefined
+  );
+  const announcements = (announcementsData?.announcements ?? []) as Announcement[];
 
   // Reset target grade when scope changes
   useEffect(() => {
     setTargetGrade(null);
   }, [scope]);
-
-  async function loadAnnouncements(classroomId: string) {
-    try {
-      setLoadingClassrooms(true);
-      const headers = await getTeacherHeaders();
-      const data = await apiFetch<{ announcements: Announcement[]; total_count: number }>(
-        `/announcements/${classroomId}`,
-        { headers }
-      );
-      setAnnouncements(data?.announcements || []);
-    } catch (err) {
-      console.error("Failed to load announcements:", err);
-      setErrorMessage("Failed to load announcements");
-    } finally {
-      setLoadingClassrooms(false);
-    }
-  }
 
   async function handlePostAnnouncement() {
     if (!messageEn.trim()) {
@@ -96,7 +64,6 @@ export default function AnnouncementsPage() {
       return;
     }
 
-    // Validate scope-specific parameters
     if (scope === "classroom" && !selectedClassroom) {
       setErrorMessage("Please select a classroom");
       return;
@@ -112,8 +79,7 @@ export default function AnnouncementsPage() {
     setSuccessMessage("");
 
     try {
-      const headers = await getTeacherHeaders();
-      const payload: any = {
+      const payload: Record<string, unknown> = {
         message_en: messageEn.trim(),
         scope: scope,
       };
@@ -124,14 +90,7 @@ export default function AnnouncementsPage() {
         payload.target_grade_level = targetGrade;
       }
 
-      const _response = await apiFetch<Announcement>(
-        "/announcements",
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify(payload),
-        }
-      );
+      await teacherMutate<Announcement>("/announcements", payload);
 
       const scopeLabel =
         scope === "classroom"
@@ -140,20 +99,11 @@ export default function AnnouncementsPage() {
             ? `Grade ${targetGrade}`
             : "all classes";
 
-      setSuccessMessage(
-        `✓ Announcement posted to ${scopeLabel}! Translating to Urdu...`
-      );
+      setSuccessMessage(`✓ Announcement posted to ${scopeLabel}! Translating to Urdu...`);
       setMessageEn("");
       setTargetGrade(null);
 
-      // Reload announcements
-      if (scope === "classroom") {
-        await loadAnnouncements(selectedClassroom);
-      } else {
-        await loadAnnouncements(selectedClassroom);
-      }
-
-      // Clear success message after 3 seconds
+      queryClient.invalidateQueries({ queryKey: teacherQueryKeys.announcements(selectedClassroom) });
       setTimeout(() => setSuccessMessage(""), 3000);
     } catch (err) {
       console.error("Failed to post announcement:", err);
@@ -165,25 +115,10 @@ export default function AnnouncementsPage() {
 
   async function handleToggleAnnouncement(announcementId: string, currentStatus: boolean) {
     setTogglingId(announcementId);
-
     try {
-      const headers = await getTeacherHeaders();
-      await apiFetch(`/announcements/${announcementId}`, {
-        method: "PATCH",
-        headers,
-        body: JSON.stringify({ is_active: !currentStatus }),
-      });
-
-      // Update local state
-      setAnnouncements((prev) =>
-        prev.map((ann) =>
-          ann.id === announcementId ? { ...ann, is_active: !currentStatus } : ann
-        )
-      );
-
-      setSuccessMessage(
-        !currentStatus ? "✓ Announcement activated" : "✓ Announcement deactivated"
-      );
+      await teacherMutate(`/announcements/${announcementId}`, { is_active: !currentStatus }, "PATCH");
+      queryClient.invalidateQueries({ queryKey: teacherQueryKeys.announcements(selectedClassroom) });
+      setSuccessMessage(!currentStatus ? "✓ Announcement activated" : "✓ Announcement deactivated");
       setTimeout(() => setSuccessMessage(""), 2000);
     } catch (err) {
       console.error("Failed to toggle announcement:", err);

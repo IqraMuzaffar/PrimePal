@@ -11,81 +11,25 @@ import {
   AlertCircle,
   TrendingUp,
 } from "lucide-react";
-import { apiFetch } from "@/lib/api";
-import { getTeacherHeaders } from "@/lib/teacherAuth";
-
-interface Classroom {
-  id: string;
-  class_name: string;
-  grade_level: number;
-}
-
-interface StudentMissionData {
-  student_id: string;
-  student_name: string;
-  avatar_url: string | null;
-  roll_number: string | null;
-  total_interactions: number;
-  mission_accuracy_pct: number;
-}
-
-interface ClassroomMissionReport {
-  classroom_id: string;
-  grade_level: number;
-  students: StudentMissionData[];
-}
+import { useTeacherClassrooms, useClassroomMissionReport } from "@/lib/hooks/teacher-queries";
 
 export default function MissionsPage() {
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const { data: classrooms = [], isLoading: loading } = useTeacherClassrooms();
   const [selectedClassroom, setSelectedClassroom] = useState<string>("all");
-  const [missionData, setMissionData] = useState<ClassroomMissionReport | null>(
-    null
-  );
-  const [loading, setLoading] = useState(true);
-  const [dataLoading, setDataLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
+  // Set default classroom when classrooms load
   useEffect(() => {
-    async function loadClassrooms() {
-      try {
-        const headers = await getTeacherHeaders();
-        const data = await apiFetch<Classroom[]>("/classroom/", { headers });
-        setClassrooms(data || []);
-        if (data && data.length > 0) setSelectedClassroom(data[0].id);
-      } catch (err) {
-        console.error("Failed to load classrooms:", err);
-      } finally {
-        setLoading(false);
-      }
+    if (classrooms.length > 0 && selectedClassroom === "all") {
+      setSelectedClassroom(classrooms[0].id);
     }
-    loadClassrooms();
-  }, []);
+  }, [classrooms, selectedClassroom]);
 
-  useEffect(() => {
-    if (selectedClassroom === "all") {
-      setMissionData(null);
-      return;
-    }
-    fetchClassroomMissions(selectedClassroom);
-  }, [selectedClassroom]);
-
-  async function fetchClassroomMissions(classroomId: string) {
-    try {
-      setDataLoading(true);
-      setError(null);
-      const headers = await getTeacherHeaders();
-      const data = await apiFetch<ClassroomMissionReport>(
-        `/evaluator/report/classroom/${classroomId}`,
-        { headers }
-      );
-      setMissionData(data);
-    } catch (err) {
-      console.error("Failed to fetch mission data:", err);
-      setError("Failed to load mission data");
-    } finally {
-      setDataLoading(false);
-    }
-  }
+  const {
+    data: missionData,
+    isLoading: dataLoading,
+    error: missionError,
+  } = useClassroomMissionReport(selectedClassroom !== "all" ? selectedClassroom : undefined);
+  const error = missionError instanceof Error ? missionError.message : null;
 
   if (loading) {
     return (

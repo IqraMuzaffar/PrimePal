@@ -1,11 +1,13 @@
 // frontend/app/teacher/classroom/[id]/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Image from "next/image";
 import { Copy, Check, UserPlus, Trash2, Lock, Pencil } from "lucide-react";
-import { apiFetch } from "@/lib/api";
-import { getTeacherHeaders } from "@/lib/teacherAuth";
+import { teacherMutate } from "@/lib/api-helpers";
+import { useTeacherRole } from "@/lib/useTeacherRole";
+import { useTeacherClassroom, teacherQueryKeys } from "@/lib/hooks/teacher-queries";
+import { useQueryClient } from "@tanstack/react-query";
 import BulkAddStudentsModal from "@/components/teacher/BulkAddStudentsModal";
 import EditStudentModal from "@/components/teacher/EditStudentModal";
 import SearchBar from "@/components/teacher/SearchBar";
@@ -21,7 +23,6 @@ interface ClassroomDetail {
   students: Student[];
 }
 
-
 type Tab = "roster" | "missions";
 
 const BASE_URL =
@@ -32,8 +33,9 @@ export default function ClassroomDetailPage({
 }: {
   params: { id: string };
 }) {
-  const [classroom, setClassroom] = useState<ClassroomDetail | null>(null);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { data: classroomData, isLoading: loading } = useTeacherClassroom(params.id);
+  const classroom = classroomData as ClassroomDetail | undefined;
   const [activeTab, setActiveTab] = useState<Tab>("roster");
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
@@ -49,26 +51,7 @@ export default function ClassroomDetailPage({
 
   // Edit student state
   const [editStudent, setEditStudent] = useState<Student | null>(null);
-
-  async function fetchClassroom(): Promise<ClassroomDetail | null> {
-    try {
-      const headers = await getTeacherHeaders();
-      const data = await apiFetch<ClassroomDetail>(
-        `/classroom/${params.id}`,
-        { headers }
-      );
-      setClassroom(data);
-      return data;
-    } finally {
-      setLoading(false);
-    }
-    return null;
-  }
-
-  useEffect(() => {
-    fetchClassroom();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [params.id]);
+  const { isAdmin } = useTeacherRole();
 
   async function copyCode() {
     if (!classroom) return;
@@ -81,8 +64,8 @@ export default function ClassroomDetailPage({
     if (!confirm("Remove this student from the roster?")) return;
     setRemoveError(null);
     try {
+      const { getTeacherHeaders } = await import("@/lib/teacherAuth");
       const headers = await getTeacherHeaders();
-      // DELETE returns 204 No Content — use fetch directly to avoid apiFetch's res.json()
       const res = await fetch(
         `${BASE_URL}/classroom/${params.id}/students/${studentId}`,
         { method: "DELETE", headers: headers as HeadersInit }
@@ -91,12 +74,7 @@ export default function ClassroomDetailPage({
         const body = await res.json().catch(() => ({}));
         throw new Error((body as { detail?: string }).detail ?? `Error ${res.status}`);
       }
-      // Optimistic update: remove from local state without re-fetch
-      setClassroom((prev) =>
-        prev
-          ? { ...prev, students: prev.students.filter((s) => s.id !== studentId) }
-          : prev
-      );
+      queryClient.invalidateQueries({ queryKey: teacherQueryKeys.classroom(params.id) });
     } catch (err: unknown) {
       setRemoveError(
         err instanceof Error ? err.message : "Failed to remove student."
@@ -113,22 +91,8 @@ export default function ClassroomDetailPage({
     setPinSaveError(null);
     setPinSaved(false);
     try {
-      const headers = await getTeacherHeaders();
-      await apiFetch(`/auth/student/${studentId}/pin`, {
-        method: "PATCH",
-        body: JSON.stringify({ secret_pin: pin }),
-        headers,
-      });
-      setClassroom((prev) =>
-        prev
-          ? {
-              ...prev,
-              students: prev.students.map((s) =>
-                s.id === studentId ? { ...s, secret_pin: pin } : s
-              ),
-            }
-          : prev
-      );
+      await teacherMutate(`/auth/student/${studentId}/pin`, { secret_pin: pin }, "PATCH");
+      queryClient.invalidateQueries({ queryKey: teacherQueryKeys.classroom(params.id) });
       setPinSaved(true);
       setTimeout(() => {
         setPinStudent(null);
@@ -239,12 +203,14 @@ export default function ClassroomDetailPage({
                   {filteredStudents.length} of {classroom.students.length} student
                   {filteredStudents.length !== 1 ? "s" : ""}
                 </p>
-                <button
-                  onClick={() => setShowBulkAdd(true)}
-                  className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
-                >
-                  <UserPlus size={16} /> Add Students
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowBulkAdd(true)}
+                    className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 transition-colors"
+                  >
+                    <UserPlus size={16} /> Add Students
+                  </button>
+                )}
               </div>
 
             {/* Remove error banner */}
@@ -284,32 +250,36 @@ export default function ClassroomDetailPage({
                     {s.roll_number && (
                       <span className="text-xs text-gray-400 font-mono">{s.roll_number}</span>
                     )}
-                    <button
-                      onClick={() => setEditStudent(s)}
-                      className="p-1.5 rounded text-gray-300 hover:text-indigo-500 transition-colors"
-                      title={`Edit ${s.student_name}`}
-                    >
-                      <Pencil size={15} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setPinStudent(s);
-                        setPinValue(s.secret_pin ?? "1234");
-                        setPinSaveError(null);
-                        setPinSaved(false);
-                      }}
-                      className="p-1.5 rounded text-gray-300 hover:text-indigo-500 transition-colors"
-                      title={`Manage PIN for ${s.student_name}`}
-                    >
-                      <Lock size={15} />
-                    </button>
-                    <button
-                      onClick={() => removeStudent(s.id)}
-                      className="p-1.5 rounded text-gray-300 hover:text-red-500 transition-colors"
-                      title={`Remove ${s.student_name}`}
-                    >
-                      <Trash2 size={15} />
-                    </button>
+                    {isAdmin && (
+                      <>
+                        <button
+                          onClick={() => setEditStudent(s)}
+                          className="p-1.5 rounded text-gray-300 hover:text-indigo-500 transition-colors"
+                          title={`Edit ${s.student_name}`}
+                        >
+                          <Pencil size={15} />
+                        </button>
+                        <button
+                          onClick={() => {
+                            setPinStudent(s);
+                            setPinValue(s.secret_pin ?? "1234");
+                            setPinSaveError(null);
+                            setPinSaved(false);
+                          }}
+                          className="p-1.5 rounded text-gray-300 hover:text-indigo-500 transition-colors"
+                          title={`Manage PIN for ${s.student_name}`}
+                        >
+                          <Lock size={15} />
+                        </button>
+                        <button
+                          onClick={() => removeStudent(s.id)}
+                          className="p-1.5 rounded text-gray-300 hover:text-red-500 transition-colors"
+                          title={`Remove ${s.student_name}`}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -332,7 +302,9 @@ export default function ClassroomDetailPage({
         <BulkAddStudentsModal
           classroomId={params.id}
           onClose={() => setShowBulkAdd(false)}
-          onAdded={fetchClassroom}
+          onAdded={() => {
+            queryClient.invalidateQueries({ queryKey: teacherQueryKeys.classroom(params.id) });
+          }}
         />
       )}
 
@@ -403,12 +375,8 @@ export default function ClassroomDetailPage({
           student={editStudent}
           classroomId={params.id}
           onClose={() => setEditStudent(null)}
-          onSaved={(updated) => {
-            setClassroom((prev) =>
-              prev
-                ? { ...prev, students: prev.students.map((s) => (s.id === updated.id ? updated : s)) }
-                : prev
-            );
+          onSaved={(_updated) => {
+            queryClient.invalidateQueries({ queryKey: teacherQueryKeys.classroom(params.id) });
             setEditStudent(null);
           }}
         />

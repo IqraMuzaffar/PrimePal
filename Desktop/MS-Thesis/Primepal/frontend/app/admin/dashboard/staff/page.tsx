@@ -1,86 +1,51 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { getAdminHeaders } from "@/lib/adminAuth";
+import { useState } from "react";
 import { Plus, Edit2, Trash2, X } from "lucide-react";
-
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-
-interface Teacher {
-  id: string;
-  full_name: string;
-  email: string;
-  role: string;
-}
+import {
+  useAdminTeachers,
+  useInviteAdmin,
+  useUpdateAdminTeacher,
+  useDeleteAdminTeacher,
+  type AdminTeacher,
+} from "@/lib/hooks/admin-queries";
 
 export default function StaffDirectoryPage() {
-  const [teachers, setTeachers] = useState<Teacher[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { data: teachers = [], isLoading: loading, error: fetchError } = useAdminTeachers();
+  const inviteAdmin = useInviteAdmin();
+  const updateTeacher = useUpdateAdminTeacher();
+  const deleteTeacher = useDeleteAdminTeacher();
+
+  const error = fetchError instanceof Error ? fetchError.message : fetchError ? String(fetchError) : "";
 
   // Invite modal
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviting, setInviting] = useState(false);
+  const inviting = inviteAdmin.isPending;
 
   // Edit modal
-  const [editModal, setEditModal] = useState<Teacher | null>(null);
+  const [editModal, setEditModal] = useState<AdminTeacher | null>(null);
   const [editName, setEditName] = useState("");
   const [editEmail, setEditEmail] = useState("");
-  const [saving, setSaving] = useState(false);
+  const saving = updateTeacher.isPending;
 
   // Delete confirmation
-  const [deleteModal, setDeleteModal] = useState<Teacher | null>(null);
+  const [deleteModal, setDeleteModal] = useState<AdminTeacher | null>(null);
   const [reassignTo, setReassignTo] = useState("");
-  const [deleting, setDeleting] = useState(false);
-
-  useEffect(() => {
-    fetchTeachers();
-  }, []);
-
-  const fetchTeachers = async () => {
-    setError("");
-    try {
-      const headers = await getAdminHeaders();
-      const response = await fetch(`${API_BASE}/admin/teachers`, { headers });
-      if (!response.ok) throw new Error("Failed to fetch teachers");
-      const data = await response.json();
-      setTeachers(data);
-    } catch (err: any) {
-      setError(err.message || "Failed to load teachers");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const deleting = deleteTeacher.isPending;
 
   const handleInvite = async () => {
-    setInviting(true);
     try {
-      const headers = await getAdminHeaders();
-      const response = await fetch(`${API_BASE}/admin/invite-code`, {
-        method: "POST",
-        headers: { ...headers, "Content-Type": "application/json" },
-        body: JSON.stringify({ email: inviteEmail, expires_in_days: 7 }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        alert(`Invite code: ${data.code}\n\nShare this with the new admin.`);
-        setInviteEmail("");
-        setShowInviteModal(false);
-      } else {
-        const data = await response.json();
-        alert(data.detail || "Failed to create invite");
-      }
-    } catch {
-      alert("Failed to create invite");
-    } finally {
-      setInviting(false);
+      const data = await inviteAdmin.mutateAsync({ email: inviteEmail, expires_in_days: 7 });
+      alert(`Invite code: ${data.code}\n\nShare this with the new admin.`);
+      setInviteEmail("");
+      setShowInviteModal(false);
+    } catch (err: any) {
+      alert(err.message || "Failed to create invite");
     }
   };
 
-  const openEditModal = (teacher: Teacher) => {
+  const openEditModal = (teacher: AdminTeacher) => {
     setEditModal(teacher);
     setEditName(teacher.full_name);
     setEditEmail(teacher.email);
@@ -88,58 +53,28 @@ export default function StaffDirectoryPage() {
 
   const handleEdit = async () => {
     if (!editModal) return;
-    setSaving(true);
     try {
-      const headers = await getAdminHeaders();
-      const response = await fetch(
-        `${API_BASE}/admin/teachers/${editModal.id}`,
-        {
-          method: "PUT",
-          headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({ full_name: editName, email: editEmail }),
-        }
-      );
-
-      if (response.ok) {
-        setEditModal(null);
-        await fetchTeachers();
-      } else {
-        const data = await response.json();
-        alert(data.detail || "Failed to update teacher");
-      }
-    } catch {
-      alert("Failed to update teacher");
-    } finally {
-      setSaving(false);
+      await updateTeacher.mutateAsync({
+        id: editModal.id,
+        body: { full_name: editName, email: editEmail },
+      });
+      setEditModal(null);
+    } catch (err: any) {
+      alert(err.message || "Failed to update teacher");
     }
   };
 
   const handleDelete = async () => {
     if (!deleteModal || !reassignTo) return;
-    setDeleting(true);
     try {
-      const headers = await getAdminHeaders();
-      const response = await fetch(
-        `${API_BASE}/admin/teachers/${deleteModal.id}`,
-        {
-          method: "DELETE",
-          headers: { ...headers, "Content-Type": "application/json" },
-          body: JSON.stringify({ reassign_classrooms_to: reassignTo }),
-        }
-      );
-
-      if (response.ok) {
-        setDeleteModal(null);
-        setReassignTo("");
-        await fetchTeachers();
-      } else {
-        const data = await response.json();
-        alert(data.detail || "Failed to delete teacher");
-      }
-    } catch {
-      alert("Failed to delete teacher");
-    } finally {
-      setDeleting(false);
+      await deleteTeacher.mutateAsync({
+        id: deleteModal.id,
+        body: { reassign_classrooms_to: reassignTo },
+      });
+      setDeleteModal(null);
+      setReassignTo("");
+    } catch (err: any) {
+      alert(err.message || "Failed to delete teacher");
     }
   };
 

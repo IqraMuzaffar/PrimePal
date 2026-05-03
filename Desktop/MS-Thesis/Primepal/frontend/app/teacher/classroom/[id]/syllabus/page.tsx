@@ -1,48 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Lock, CheckCircle2, ChevronRight } from "lucide-react";
-import { apiFetch } from "@/lib/api";
-import { getTeacherHeaders } from "@/lib/teacherAuth";
-
-interface SyllabusWeek {
-  id: string;
-  week_number: number;
-  topic_title: string;
-  status: "locked" | "active" | "completed";
-}
+import { useTeacherSyllabus, useUnlockNextWeek } from "@/lib/hooks/teacher-queries";
 
 interface Props {
   params: { id: string };
 }
 
 export default function SyllabusPage({ params }: Props) {
-  const [weeks, setWeeks] = useState<SyllabusWeek[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [unlocking, setUnlocking] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchSyllabus();
-  }, []);
-
-  async function fetchSyllabus() {
-    try {
-      setLoading(true);
-      const headers = await getTeacherHeaders();
-      const data = await apiFetch<{ weeks: SyllabusWeek[] }>(
-        `/classroom/${params.id}/syllabus`,
-        { headers }
-      );
-      setWeeks(data.weeks);
-      setError(null);
-    } catch (err) {
-      console.error("Failed to fetch syllabus:", err);
-      setError("Failed to load syllabus");
-    } finally {
-      setLoading(false);
-    }
-  }
+  const { data: syllabusData, isLoading: loading } = useTeacherSyllabus(params.id);
+  const weeks = syllabusData?.weeks ?? [];
+  const unlockMutation = useUnlockNextWeek(params.id);
+  const unlocking = unlockMutation.isPending;
 
   async function unlockNextWeek() {
     const activeWeek = weeks.find((w) => w.status === "active");
@@ -58,36 +30,14 @@ export default function SyllabusPage({ params }: Props) {
     }
 
     try {
-      setUnlocking(true);
-      const headers = await getTeacherHeaders();
-
-      // Mark current week as completed
-      await apiFetch(
-        `/classroom/${params.id}/syllabus/${activeWeek.week_number}`,
-        {
-          method: "PATCH",
-          headers,
-          body: JSON.stringify({ status: "completed" }),
-        }
-      );
-
-      // Mark next week as active
-      await apiFetch(
-        `/classroom/${params.id}/syllabus/${nextWeek.week_number}`,
-        {
-          method: "PATCH",
-          headers,
-          body: JSON.stringify({ status: "active" }),
-        }
-      );
-
-      await fetchSyllabus();
       setError(null);
+      await unlockMutation.mutateAsync({
+        activeWeekNumber: activeWeek.week_number,
+        nextWeekNumber: nextWeek.week_number,
+      });
     } catch (err) {
       console.error("Failed to unlock next week:", err);
       setError("Failed to unlock next week");
-    } finally {
-      setUnlocking(false);
     }
   }
 
