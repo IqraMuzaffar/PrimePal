@@ -10,7 +10,6 @@ import { apiFetch } from "@/lib/api";
 import AvatarCustomizeModal from "@/components/student/AvatarCustomizeModal";
 import DailyChestModal from "@/components/student/DailyChestModal";
 import AchievementPopup from "@/components/student/AchievementPopup";
-import { usePrimeSounds } from "@/lib/use-sound";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -111,11 +110,9 @@ function HeroSkeleton() {
 function LockedCard({ icon, label, tagline }: { icon: string; label: string; tagline: string }) {
   const [shaking, setShaking] = useState(false);
   const [showTip, setShowTip] = useState(false);
-  const { play: playPop } = usePrimeSounds("pop");
 
   function handleClick() {
     if (shaking) return;
-    playPop();
     setShaking(true);
     setShowTip(true);
     setTimeout(() => setShaking(false), 500);
@@ -150,8 +147,6 @@ function LockedCard({ icon, label, tagline }: { icon: string; label: string; tag
 
 export default function HomePage() {
   const router = useRouter();
-  const { play: playPop } = usePrimeSounds("pop");
-  const { play: playNotification } = usePrimeSounds("chime");
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
@@ -232,8 +227,6 @@ export default function HomePage() {
       );
       if (ann) {
         setAnnouncement(ann);
-        // Play notification sound when announcement appears
-        setTimeout(() => playNotification(), 100);
       }
     } catch (err) {
       // Silently fail - announcements are optional
@@ -379,7 +372,6 @@ export default function HomePage() {
             <p className="text-white/80 text-sm mt-1">Ready to level up?</p>
             <motion.button
               onClick={() => {
-                playPop();
                 setShowModal(true);
               }}
               whileHover={{ scale: 1.05 }}
@@ -417,7 +409,6 @@ export default function HomePage() {
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <button
               onClick={() => {
-                playPop();
                 router.push("/student/missions");
               }}
               className="w-full flex flex-col items-center gap-2 p-5 rounded-2xl bg-indigo-600 border-b-4 border-indigo-800
@@ -432,7 +423,6 @@ export default function HomePage() {
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <button
               onClick={() => {
-                playPop();
                 router.push("/student/chat");
               }}
               className="w-full flex flex-col items-center gap-2 p-5 rounded-2xl bg-violet-500 border-b-4 border-violet-700
@@ -447,7 +437,6 @@ export default function HomePage() {
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <button
               onClick={() => {
-                playPop();
                 router.push("/student/spelling-bee");
               }}
               className="w-full flex flex-col items-center gap-2 p-5 rounded-2xl bg-amber-500 border-b-4 border-amber-700
@@ -462,7 +451,6 @@ export default function HomePage() {
           <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
             <button
               onClick={() => {
-                playPop();
                 router.push("/student/leaderboard");
               }}
               className="w-full flex flex-col items-center gap-2 p-5 rounded-2xl bg-yellow-500 border-b-4 border-yellow-700

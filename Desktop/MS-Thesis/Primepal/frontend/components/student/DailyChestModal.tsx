@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
-import { usePrimeSounds } from "@/lib/use-sound";
 
 interface DailyChestModalProps {
   isOpen: boolean;
@@ -31,8 +30,6 @@ export default function DailyChestModal({
   const [tapCount, setTapCount] = useState(0);
   const [isShaking, setIsShaking] = useState(false);
   const [showReward, setShowReward] = useState(false);
-  const { play: playThud } = usePrimeSounds("thud");
-  const { play: playFanfare } = usePrimeSounds("fanfare");
   const confettiRef = useRef<HTMLDivElement>(null);
 
   const isChestOpened = tapCount >= 3;
@@ -116,14 +113,12 @@ export default function DailyChestModal({
     const newTapCount = tapCount + 1;
     setTapCount(newTapCount);
 
-    // Play sound and trigger shake
+    // Trigger shake
     if (newTapCount < 3) {
-      playThud();
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 400);
     } else {
-      // Third tap: fanfare and reveal
-      playFanfare();
+      // Third tap: reveal
       setShowReward(true);
       setTimeout(() => {
         onRewardClaimed(reward);
