@@ -1,12 +1,13 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import MissionGameplay from '@/components/student/MissionGameplay';
 import { apiFetch } from '@/lib/api';
 import { MissionQuestion } from '@/types/missions';
 import { useNetworkStatus } from '@/lib/use-network-status';
 import { addPendingAnswer, flushPendingAnswers } from '@/lib/network-queue';
+import { useMissionPillar } from '@/lib/hooks/queries';
 
 interface GameResult {
   question_id: number;
@@ -22,9 +23,9 @@ export default function PillarMissionPage() {
   const pillar = params.pillar as string;
   const { isOnline } = useNetworkStatus();
 
-  const [questions, setQuestions] = useState<MissionQuestion[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const { data, isLoading: loading, error: queryError } = useMissionPillar(pillar);
+  const questions: MissionQuestion[] = data?.questions ?? [];
+  const error = queryError ? 'Failed to load questions' : null;
 
   // On mount, flush any pending answers from previous sessions
   useEffect(() => {
@@ -35,28 +36,6 @@ export default function PillarMissionPage() {
       flushPendingAnswers(token).catch(() => {});
     }
   }, [isOnline]);
-
-  useEffect(() => {
-    const fetchQuestions = async () => {
-      if (typeof window === 'undefined') return;
-      const token = localStorage.getItem('primepal_student_token');
-      if (!token) { setError('User not logged in'); return; }
-
-      try {
-        const response = await apiFetch<{ questions: MissionQuestion[] }>(
-          `/missions/pillar?pillar=${pillar}`,
-          { headers: { Authorization: `Bearer ${token}` } },
-        );
-        setQuestions(response.questions);
-      } catch (err) {
-        setError('Failed to load questions');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchQuestions();
-  }, [pillar]);
 
   const handleComplete = async (results: GameResult[]) => {
     const token = typeof window !== 'undefined'

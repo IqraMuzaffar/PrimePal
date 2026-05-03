@@ -1,28 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Volume2, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 import { apiFetch } from "@/lib/api";
-
-interface SpellingWord {
-  word: string;
-  emoji: string;
-}
-
-interface WordsResponse {
-  words: SpellingWord[];
-  topic: string;
-  week_number: number;
-}
+import { useSpellingWords } from "@/lib/hooks/queries";
 
 type GameState = "loading" | "playing" | "result" | "finished";
 
 export default function SpellingBeePage() {
   const router = useRouter();
+  const { data: wordsData, isLoading: wordsLoading, error: wordsError } = useSpellingWords();
+
   const [gameState, setGameState] = useState<GameState>("loading");
-  const [words, setWords] = useState<SpellingWord[]>([]);
+  const [words, setWords] = useState<Array<{ word: string; emoji: string }>>([]);
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const [userInput, setUserInput] = useState("");
   const [attemptCount, setAttemptCount] = useState(1);
@@ -31,9 +23,9 @@ export default function SpellingBeePage() {
   const [score, setScore] = useState({ correct: 0, totalPoints: 0 });
   const [error, setError] = useState<string | null>(null);
   const [topic, setTopic] = useState("");
-  const [_weekNumber, setWeekNumber] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
 
   // Get token from localStorage
   function getToken(): string | null {
@@ -41,40 +33,28 @@ export default function SpellingBeePage() {
     return localStorage.getItem("primepal_student_token");
   }
 
-  // Fetch words on mount
+  // Initialise game once query data arrives
   useEffect(() => {
-    fetchWords();
-  }, []);
-
-  async function fetchWords() {
-    try {
-      setGameState("loading");
+    if (wordsLoading) return;
+    if (wordsError) {
+      setError("Failed to load spelling words. Please try again.");
+      setGameState("playing");
+      return;
+    }
+    if (wordsData && !gameStarted) {
       const token = getToken();
-      if (!token) {
-        router.push("/student/play");
-        return;
-      }
-
-      const data = await apiFetch<WordsResponse>("/spelling-bee/words", {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      setWords(data.words);
-      setTopic(data.topic);
-      setWeekNumber(data.week_number);
+      if (!token) { router.push("/student/play"); return; }
+      setWords(wordsData.words);
+      setTopic(wordsData.topic);
       setGameState("playing");
       setCurrentWordIndex(0);
       setUserInput("");
       setAttemptCount(1);
-
-      // Auto-play first word
-      setTimeout(() => speakWord(data.words[0].word), 500);
-    } catch (err) {
-      console.error("Failed to fetch words:", err);
-      setError("Failed to load spelling words. Please try again.");
-      setGameState("playing"); // Set to playing so error screen shows
+      setGameStarted(true);
+      setTimeout(() => speakWord(wordsData.words[0].word), 500);
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wordsLoading, wordsData, wordsError]);
 
   function speakWord(word: string) {
     if (!window.speechSynthesis || isSpeaking) return;
@@ -230,7 +210,9 @@ export default function SpellingBeePage() {
             <button
               onClick={() => {
                 setScore({ correct: 0, totalPoints: 0 });
-                fetchWords();
+                setGameStarted(false);
+                setGameState("loading");
+                window.location.reload();
               }}
               className="flex-1 px-4 py-3 bg-amber-500 text-white font-bold rounded-lg hover:bg-amber-600 transition-colors"
             >

@@ -5,28 +5,16 @@ import { useRouter } from 'next/navigation';
 import { Volume2, ArrowLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { apiFetch } from '@/lib/api';
-
-interface ComprehensionQuestion {
-  id: number;
-  question: string;
-  options: string[];
-  correct_index: number;
-}
-
-interface StoryData {
-  story_title: string;
-  story_text: string;
-  topic: string;
-  week_number: number;
-  questions: ComprehensionQuestion[];
-}
+import { useStoryTime } from '@/lib/hooks/queries';
 
 type GameState = 'loading' | 'reading' | 'questioning' | 'finished';
 
 export default function StoryTimePage() {
   const router = useRouter();
+  const { data: storyData, isLoading: storyLoading, error: storyError } = useStoryTime();
+
   const [gameState, setGameState] = useState<GameState>('loading');
-  const [story, setStory] = useState<StoryData | null>(null);
+  const [story, setStory] = useState<typeof storyData | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [score, setScore] = useState({ correct: 0, totalPoints: 0 });
   const [error, setError] = useState<string | null>(null);
@@ -34,41 +22,33 @@ export default function StoryTimePage() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [answerResult, setAnswerResult] = useState<{ correct: boolean; message: string } | null>(null);
+  const [gameStarted, setGameStarted] = useState(false);
 
   function getToken(): string | null {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('primepal_student_token');
   }
 
+  // Initialise game once query data arrives
   useEffect(() => {
-    fetchStory();
-  }, []);
-
-  async function fetchStory() {
-    try {
-      setGameState('loading');
+    if (storyLoading) return;
+    if (storyError) {
+      setError('Failed to load story. Please try again.');
+      return;
+    }
+    if (storyData && !gameStarted) {
       const token = getToken();
-      if (!token) {
-        router.push('/student/play');
-        return;
-      }
-
-      const data = await apiFetch<StoryData>('/story-time/story', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      setStory(data);
+      if (!token) { router.push('/student/play'); return; }
+      setStory(storyData);
       setGameState('reading');
       setCurrentQuestionIndex(0);
       setScore({ correct: 0, totalPoints: 0 });
       setSelectedAnswer(null);
       setAnswerResult(null);
-    } catch (err) {
-      console.error('Failed to fetch story:', err);
-      setError('Failed to load story. Please try again.');
-      setGameState('loading');
+      setGameStarted(true);
     }
-  }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [storyLoading, storyData, storyError]);
 
   function speakStory() {
     if (!window.speechSynthesis || isSpeaking || !story) return;
@@ -194,7 +174,7 @@ export default function StoryTimePage() {
             <button
               onClick={() => {
                 setScore({ correct: 0, totalPoints: 0 });
-                fetchStory();
+                window.location.reload();
               }}
               className="flex-1 px-4 py-3 bg-emerald-500 text-white font-bold rounded-lg hover:bg-emerald-600 transition-colors"
             >

@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { apiFetch } from "@/lib/api";
+import { useAchievements } from "@/lib/hooks/queries";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -19,10 +18,6 @@ interface Achievement {
   unlocked: boolean;
   unlocked_at: string | null;
   current_progress: number;
-}
-
-interface AchievementsResponse {
-  achievements: Achievement[];
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -49,11 +44,6 @@ const TIER_STYLES: Record<string, { border: string; bg: string; badge: string; b
 };
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
-  return localStorage.getItem("primepal_student_token");
-}
 
 function formatDate(iso: string | null): string {
   if (!iso) return "";
@@ -160,26 +150,16 @@ function AchievementCard({ achievement }: { achievement: Achievement }) {
 
 export default function AchievementsPage() {
   const router = useRouter();
-  const [achievements, setAchievements] = useState<Achievement[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, isLoading: loading, error } = useAchievements();
 
-  useEffect(() => {
-    const token = getToken();
-    if (!token) {
-      router.push("/student/play");
-      return;
-    }
-
-    apiFetch<AchievementsResponse>("/achievements/me", {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then((data) => setAchievements(data.achievements))
-      .catch((err) => console.error("Failed to load achievements:", err))
-      .finally(() => setLoading(false));
-  }, [router]);
-
+  const achievements = (data?.achievements ?? []) as unknown as Achievement[];
   const unlocked = achievements.filter((a) => a.unlocked);
   const locked = achievements.filter((a) => !a.unlocked);
+
+  if (error) {
+    router.push("/student/play");
+    return null;
+  }
 
   return (
     <div className="max-w-md mx-auto space-y-6 pb-10">
