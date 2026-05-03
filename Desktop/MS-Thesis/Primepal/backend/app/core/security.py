@@ -67,7 +67,7 @@ def get_current_student(
 # --- Teacher auth (Supabase GoTrue JWT) ---
 # Imported here (not at the top) to keep all supabase_client imports co-located with
 # their consumers and avoid any load-order surprises at import time.
-from app.core.supabase_client import get_supabase
+from app.core.supabase_client import get_supabase, get_supabase_admin
 
 
 async def get_current_teacher(
@@ -94,8 +94,9 @@ async def get_current_teacher(
         return {"id": user_id, "role": cached_role, "is_admin": cached_role == "admin"}
 
     try:
+        admin_client = get_supabase_admin()
         result = (
-            supabase.table("teachers")
+            admin_client.table("teachers")
             .select("role")
             .eq("id", user_id)
             .maybe_single()
@@ -143,9 +144,10 @@ async def get_current_admin(
             )
         return {"id": user_id}
 
-    # Cache miss — query DB
+    # Cache miss — query DB (use admin client to bypass RLS)
     try:
-        result = supabase.table("teachers").select("role").eq("id", user_id).execute()
+        admin_client = get_supabase_admin()
+        result = admin_client.table("teachers").select("role").eq("id", user_id).execute()
         if not result.data or result.data[0]["role"] != "admin":
             # Cache the non-admin role so subsequent calls are fast
             if result.data:

@@ -1,6 +1,5 @@
 """Per-topic performance tracking for adaptive difficulty."""
 import logging
-from datetime import datetime, timedelta, timezone
 from app.core.supabase_client import get_supabase_admin
 from app.core.cache import cache_get, cache_set, cache_delete, make_cache_key
 
@@ -51,16 +50,13 @@ async def get_student_performance_profile(student_id: str) -> dict:
 
     supabase = get_supabase_admin()
 
-    # Fetch last 2 weeks of interactions
-    two_weeks_ago = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+    # Fetch aggregated per-pillar stats via RPC (last 14 days)
+    rpc_result = supabase.rpc(
+        "get_performance_stats", {"p_student_id": student_id, "p_days": 14}
+    ).execute()
+    raw_stats = rpc_result.data if rpc_result.data else {}
 
-    resp = supabase.table("student_interactions").select(
-        "interaction_type, pillar, correct, original_message"
-    ).eq("student_id", student_id).gte("created_at", two_weeks_ago).execute()
-
-    rows = resp.data or []
-
-    if not rows:
+    if not raw_stats:
         profile = {
             "overall_accuracy": 0.0,
             "pillar_accuracy": {"reading": 0.0, "writing": 0.0, "listening": 0.0, "speaking": 0.0},
@@ -71,25 +67,23 @@ async def get_student_performance_profile(student_id: str) -> dict:
         await cache_set(cache_key, profile, ttl=3600)
         return profile
 
-    # Compute per-pillar accuracy
+    # Compute per-pillar accuracy from RPC aggregates
     pillar_stats: dict[str, float] = {}
     for pillar in ["reading", "writing", "listening", "speaking"]:
-        pillar_rows = [r for r in rows if r.get("pillar") == pillar]
-        total = len(pillar_rows)
-        correct = sum(1 for r in pillar_rows if r.get("correct"))
-        pillar_stats[pillar] = round((correct / total * 100) if total > 0 else 0, 1)
+        pillar_data = raw_stats.get(pillar, {})
+        pillar_stats[pillar] = float(pillar_data.get("accuracy", 0))
 
-    # Overall accuracy
-    total_all = len(rows)
-    correct_all = sum(1 for r in rows if r.get("correct"))
+    # Overall accuracy (weighted average across all pillars that have data)
+    total_all = sum(raw_stats[p]["total"] for p in raw_stats)
+    correct_all = sum(raw_stats[p]["correct"] for p in raw_stats)
     overall = round((correct_all / total_all * 100) if total_all > 0 else 0, 1)
 
     # Determine weak and strong pillars
     weak_topics: list[dict] = []
     strong_topics: list[dict] = []
     for pillar, acc in pillar_stats.items():
-        pillar_rows = [r for r in rows if r.get("pillar") == pillar]
-        if len(pillar_rows) < 3:
+        pillar_data = raw_stats.get(pillar, {})
+        if pillar_data.get("total", 0) < 3:
             continue  # Not enough data
         if acc < 50:
             weak_topics.append({"topic": pillar, "accuracy": acc, "suggested_difficulty": "easy"})

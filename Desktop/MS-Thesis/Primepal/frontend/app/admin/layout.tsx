@@ -19,7 +19,14 @@ export default function AdminLayout({
   const [adminName, setAdminName] = useState("");
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
+  const isLoginPage = pathname === "/admin/login";
+
   useEffect(() => {
+    if (isLoginPage) {
+      setLoading(false);
+      return;
+    }
+
     const checkAuth = async () => {
       const {
         data: { session },
@@ -32,7 +39,7 @@ export default function AdminLayout({
 
       const isAdmin = await isCurrentUserAdmin();
       if (!isAdmin) {
-        await supabase.auth.signOut();
+        console.warn("[AdminLayout] User is not admin, redirecting. Session user:", session.user?.email);
         router.push("/admin/login");
         return;
       }
@@ -43,7 +50,11 @@ export default function AdminLayout({
     };
 
     checkAuth();
-  }, [router]);
+  }, [router, isLoginPage]);
+
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
 
   if (loading) {
     return (

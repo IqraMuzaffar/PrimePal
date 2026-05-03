@@ -154,6 +154,16 @@ export default function AdminLoginPage() {
               >
                 {loading ? "Verifying..." : "Continue"}
               </button>
+              <p className="text-center text-sm text-gray-600">
+                Already have an admin account?{" "}
+                <button
+                  type="button"
+                  onClick={() => setStep("login")}
+                  className="text-indigo-600 font-semibold hover:underline"
+                >
+                  Sign in
+                </button>
+              </p>
             </form>
           )}
 

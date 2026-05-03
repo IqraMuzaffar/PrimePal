@@ -13,7 +13,8 @@ export async function getAdminHeaders(): Promise<HeadersInit> {
 }
 
 /**
- * Verify the current user is an admin by checking the JWT role claim.
+ * Verify the current user is an admin by calling the backend /auth/me endpoint,
+ * which checks the `role` column in the teachers table.
  */
 export async function isCurrentUserAdmin(): Promise<boolean> {
   const {
@@ -22,12 +23,14 @@ export async function isCurrentUserAdmin(): Promise<boolean> {
 
   if (!session) return false;
 
-  // Decode JWT (basic decode without verification)
   try {
-    const payload = JSON.parse(
-      atob(session.access_token.split(".")[1])
-    );
-    return payload.role === "admin";
+    const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+    const res = await fetch(`${API_BASE}/auth/me`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+    });
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.role === "admin";
   } catch {
     return false;
   }

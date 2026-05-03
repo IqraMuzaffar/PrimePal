@@ -14,6 +14,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, field_validator
 
 from app.core.security import create_student_token, get_current_student, get_current_teacher
+from app.core.permissions import check_permission
 from app.core.supabase_client import get_supabase, get_supabase_admin
 
 router = APIRouter()
@@ -253,6 +254,7 @@ async def reset_student_pin(
     Allows an authenticated teacher to reset any student's PIN,
     provided the student belongs to one of that teacher's classrooms.
     """
+    check_permission(teacher, "student:update")
     supabase = get_supabase_admin()
 
     student_res = (
@@ -283,3 +285,39 @@ async def reset_student_pin(
 
     supabase.table("students").update({"secret_pin": body.secret_pin}).eq("id", student_id).execute()
     return ResetPinResponse(student_id=student_id, secret_pin=body.secret_pin)
+
+
+class TeacherProfileResponse(BaseModel):
+    id: str
+    email: str | None = None
+    full_name: str | None = None
+    role: str
+
+
+@router.get(
+    "/me",
+    response_model=TeacherProfileResponse,
+    summary="Get current teacher profile with role",
+)
+async def get_teacher_profile(
+    teacher: dict = Depends(get_current_teacher),
+) -> TeacherProfileResponse:
+    """Returns the authenticated teacher's profile including role (teacher/admin)."""
+    supabase = get_supabase_admin()
+    try:
+        result = (
+            supabase.table("teachers")
+            .select("id, email, full_name, role")
+            .eq("id", teacher["id"])
+            .maybe_single()
+            .execute()
+        )
+        data = result.data
+    except Exception:
+        data = None
+    if not data:
+        return TeacherProfileResponse(
+            id=teacher["id"],
+            role=teacher.get("role", "teacher"),
+        )
+    return TeacherProfileResponse(**data)

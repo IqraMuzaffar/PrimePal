@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from app.core.security import get_current_teacher
+from app.core.permissions import check_permission
 from app.core.supabase_client import get_supabase_admin
 from app.schemas.topic import SncTopicOut
 
@@ -145,6 +146,7 @@ async def update_grade_selections(
     Upserts grade_topic_selections for each topic in the request body.
     Returns the full updated list for the grade.
     """
+    check_permission(teacher, "topic:manage_grade")
     if grade_level < 1 or grade_level > 5:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,

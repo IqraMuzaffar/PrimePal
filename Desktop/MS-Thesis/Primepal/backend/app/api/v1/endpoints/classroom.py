@@ -21,6 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.security import get_current_teacher
+from app.core.permissions import check_permission
 from app.core.supabase_client import get_supabase_admin
 from app.schemas.classroom import (
     ClassroomCreate,
@@ -68,6 +69,7 @@ async def create_classroom(
     Validates that each grade can only have one classroom per section.
     Example: Grade 3 can have one 3A, one 3B, one 3C, but NOT two 3A classrooms.
     """
+    check_permission(teacher, "classroom:create")
     supabase = get_supabase_admin()
 
     # Auto-generate class_name if not provided: "Grade X - Section Y"
@@ -197,6 +199,7 @@ async def delete_classroom(
     Deletes a classroom. Protection: classroom must have 0 students.
     Returns 400 Bad Request if students are present.
     """
+    check_permission(teacher, "classroom:delete")
     supabase = get_supabase_admin()
     _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
@@ -232,6 +235,7 @@ async def update_classroom(
     teacher: dict = Depends(get_current_teacher),
 ):
     """Update classroom settings (e.g., class_name). Teacher ownership verified."""
+    check_permission(teacher, "classroom:update")
     supabase = get_supabase_admin()
     _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
@@ -267,6 +271,7 @@ async def bulk_add_students(
     teacher: dict = Depends(get_current_teacher),
 ):
     """Bulk-creates student ghost profiles with randomly assigned avatars."""
+    check_permission(teacher, "student:create")
     supabase = get_supabase_admin()
     _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
@@ -299,6 +304,7 @@ async def bulk_add_students_v2(
     teacher: dict = Depends(get_current_teacher),
 ):
     """Bulk-creates student profiles with name, roll_number, and email fields."""
+    check_permission(teacher, "student:create")
     supabase = get_supabase_admin()
     _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
@@ -333,6 +339,7 @@ async def remove_student(
     teacher: dict = Depends(get_current_teacher),
 ):
     """Removes a student ghost profile from the roster."""
+    check_permission(teacher, "student:delete")
     supabase = get_supabase_admin()
     _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
@@ -356,6 +363,7 @@ async def update_student(
     teacher: dict = Depends(get_current_teacher),
 ):
     """Update student identity fields (name, roll_number, email). Teacher ownership verified."""
+    check_permission(teacher, "student:update")
     supabase = get_supabase_admin()
     _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
@@ -497,6 +505,7 @@ async def update_classroom_active_topics(
     Replaces all active topic selections for this classroom.
     Send topic_ids: [] to reset to default (all active).
     """
+    check_permission(teacher, "topic:select")
     supabase = get_supabase_admin()
     _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
     return await save_active_topics(classroom_id, body.topic_ids, supabase)
@@ -629,6 +638,7 @@ async def update_syllabus_week(
     teacher: dict = Depends(get_current_teacher),
 ):
     """Update the status of a specific week in the pacing calendar."""
+    check_permission(teacher, "syllabus:update")
     supabase = get_supabase_admin()
     _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 

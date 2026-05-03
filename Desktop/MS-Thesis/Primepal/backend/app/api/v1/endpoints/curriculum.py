@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from app.agents.curriculum_agent.embedder import embed_and_store_chunks
 from app.agents.curriculum_agent.ingestion import chunk_documents
 from app.core.security import get_current_teacher
+from app.core.permissions import check_permission
 from app.core.supabase_client import get_supabase_admin
 
 def _log_upload(
@@ -75,6 +76,7 @@ async def upload_snc_textbook(
     4. Chunk via RecursiveCharacterTextSplitter with SNC metadata.
     5. Generate embeddings (OpenAI text-embedding-3-small) and insert into snc_knowledge_base.
     """
+    check_permission(teacher, "curriculum:upload")
     # ── 1. Validate ────────────────────────────────────────────────────────────
     filename = file.filename or ""
     if not filename.lower().endswith(".pdf"):
@@ -166,6 +168,7 @@ async def embed_chunks(
     Standalone embedding endpoint: accepts pre-processed chunks, embeds them,
     and stores in snc_knowledge_base. Used for re-processing or batch uploads.
     """
+    check_permission(teacher, "curriculum:upload")
     if not request.chunks:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
