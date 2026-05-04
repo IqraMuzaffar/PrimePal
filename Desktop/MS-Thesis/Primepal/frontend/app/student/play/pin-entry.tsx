@@ -30,6 +30,7 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
+  const [inputValue, setInputValue] = useState("");
 
   // Remove auto-submit — user must click "Let's Go" button
   // (Keeping digits state and effect structure for clarity)
@@ -52,10 +53,25 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
       router.push("/student/home");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
-      const isWrongPin = msg === "Incorrect PIN";
-      setError(isWrongPin ? "Oops! Wrong PIN. Try again 🔐" : msg);
+
+      // Check specific error types and show friendly messages
+      let friendlyMsg: string;
+      if (msg === "Incorrect PIN") {
+        friendlyMsg = "Oops! Wrong PIN. Try again 🔐";
+      } else if (msg.includes("Failed to fetch") || msg.includes("fetch")) {
+        friendlyMsg = "😕 Can't reach the server. Check your internet connection!";
+      } else if (msg.includes("No classroom found")) {
+        friendlyMsg = "❌ Invalid class code. Ask your teacher!";
+      } else if (msg.includes("does not belong")) {
+        friendlyMsg = "⚠️ You're not in this class. Check your class code!";
+      } else {
+        friendlyMsg = msg;
+      }
+
+      setError(friendlyMsg);
       setShake(true);
       setDigits([]);
+      setInputValue("");
       setTimeout(() => setShake(false), 500);
     } finally {
       setLoading(false);
@@ -64,14 +80,27 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
 
   function pressDigit(d: string) {
     if (digits.length < 4 && !loading) {
-      setDigits((prev) => [...prev, d]);
+      const newDigits = [...digits, d];
+      setDigits(newDigits);
+      setInputValue(newDigits.join(""));
       setError(null);
     }
   }
 
   function backspace() {
     if (!loading) {
-      setDigits((prev) => prev.slice(0, -1));
+      const newDigits = digits.slice(0, -1);
+      setDigits(newDigits);
+      setInputValue(newDigits.join(""));
+      setError(null);
+    }
+  }
+
+  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const value = e.target.value.replace(/\D/g, ""); // Only digits
+    if (value.length <= 4) {
+      setInputValue(value);
+      setDigits(value.split(""));
       setError(null);
     }
   }
@@ -102,6 +131,20 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
         <p className="text-base font-bold text-slate-800">{avatar.student_name}</p>
         <p className="text-sm text-slate-500">Enter your Secret PIN</p>
       </div>
+
+      {/* Hidden input for native keyboard */}
+      <input
+        type="tel"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        maxLength={4}
+        value={inputValue}
+        onChange={handleInputChange}
+        disabled={loading}
+        className="sr-only"
+        autoFocus
+        aria-label="Enter PIN using keyboard"
+      />
 
       {/* 4 dot indicators */}
       <style>{`

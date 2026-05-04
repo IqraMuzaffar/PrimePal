@@ -40,7 +40,15 @@ export default function StudentPlayPage() {
         setStep("pick-avatar");
       }
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Try again!");
+      const errorMsg = err instanceof Error ? err.message : "Something went wrong. Try again!";
+      // Network errors show "Failed to fetch" - make it user-friendly
+      if (errorMsg.includes("Failed to fetch") || errorMsg.includes("fetch")) {
+        setError("😕 Can't reach the server. Check your internet connection!");
+      } else if (errorMsg.includes("No classroom found")) {
+        setError("❌ Invalid class code. Check with your teacher!");
+      } else {
+        setError(errorMsg);
+      }
     } finally {
       setLoading(false);
     }

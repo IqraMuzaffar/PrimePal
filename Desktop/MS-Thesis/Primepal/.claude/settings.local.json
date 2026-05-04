@@ -108,7 +108,8 @@
       "Bash(find frontend:*)",
       "Bash(find frontend/app -name *classroom* -o -path */teacher/classroom/*)",
       "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
-      "Bash(grep -r \"snc_topics\" supabase/migrations/*.sql)"
+      "Bash(grep -r \"snc_topics\" supabase/migrations/*.sql)",
+      "Bash(grep -r quests frontend/app/student/layout.tsx frontend/app/student/*/page.tsx)"
     ]
   }
 }
