@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrimePal – Teacher Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600&family=Space+Grotesk:wght@500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="components.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="auth-pages.jsx"></script>
+<script type="text/babel" src="dashboard-page.jsx"></script>
+<script type="text/babel" src="analytics-page.jsx"></script>
+<script type="text/babel" src="classrooms-page.jsx"></script>
+<script type="text/babel" src="announcements-page.jsx"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body, #root { height: 100%; }
+  body { font-family: 'DM Sans', sans-serif; overflow: hidden; background: #0f1729; }
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 99px; }
+  button { font-family: inherit; }
+  select { font-family: inherit; }
+  input  { font-family: inherit; }
+  textarea { font-family: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "teacherName": "Ms. Adeola",
+  "accentColor": "#4361ee",
+  "authStyle": "centered",
+  "startScreen": "auth"
+}/*EDITMODE-END*/;
+
+const useAccent = (color) => {
+  useEffect(() => {
+    document.documentElement.style.setProperty('--accent', color || '#4361ee');
+  }, [color]);
+};
+
+const PlaceholderPage = ({ page }) => (
+  <div style={{ padding:'60px 28px', textAlign:'center', color:'#9ca3af', fontFamily:"'DM Sans',sans-serif" }}>
+    <div style={{ width:56, height:56, borderRadius:16, background:'#f4f5fb', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 16px' }}>
+      <Icon d={ICONS[page] || ICONS.dashboard} size={24} color="#9ca3af" />
+    </div>
+    <div style={{ fontSize:17, fontWeight:600, color:'#374151', marginBottom:6, fontFamily:"'Space Grotesk',sans-serif", textTransform:'capitalize' }}>
+      {page.charAt(0).toUpperCase() + page.slice(1)}
+    </div>
+    <div style={{ fontSize:13 }}>This screen is coming soon</div>
+  </div>
+);
+
+const App = () => {
+  const [rawTweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const tweaks = rawTweaks || TWEAK_DEFAULTS;
+
+  // auth: show login/signup; dashboard: show main app
+  const [appState,  setAppState]  = useState(tweaks.startScreen === 'dashboard' ? 'dashboard' : 'auth');
+  const [page,      setPage]      = useState('dashboard');
+  const [collapsed, setCollapsed] = useState(false);
+
+  useAccent(tweaks.accentColor);
+
+  // Auto-collapse sidebar on narrower viewports
+  useEffect(() => {
+    const check = () => setCollapsed(window.innerWidth < 920);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
+
+  // Auth pages
+  if (appState === 'auth') {
+    return (
+      <>
+        <AuthPages
+          authStyle={tweaks.authStyle || 'split'}
+          onLogin={() => setAppState('dashboard')}
+        />
+        <TweaksPanel>
+          <TweakSection title="Auth Screen">
+            <TweakRadio
+              id="authStyle" label="Style"
+              value={tweaks.authStyle || 'split'}
+              options={[{ label:'Split Screen', value:'split' }, { label:'Centered Card', value:'centered' }]}
+              onChange={v => setTweak('authStyle', v)}
+            />
+            <TweakButton label="Skip to Dashboard →" onClick={() => setAppState('dashboard')} />
+          </TweakSection>
+        </TweaksPanel>
+      </>
+    );
+  }
+
+  // Main dashboard app
+  return (
+    <div style={{ display:'flex', height:'100vh', overflow:'hidden' }}>
+      <Sidebar
+        active={page}
+        onNav={setPage}
+        collapsed={collapsed}
+        onToggle={() => setCollapsed(c => !c)}
+      />
+
+      <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden', minWidth:0 }}>
+        <TopBar page={page} />
+        <div style={{ flex:1, overflowY:'auto' }}>
+          {page === 'dashboard'     && <DashboardPage     tweaks={tweaks} />}
+          {page === 'analytics'     && <AnalyticsPage     tweaks={tweaks} />}
+          {page === 'classrooms'    && <ClassroomsPage    tweaks={tweaks} />}
+          {page === 'announcements' && <AnnouncementsPage tweaks={tweaks} />}
+          {!['dashboard','analytics','classrooms','announcements'].includes(page) && <PlaceholderPage page={page} />}
+        </div>
+      </div>
+
+      <TweaksPanel>
+        <TweakSection title="Profile">
+          <TweakText
+            id="teacherName" label="Teacher Name"
+            value={tweaks.teacherName}
+            onChange={v => setTweak('teacherName', v)}
+          />
+        </TweakSection>
+        <TweakSection title="Navigation">
+          <TweakSelect
+            id="page" label="View Page"
+            value={page}
+            options={[
+              { label:'Dashboard',       value:'dashboard'     },
+              { label:'Classrooms',      value:'classrooms'    },
+              { label:'Analytics',       value:'analytics'     },
+              { label:'Announcements',   value:'announcements' },
+              { label:'Students',        value:'students'      },
+              { label:'Missions',        value:'missions'      },
+              { label:'Curriculum Hub',  value:'curriculum'    },
+            ]}
+            onChange={v => setPage(v)}
+          />
+          <TweakButton label="← Back to Login" onClick={() => setAppState('auth')} />
+        </TweakSection>
+        <TweakSection title="Auth Screen">
+          <TweakRadio
+            id="authStyle" label="Login Style"
+            value={tweaks.authStyle || 'split'}
+            options={[{ label:'Split', value:'split' }, { label:'Centered', value:'centered' }]}
+            onChange={v => setTweak('authStyle', v)}
+          />
+        </TweakSection>
+        <TweakSection title="Appearance">
+          <TweakColor
+            id="accentColor" label="Accent Colour"
+            value={tweaks.accentColor}
+            onChange={v => setTweak('accentColor', v)}
+          />
+        </TweakSection>
+      </TweaksPanel>
+    </div>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<h2>Refined — Top Navbar with Icons & Dark Theme</h2>
+<p class="subtitle">Here's how it looks across the key pages. Let me know if you'd like any adjustments.</p>
+
+<style>
+.mock-shell { border: 1.5px solid #312e81; border-radius: 10px; overflow: hidden; font-size: 12px; background: #f8fafc; margin-bottom: 18px; }
+.mock-topbar {
+  background: linear-gradient(90deg, #1e1b4b 0%, #312e81 100%);
+  color: white;
+  padding: 0 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  flex-shrink: 0;
+}
+.brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 13px; letter-spacing: 0.3px; }
+.brand-icon { background: #4f46e5; width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+.nav-links { display: flex; align-items: center; gap: 4px; }
+.nav-link {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 12px; border-radius: 7px;
+  font-size: 11px; font-weight: 500; color: rgba(255,255,255,0.65);
+  cursor: pointer; transition: all 0.15s;
+}
+.nav-link.active { background: rgba(99,102,241,0.35); color: white; }
+.nav-link .icon { font-size: 13px; }
+.right-actions { display: flex; align-items: center; gap: 8px; }
+.right-btn { display: flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 6px; font-size: 10px; font-weight: 500; color: rgba(255,255,255,0.65); cursor: pointer; }
+.right-btn:hover { background: rgba(255,255,255,0.1); }
+.right-btn.logout { color: #fca5a5; }
+.avatar { width: 28px; height: 28px; border-radius: 50%; background: #4f46e5; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; border: 2px solid rgba(255,255,255,0.2); }
+.divider { width: 1px; height: 20px; background: rgba(255,255,255,0.15); margin: 0 4px; }
+.mock-page { padding: 14px 18px; background: #f8fafc; }
+.page-title { font-size: 16px; font-weight: 700; color: #1e293b; margin-bottom: 4px; }
+.page-sub { font-size: 10px; color: #94a3b8; margin-bottom: 12px; }
+.cards-row { display: flex; gap: 8px; }
+.card-sm { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px 12px; flex: 1; font-size: 10px; color: #64748b; }
+.card-sm strong { display: block; color: #1e293b; font-size: 11px; margin-bottom: 2px; }
+.badge { display: inline-block; padding: 1px 7px; border-radius: 99px; font-size: 9px; font-weight: 600; margin-top: 4px; }
+.page-label { font-size: 9px; font-weight: 600; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 6px; }
+.grade-cards { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.grade-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px; text-align: center; font-size: 9px; color: #64748b; }
+.grade-card strong { display: block; font-size: 10px; color: #1e293b; }
+</style>
+
+<!-- Page 1: Dashboard -->
+<div class="mock-shell">
+  <div class="mock-topbar">
+    <div class="brand">
+      <div class="brand-icon">🎓</div>
+      PrimePal
+    </div>
+    <div class="nav-links">
+      <div class="nav-link active"><span class="icon">📊</span> Dashboard</div>
+      <div class="nav-link"><span class="icon">🏫</span> Classrooms</div>
+      <div class="nav-link"><span class="icon">📚</span> Knowledge Base</div>
+    </div>
+    <div class="right-actions">
+      <div class="right-btn"><span>⚙️</span> Settings</div>
+      <div class="divider"></div>
+      <div class="right-btn logout"><span>🚪</span> Logout</div>
+      <div class="divider"></div>
+      <div class="avatar">I</div>
+    </div>
+  </div>
+  <div class="mock-page">
+    <div class="page-label">Dashboard</div>
+    <div class="page-title">My Classrooms</div>
+    <div class="page-sub">Select a classroom to manage its roster and curriculum.</div>
+    <div class="cards-row">
+      <div class="card-sm"><strong>Grade 3A — Blue</strong>12 students<span class="badge" style="background:#ede9fe;color:#7c3aed;">Grade 3</span></div>
+      <div class="card-sm"><strong>Grade 4B — Red</strong>15 students<span class="badge" style="background:#fef3c7;color:#d97706;">Grade 4</span></div>
+      <div class="card-sm"><strong>Grade 2C — Green</strong>10 students<span class="badge" style="background:#d1fae5;color:#059669;">Grade 2</span></div>
+      <div class="card-sm"><strong>Grade 5A</strong>18 students<span class="badge" style="background:#ffe4e6;color:#e11d48;">Grade 5</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Page 2: Knowledge Base -->
+<div class="mock-shell">
+  <div class="mock-topbar">
+    <div class="brand">
+      <div class="brand-icon">🎓</div>
+      PrimePal
+    </div>
+    <div class="nav-links">
+      <div class="nav-link"><span class="icon">📊</span> Dashboard</div>
+      <div class="nav-link"><span class="icon">🏫</span> Classrooms</div>
+      <div class="nav-link active"><span class="icon">📚</span> Knowledge Base</div>
+    </div>
+    <div class="right-actions">
+      <div class="right-btn"><span>⚙️</span> Settings</div>
+      <div class="divider"></div>
+      <div class="right-btn logout"><span>🚪</span> Logout</div>
+      <div class="divider"></div>
+      <div class="avatar">I</div>
+    </div>
+  </div>
+  <div class="mock-page">
+    <div class="page-label">Knowledge Base</div>
+    <div class="page-title">Upload by Grade</div>
+    <div class="page-sub">Each grade shows uploaded books and lets you add more.</div>
+    <div class="grade-cards">
+      <div class="grade-card"><strong style="color:#059669;">Grade 1</strong>2 books</div>
+      <div class="grade-card"><strong style="color:#0284c7;">Grade 2</strong>1 book</div>
+      <div class="grade-card"><strong style="color:#7c3aed;">Grade 3</strong>3 books</div>
+      <div class="grade-card"><strong style="color:#d97706;">Grade 4</strong>0 books</div>
+      <div class="grade-card"><strong style="color:#e11d48;">Grade 5</strong>1 book</div>
+      <div class="grade-card"><strong style="color:#4f46e5;">Grade 6</strong>0 books</div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:8px;">The active page highlights in the navbar. Settings and Logout stay in the top-right always. Does this look good, or would you like any color/layout tweaks?</p>
