@@ -63,16 +63,18 @@ async def chat(
     classroom_id: str = student["classroom_id"]
     supabase = get_supabase_admin()
 
-    # ------------------------------------------------------------------
-    # Step 1: Resolve grade_level — this is the hard guardrail
-    # ------------------------------------------------------------------
-    classroom_resp = (
-        supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
+    # Resolve grade_level + translate query in parallel
+    classroom_resp, translated_query = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        ),
+        translate_to_english(body.message),
     )
+
     if not classroom_resp.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -80,23 +82,14 @@ async def chat(
         )
     grade_level: int = classroom_resp.data["grade_level"]
 
-    # ------------------------------------------------------------------
-    # Step 2 (NEW): Translate query to English for accurate vector search
-    # ------------------------------------------------------------------
-    translated_query = await translate_to_english(body.message)
-
-    # ------------------------------------------------------------------
-    # Step 3: Retrieve grade-filtered SNC context via pgvector RPC
-    # ------------------------------------------------------------------
+    # Retrieve grade-filtered SNC context via pgvector RPC
     context_chunks = await retrieve_grade_filtered_chunks(
         query=translated_query,
         grade_level=grade_level,
         supabase_admin_client=supabase,
     )
 
-    # ------------------------------------------------------------------
-    # Step 4: Generate guardrailed bilingual LLM response
-    # ------------------------------------------------------------------
+    # Generate guardrailed bilingual LLM response
     tutor_response = await get_guardrailed_response(
         original_message=body.message,
         translated_message=translated_query,
@@ -142,14 +135,17 @@ async def chat_stream(
     classroom_id: str = student["classroom_id"]
     supabase = get_supabase_admin()
 
-    # Resolve grade_level — hard guardrail
-    classroom_resp = (
-        supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
+    classroom_resp, translated_query = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        ),
+        translate_to_english(body.message),
     )
+
     if not classroom_resp.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -157,7 +153,6 @@ async def chat_stream(
         )
     grade_level: int = classroom_resp.data["grade_level"]
 
-    translated_query = await translate_to_english(body.message)
     context_chunks = await retrieve_grade_filtered_chunks(
         query=translated_query,
         grade_level=grade_level,

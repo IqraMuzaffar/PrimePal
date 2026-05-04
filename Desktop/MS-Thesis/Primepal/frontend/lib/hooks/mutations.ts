@@ -34,6 +34,8 @@ export function useClaimReward() {
       queryClient.invalidateQueries({ queryKey: queryKeys.rewardStatus });
       queryClient.invalidateQueries({ queryKey: queryKeys.dailySummary });
       queryClient.invalidateQueries({ queryKey: queryKeys.studentProfile });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pointsBreakdown });
+      queryClient.invalidateQueries({ queryKey: queryKeys.weeklyProgress });
     },
   });
 }
@@ -48,6 +50,8 @@ export function useMissionComplete() {
       queryClient.invalidateQueries({ queryKey: queryKeys.streak });
       queryClient.invalidateQueries({ queryKey: queryKeys.achievements });
       queryClient.invalidateQueries({ queryKey: queryKeys.dailySummary });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pointsBreakdown });
+      queryClient.invalidateQueries({ queryKey: queryKeys.weeklyProgress });
     },
   });
 }

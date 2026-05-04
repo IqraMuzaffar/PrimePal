@@ -3,12 +3,29 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import Image from "next/image";
+import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useStudentProfile, useStreak } from "@/lib/hooks/queries";
+import { useStudentProfile, useStreak, queryKeys } from "@/lib/hooks/queries";
+import { studentFetch } from "@/lib/api-helpers";
 import AnimatedBackground from "@/components/student/AnimatedBackground";
 import DynamicBackground from "@/components/student/DynamicBackground";
 import OfflineBanner from "@/components/student/OfflineBanner";
 import StreakCounter from "@/components/student/StreakCounter";
+
+const PREFETCH_MAP: Record<string, { queryKey: readonly string[]; url: string; staleTime: number }[]> = {
+  "/student/missions": [
+    { queryKey: queryKeys.missionPillar("reading"), url: "/missions/pillar?pillar=reading", staleTime: 5 * 60 * 1000 },
+  ],
+  "/student/achievements": [
+    { queryKey: queryKeys.achievements, url: "/achievements/me", staleTime: 5 * 60 * 1000 },
+  ],
+  "/student/leaderboard": [
+    { queryKey: queryKeys.studentLeaderboard, url: "/missions/leaderboard", staleTime: 60 * 1000 },
+  ],
+  "/student/home": [
+    { queryKey: queryKeys.dailySummary, url: "/rewards/daily-summary", staleTime: 5 * 60 * 1000 },
+  ],
+};
 
 const NAV_LINKS = [
   { href: "/student/home",         label: "Home",        icon: "🏠" },
@@ -26,6 +43,21 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
 
   const { data: profile, isLoading: loading } = useStudentProfile();
   const { data: streak } = useStreak();
+
+  const handlePrefetch = useCallback(
+    (href: string) => {
+      const entries = PREFETCH_MAP[href];
+      if (!entries) return;
+      for (const { queryKey, url, staleTime } of entries) {
+        queryClient.prefetchQuery({
+          queryKey,
+          queryFn: () => studentFetch(url),
+          staleTime,
+        });
+      }
+    },
+    [queryClient]
+  );
 
   function handleLogout() {
     localStorage.removeItem("primepal_student_token");
@@ -61,6 +93,8 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
                 <Link
                   key={href}
                   href={href}
+                  onMouseEnter={() => handlePrefetch(href)}
+                  onFocus={() => handlePrefetch(href)}
                   className={[
                     "flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-bold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500",
                     active

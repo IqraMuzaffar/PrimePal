@@ -3,11 +3,11 @@
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import MissionGameplay from '@/components/student/MissionGameplay';
-import { apiFetch } from '@/lib/api';
 import { MissionQuestion } from '@/types/missions';
 import { useNetworkStatus } from '@/lib/use-network-status';
 import { addPendingAnswer, flushPendingAnswers } from '@/lib/network-queue';
 import { useMissionPillar } from '@/lib/hooks/queries';
+import { useMissionComplete } from '@/lib/hooks/mutations';
 
 interface GameResult {
   question_id: number;
@@ -22,12 +22,12 @@ export default function PillarMissionPage() {
   const router = useRouter();
   const pillar = params.pillar as string;
   const { isOnline } = useNetworkStatus();
+  const missionComplete = useMissionComplete();
 
   const { data, isLoading: loading, error: queryError } = useMissionPillar(pillar);
   const questions: MissionQuestion[] = data?.questions ?? [];
   const error = queryError ? 'Failed to load questions' : null;
 
-  // On mount, flush any pending answers from previous sessions
   useEffect(() => {
     const token = typeof window !== 'undefined'
       ? localStorage.getItem('primepal_student_token')
@@ -45,21 +45,16 @@ export default function PillarMissionPage() {
 
     for (const result of results) {
       try {
-        await apiFetch('/missions/complete', {
-          method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
-          body: JSON.stringify({
-            question_correct: result.is_correct,
-            task_type: result.task_type,
-            pillar: pillar,
-            points_value: result.points_value,
-            submitted_at: new Date().toISOString(),
-          }),
+        await missionComplete.mutateAsync({
+          question_correct: result.is_correct,
+          task_type: result.task_type,
+          pillar: pillar,
+          points_value: result.points_value,
+          submitted_at: new Date().toISOString(),
         });
       } catch {
-        // Network failure — queue the answer locally
         addPendingAnswer({
-          student_id: '', // will be resolved from token on server
+          student_id: '',
           question_id: result.question_id,
           answer_data: null,
           pillar: pillar,
@@ -71,7 +66,6 @@ export default function PillarMissionPage() {
       }
     }
 
-    // Try to flush any previously queued answers
     flushPendingAnswers(token).catch(() => {});
 
     router.push('/student/missions');

@@ -13,6 +13,7 @@ import {
   useDailySummary,
   useRewardStatus,
   useAchievements,
+  usePointsBreakdown,
   queryKeys,
   type AchievementProgress,
 } from "@/lib/hooks/queries";
@@ -109,6 +110,7 @@ export default function HomePage() {
   const { data: dailySummary } = useDailySummary();
   const { data: rewardStatus } = useRewardStatus();
   const { data: achievementsData } = useAchievements();
+  const { data: pointsBreakdown } = usePointsBreakdown();
 
   // ── Reward claim mutation ──
   const claimReward = useClaimReward();
@@ -259,7 +261,43 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* ② Quick-launch cards */}
+      {/* ② Points breakdown */}
+      {(() => {
+        const items = pointsBreakdown?.today?.length
+          ? pointsBreakdown.today
+          : pointsBreakdown?.this_week ?? [];
+        const label = pointsBreakdown?.today?.length ? "Today's Earnings" : "This Week";
+        if (items.length === 0) return null;
+
+        const ACTIVITY_ICONS: Record<string, string> = {
+          Missions: "🎯",
+          "Spelling Bee": "🐝",
+          "Story Time": "📖",
+          Speaking: "🎤",
+        };
+
+        return (
+          <section>
+            <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3">
+              {label}
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {items.map((item) => (
+                <span
+                  key={item.activity}
+                  className="inline-flex items-center gap-1.5 bg-white border border-slate-200 rounded-full px-3 py-1.5 text-sm font-bold text-slate-700 shadow-sm"
+                >
+                  <span>{ACTIVITY_ICONS[item.activity] ?? "⭐"}</span>
+                  {item.activity}
+                  <span className="text-indigo-600">+{item.points}</span>
+                </span>
+              ))}
+            </div>
+          </section>
+        );
+      })()}
+
+      {/* ③ Quick-launch cards */}
       <section>
         <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3">Play Now</h2>
         <div className="grid grid-cols-2 gap-3">
@@ -350,7 +388,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ③ Achievements shelf */}
+      {/* ④ Achievements shelf */}
       <section>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider">Your Badges</h2>
@@ -390,7 +428,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ④ Coming-soon card grid */}
+      {/* ⑤ Coming-soon card grid */}
       {COMING_SOON.length > 0 && (
         <section>
           <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3">Coming Soon 🔒</h2>
@@ -402,7 +440,7 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* ⑤ Motivational footer */}
+      {/* ⑥ Motivational footer */}
       <div className={["w-full rounded-2xl bg-indigo-50 border border-indigo-100 px-5 py-4 text-center transition-opacity duration-[400ms]", quoteFading ? "opacity-0" : "opacity-100"].join(" ")}>
         <p className="text-sm font-bold text-indigo-700">{QUOTES[quoteIndex]}</p>
       </div>

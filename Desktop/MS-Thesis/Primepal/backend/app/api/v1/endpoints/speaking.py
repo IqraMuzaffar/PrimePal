@@ -8,12 +8,13 @@ Endpoints (all require student JWT):
   POST /api/v1/speaking/evaluate-pro — Evaluate with word-level pronunciation data (audio file required)
 """
 
+import asyncio
 import json
 import logging
 from difflib import SequenceMatcher
 from io import BytesIO
 from openai import AsyncOpenAI
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, UploadFile, File
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -21,6 +22,7 @@ from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
 from app.utils.pronunciation import compare_phrases, calculate_pronunciation_score
 from app.utils.streak import update_streak
+from app.agents.evaluator_agent.interaction_logger import log_interaction
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -99,13 +101,26 @@ async def get_prompts(student: dict = Depends(get_current_student)):
     supabase = get_supabase_admin()
     classroom_id: str = student["classroom_id"]
 
-    classroom_resp = (
-        supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
+    classroom_resp, syllabus_resp = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("classroom_syllabus")
+            .select("topic_title, week_number")
+            .eq("classroom_id", classroom_id)
+            .eq("status", "active")
+            .order("week_number")
+            .limit(1)
+            .maybe_single()
+            .execute()
+        ),
     )
+
     if not classroom_resp.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -113,16 +128,6 @@ async def get_prompts(student: dict = Depends(get_current_student)):
         )
     grade_level: int = classroom_resp.data["grade_level"]
 
-    syllabus_resp = (
-        supabase.table("classroom_syllabus")
-        .select("topic_title, week_number")
-        .eq("classroom_id", classroom_id)
-        .eq("status", "active")
-        .order("week_number")
-        .limit(1)
-        .maybe_single()
-        .execute()
-    )
     if not syllabus_resp.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -203,6 +208,7 @@ Return ONLY valid JSON (no markdown):
 @router.post("/evaluate", response_model=EvaluateFeedback)
 async def evaluate_response(
     request: EvaluateRequest,
+    background_tasks: BackgroundTasks,
     student: dict = Depends(get_current_student),
 ):
     """
@@ -212,6 +218,33 @@ async def evaluate_response(
     supabase = get_supabase_admin()
     student_id: str = student["sub"]
     classroom_id: str = student["classroom_id"]
+
+    # Fetch student points + grade level upfront in parallel (needed for all paths)
+    student_resp, classroom_resp = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("students")
+            .select("points")
+            .eq("id", student_id)
+            .maybe_single()
+            .execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        ),
+    )
+
+    if not student_resp.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found",
+        )
+
+    current_points = student_resp.data.get("points") or 0
+    grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     # ---- Garbled / empty input detection ----
     transcript_text = (request.transcript or "").strip()
@@ -228,16 +261,6 @@ async def evaluate_response(
         is_garbled = True
 
     if is_empty or is_garbled:
-        # Fetch current points for response
-        points_resp = (
-            supabase.table("students")
-            .select("points")
-            .eq("id", student_id)
-            .maybe_single()
-            .execute()
-        )
-        current_points = points_resp.data.get("points", 0) if points_resp.data else 0
-
         if request.attempt_number >= _MAX_ATTEMPTS:
             return EvaluateFeedback(
                 score=0,
@@ -253,16 +276,6 @@ async def evaluate_response(
             new_total=current_points,
             status="retry",
         )
-
-    # Fetch grade level for evaluation context
-    classroom_resp = (
-        supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
-    )
-    grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     # Evaluate via LLM
     eval_prompt = f"""A Grade {grade_level} student was asked: "{request.prompt_text}"
@@ -297,65 +310,39 @@ Keep the feedback encouraging, short (1-2 sentences), and suitable for a young c
         score: int = eval_data.get("score", 0)
         feedback: str = eval_data.get("feedback", "Thanks for trying!")
 
-        # Clamp score to valid range
         if not isinstance(score, int) or score < 0 or score > 2:
             score = 0
 
     except Exception as exc:
         logger.error(f"Failed to evaluate response: {exc}")
-        # If LLM fails, treat as incomplete (score 0)
         score = 0
         feedback = "We couldn't evaluate that. Try again!"
 
-    # Map score to points: 0->0, 1->5, 2->10
     points_awarded = {0: 0, 1: 5, 2: 10}.get(score, 0)
 
-    # Fetch current points and update
-    student_resp = (
-        supabase.table("students")
-        .select("points")
-        .eq("id", student_id)
-        .maybe_single()
-        .execute()
-    )
-    if not student_resp.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found",
-        )
-
-    current_points = student_resp.data.get("points") or 0
-    new_total = current_points + points_awarded
-
-    update_resp = (
-        supabase.table("students")
-        .update({"points": new_total})
-        .eq("id", student_id)
-        .execute()
-    )
-    if not update_resp.data:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update points",
-        )
-
-    # Log interaction
-    try:
-        supabase.table("student_interactions").insert({
-            "student_id": student_id,
-            "classroom_id": classroom_id,
-            "grade_level": grade_level,
-            "interaction_type": "speaking_practice",
-            "original_message": request.transcript,
-            "correct": score > 0,
-            "context_used": False,
-            "pillar": "speaking",
-            "score": points_awarded,
+    if points_awarded > 0:
+        rpc_result = supabase.rpc("increment_student_points", {
+            "p_student_id": student_id,
+            "p_points": points_awarded,
         }).execute()
-    except Exception as exc:
-        logger.warning(f"Failed to log speaking interaction: {exc}")
+        result_data = rpc_result.data[0] if rpc_result.data else {}
+        new_total = result_data.get("new_points", current_points + points_awarded)
+    else:
+        new_total = current_points
 
-    # Update daily streak
+    background_tasks.add_task(
+        log_interaction,
+        student_id=student_id,
+        classroom_id=classroom_id,
+        grade_level=grade_level,
+        interaction_type="speaking_practice",
+        original_message=request.transcript,
+        correct=score > 0,
+        context_used=False,
+        pillar="speaking",
+        score=points_awarded,
+    )
+
     await update_streak(student_id)
 
     return EvaluateFeedback(
@@ -379,38 +366,41 @@ class EvaluateProRequest(BaseModel):
 @router.post("/evaluate-pro", response_model=EvaluatePronunciationFeedback)
 async def evaluate_pronunciation(
     request: EvaluateProRequest,
+    background_tasks: BackgroundTasks,
     audio_file: UploadFile = File(...),
     student: dict = Depends(get_current_student),
 ):
     """
     Evaluate student's pronunciation with word-level feedback.
-
-    1. Transcribe audio using Whisper API with word-level granularity
-    2. Compare words against target prompt using diffing algorithm
-    3. Return word-by-word assessment (correct/incorrect/omitted)
-    4. Award points based on pronunciation score (0-100 word accuracy)
-    5. Store pronunciation_data in database for analytics/reporting
-
-    Response includes:
-    - pronunciation_data: [{word: "I", status: "correct"}, ...]
-    - pronunciation_score: 0-100 based on word-level accuracy
     """
     supabase = get_supabase_admin()
     student_id: str = student["sub"]
     classroom_id: str = student["classroom_id"]
 
-    # ------------------------------------------------------------------
-    # Step 1: Transcribe audio using Whisper with word-level timestamps
-    # ------------------------------------------------------------------
-    try:
+    # Fetch student points + grade level in parallel with audio transcription
+    async def fetch_student_data():
+        return await asyncio.gather(
+            asyncio.to_thread(
+                lambda: supabase.table("students")
+                .select("points")
+                .eq("id", student_id)
+                .maybe_single()
+                .execute()
+            ),
+            asyncio.to_thread(
+                lambda: supabase.table("classrooms")
+                .select("grade_level")
+                .eq("id", classroom_id)
+                .maybe_single()
+                .execute()
+            ),
+        )
+
+    async def transcribe_audio():
         audio_bytes = await audio_file.read()
         audio_file_obj = BytesIO(audio_bytes)
         audio_file_obj.name = "audio.webm"
-
-        # Key parameters for word-level granularity:
-        # - response_format="verbose_json" returns detailed response structure
-        # - timestamp_granularities=["word"] extracts word-level timing
-        transcript_response = await client.audio.transcriptions.create(
+        return await client.audio.transcriptions.create(
             model="whisper-1",
             file=audio_file_obj,
             response_format="verbose_json",
@@ -419,24 +409,34 @@ async def evaluate_pronunciation(
             prompt=WHISPER_ACCENT_PROMPT,
         )
 
-        # Extract words from Whisper's verbose response
-        # Structure: {text: "...", words: [{word: "I", start: 0.5, end: 0.8}, ...]}
-        whisper_text: str = (transcript_response.text or "").strip()
-        whisper_words_raw = transcript_response.words or []
-        spoken_words = [w.word.lower() for w in whisper_words_raw if w.word]
-
-        if not spoken_words and whisper_text:
-            # Fallback: if no word-level data, split text
-            spoken_words = whisper_text.lower().split()
-
-        logger.info(f"Whisper transcribed {len(spoken_words)} words: {spoken_words}")
-
+    try:
+        (student_resp, classroom_resp), transcript_response = await asyncio.gather(
+            fetch_student_data(), transcribe_audio()
+        )
     except Exception as exc:
-        logger.error(f"Failed to transcribe audio: {exc}")
+        logger.error(f"Failed to transcribe audio or fetch data: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to process audio",
         )
+
+    if not student_resp.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Student not found",
+        )
+
+    current_points = student_resp.data.get("points") or 0
+    grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
+
+    whisper_text: str = (transcript_response.text or "").strip()
+    whisper_words_raw = transcript_response.words or []
+    spoken_words = [w.word.lower() for w in whisper_words_raw if w.word]
+
+    if not spoken_words and whisper_text:
+        spoken_words = whisper_text.lower().split()
+
+    logger.info(f"Whisper transcribed {len(spoken_words)} words: {spoken_words}")
 
     # ------------------------------------------------------------------
     # Step 2: Compare target phrase against spoken words
@@ -445,25 +445,14 @@ async def evaluate_pronunciation(
     pronunciation_data_list = compare_phrases(
         target_phrase=target_phrase,
         spoken_words=spoken_words,
-        threshold=0.75,  # 75% similarity threshold for "correct"
+        threshold=0.75,
     )
     pronunciation_score = calculate_pronunciation_score(pronunciation_data_list)
 
-    # ---- Garbled / noise detection for evaluate-pro ----
     noise_flagged = False
     all_wrong = all(p["status"] != "correct" for p in pronunciation_data_list) if pronunciation_data_list else True
 
     if pronunciation_score < 20 and len(spoken_words) < 2:
-        # Fetch current points for early return
-        student_resp_early = (
-            supabase.table("students")
-            .select("points")
-            .eq("id", student_id)
-            .maybe_single()
-            .execute()
-        )
-        current_pts = (student_resp_early.data.get("points") or 0) if student_resp_early.data else 0
-
         if request.attempt_number >= _MAX_ATTEMPTS:
             return EvaluatePronunciationFeedback(
                 score=0,
@@ -471,7 +460,7 @@ async def evaluate_pronunciation(
                 pronunciation_score=pronunciation_score,
                 pronunciation_data=[PronunciationWordData(**p) for p in pronunciation_data_list],
                 points_awarded=0,
-                new_total=current_pts,
+                new_total=current_points,
                 status="give_up",
                 noise_flagged=False,
             )
@@ -481,16 +470,14 @@ async def evaluate_pronunciation(
             pronunciation_score=pronunciation_score,
             pronunciation_data=[PronunciationWordData(**p) for p in pronunciation_data_list],
             points_awarded=0,
-            new_total=current_pts,
+            new_total=current_points,
             status="retry",
             noise_flagged=False,
         )
 
-    # Background noise detection: mic picked up sound but nothing intelligible
     if all_wrong and spoken_words:
         noise_flagged = True
 
-    # Overall correctness: mark as correct if pronunciation_score >= 70
     overall_correct = pronunciation_score >= 70
 
     logger.info(f"Pronunciation score: {pronunciation_score}%, overall correct: {overall_correct}")
@@ -500,7 +487,7 @@ async def evaluate_pronunciation(
     # ------------------------------------------------------------------
     incorrect_words = [p["word"] for p in pronunciation_data_list if p["status"] != "correct"]
 
-    feedback_prompt = f"""A Grade student was asked: "{request.prompt_text}"
+    feedback_prompt = f"""A Grade {grade_level} student was asked: "{request.prompt_text}"
 They said: "{whisper_text}"
 
 Word-level results:
@@ -524,73 +511,45 @@ If < 70, gently point out which word(s) to practice. Make it suitable for young 
         logger.error(f"Failed to generate feedback: {exc}")
         feedback = "Great attempt! Keep practicing!" if overall_correct else "Keep practicing, you're getting closer!"
 
-    # Append noise tip to feedback if flagged
     if noise_flagged:
         feedback += " Try moving to a quieter spot! \U0001f92b"
 
     # ------------------------------------------------------------------
-    # Step 4: Calculate points and update student total
+    # Step 4: Calculate points and update atomically
     # ------------------------------------------------------------------
     points_awarded = 10 if overall_correct else 5 if pronunciation_score >= 50 else 0
 
-    student_resp = (
-        supabase.table("students")
-        .select("points")
-        .eq("id", student_id)
-        .maybe_single()
-        .execute()
-    )
-    if not student_resp.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found",
-        )
-
-    current_points = student_resp.data.get("points") or 0
-    new_total = current_points + points_awarded
-
-    update_resp = (
-        supabase.table("students")
-        .update({"points": new_total})
-        .eq("id", student_id)
-        .execute()
-    )
-    if not update_resp.data:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update points",
-        )
-
-    # ------------------------------------------------------------------
-    # Step 5: Log interaction with pronunciation_data
-    # ------------------------------------------------------------------
-    try:
-        classroom_resp = (
-            supabase.table("classrooms")
-            .select("grade_level")
-            .eq("id", classroom_id)
-            .maybe_single()
-            .execute()
-        )
-        grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
-
-        supabase.table("student_interactions").insert({
-            "student_id": student_id,
-            "classroom_id": classroom_id,
-            "grade_level": grade_level,
-            "interaction_type": "speaking_practice",
-            "original_message": whisper_text,
-            "correct": overall_correct,
-            "context_used": False,
-            "pillar": "speaking",
-            "pronunciation_data": pronunciation_data_list,  # Store word-level data
-            "noise_flagged": noise_flagged,
-            "score": points_awarded,
+    if points_awarded > 0:
+        rpc_result = supabase.rpc("increment_student_points", {
+            "p_student_id": student_id,
+            "p_points": points_awarded,
         }).execute()
-    except Exception as exc:
-        logger.warning(f"Failed to log speaking interaction: {exc}")
+        result_data = rpc_result.data[0] if rpc_result.data else {}
+        new_total = result_data.get("new_points", current_points + points_awarded)
+    else:
+        new_total = current_points
 
-    # Update daily streak
+    def _log_pro_interaction():
+        try:
+            sb = get_supabase_admin()
+            sb.table("student_interactions").insert({
+                "student_id": student_id,
+                "classroom_id": classroom_id,
+                "grade_level": grade_level,
+                "interaction_type": "speaking_practice",
+                "original_message": whisper_text,
+                "correct": overall_correct,
+                "context_used": False,
+                "pillar": "speaking",
+                "pronunciation_data": pronunciation_data_list,
+                "noise_flagged": noise_flagged,
+                "score": points_awarded,
+            }).execute()
+        except Exception:
+            pass
+
+    background_tasks.add_task(_log_pro_interaction)
+
     await update_streak(student_id)
 
     return EvaluatePronunciationFeedback(
