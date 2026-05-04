@@ -432,7 +432,7 @@ export default function SpeakingPage() {
             <div className="flex justify-center mb-8">
               <motion.div
                 animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 1, repeat: Infinity }}
+                transition={{ type: "tween", duration: 1, repeat: Infinity }}
                 className="w-24 h-24 rounded-full bg-gradient-to-r from-rose-500 to-red-500 flex items-center justify-center shadow-lg"
               >
                 <Mic size={48} className="text-white" />

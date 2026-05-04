@@ -51,10 +51,15 @@ async def get_student_performance_profile(student_id: str) -> dict:
     supabase = get_supabase_admin()
 
     # Fetch aggregated per-pillar stats via RPC (last 14 days)
-    rpc_result = supabase.rpc(
-        "get_performance_stats", {"p_student_id": student_id, "p_days": 14}
-    ).execute()
-    raw_stats = rpc_result.data if rpc_result.data else {}
+    try:
+        rpc_result = supabase.rpc(
+            "get_performance_stats", {"p_student_id": student_id, "p_days": 14}
+        ).execute()
+        raw_stats = rpc_result.data if rpc_result.data else {}
+    except Exception as e:
+        # RPC function might not exist or return invalid data - use default profile
+        logger.warning(f"Performance stats RPC failed for student {student_id}: {e}")
+        raw_stats = {}
 
     if not raw_stats:
         profile = {

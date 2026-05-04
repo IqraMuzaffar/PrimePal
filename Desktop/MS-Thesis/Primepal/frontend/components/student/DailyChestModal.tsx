@@ -258,9 +258,8 @@ export default function DailyChestModal({
                           rotate: 360
                         }}
                         transition={{
-                          type: "spring",
-                          damping: 6,
-                          stiffness: 100,
+                          type: "tween",
+                          ease: "easeOut",
                           duration: 2
                         }}
                         className="absolute top-0 left-1/2 -translate-x-1/2"

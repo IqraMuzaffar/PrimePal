@@ -72,18 +72,18 @@ def generate_daily_reward() -> tuple[str, int]:
 
     Returns:
       (reward_type, amount)
-      - "stars_25": +25 points (70% chance)
-      - "stars_50": +50 points (20% chance)
-      - "multiplier_2x": 2x points multiplier (10% chance, amount=0)
+      - "stars_5": +5 points (33.33% chance)
+      - "stars_10": +10 points (33.33% chance)
+      - "stars_15": +15 points (33.33% chance)
     """
     rand = random()
 
-    if rand < 0.7:
-        return ("stars_25", 25)
-    elif rand < 0.9:
-        return ("stars_50", 50)
+    if rand < 0.333:
+        return ("stars_5", 5)
+    elif rand < 0.666:
+        return ("stars_10", 10)
     else:
-        return ("multiplier_2x", 0)
+        return ("stars_15", 15)
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +99,7 @@ async def claim_daily_reward(
 
     - Anti-cheat validation: checks server-side UTC timestamp.
     - Returns 400 if already claimed today.
-    - Generates random reward: 70% +25 stars, 20% +50 stars, 10% 2x multiplier.
+    - Generates random reward: 33% chance for each of 5, 10, or 15 points.
     - Updates student points and last_daily_reward_at timestamp.
 
     Authentication: student JWT (Bearer token).

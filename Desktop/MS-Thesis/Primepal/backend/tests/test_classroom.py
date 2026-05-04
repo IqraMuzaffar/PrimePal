@@ -21,7 +21,7 @@ CLASSROOM_ID = "cccccccc-0000-0000-0000-000000000001"
 STUDENT_1_ID = "ssssssss-0000-0000-0000-000000000001"
 STUDENT_2_ID = "ssssssss-0000-0000-0000-000000000002"
 
-MOCK_TEACHER = {"id": TEACHER_ID}
+MOCK_TEACHER = {"id": TEACHER_ID, "role": "admin"}
 
 MOCK_CLASSROOM_ROW = {
     "id": CLASSROOM_ID,
@@ -68,9 +68,19 @@ class TestCreateClassroom:
     async def test_create_classroom_returns_201(self, client: AsyncClient):
         """Happy path: valid body → 201 + classroom with class_code."""
         mock_admin = MagicMock()
-        result = MagicMock()
-        result.data = [MOCK_CLASSROOM_ROW]
-        mock_admin.table.return_value.insert.return_value.execute.return_value = result
+
+        # Mock for select queries (existing classroom check, class_code check)
+        empty_result = MagicMock()
+        empty_result.data = []
+
+        # Mock for insert (successful classroom creation)
+        insert_result = MagicMock()
+        insert_result.data = [MOCK_CLASSROOM_ROW]
+
+        # Setup mock to return empty for selects, data for insert
+        mock_admin.table.return_value.select.return_value.eq.return_value.eq.return_value.eq.return_value.execute.return_value = empty_result
+        mock_admin.table.return_value.select.return_value.eq.return_value.execute.return_value = empty_result
+        mock_admin.table.return_value.insert.return_value.execute.return_value = insert_result
 
         with patch("app.api.v1.endpoints.classroom.get_supabase_admin", return_value=mock_admin):
             resp = await client.post(
@@ -106,11 +116,12 @@ class TestCreateClassroom:
 class TestListClassrooms:
 
     async def test_list_classrooms_returns_owned(self, client: AsyncClient):
-        """Teacher gets back their classrooms."""
+        """Teacher gets back all classrooms (global access)."""
         mock_admin = MagicMock()
         result = MagicMock()
         result.data = [MOCK_CLASSROOM_ROW]
-        mock_admin.table.return_value.select.return_value.eq.return_value.order.return_value.execute.return_value = result
+        # Note: list_classrooms does NOT filter by teacher_id (global access)
+        mock_admin.table.return_value.select.return_value.order.return_value.execute.return_value = result
 
         with patch("app.api.v1.endpoints.classroom.get_supabase_admin", return_value=mock_admin):
             resp = await client.get("/api/v1/classroom/")
@@ -169,15 +180,16 @@ class TestGetClassroomDetail:
         assert len(body["students"]) == 2
         assert body["students"][0]["student_name"] == "Ali"
 
-    async def test_get_classroom_wrong_teacher_returns_403(self, client: AsyncClient):
-        """Classroom owned by different teacher → 403."""
+    async def test_get_classroom_global_access_allowed(self, client: AsyncClient):
+        """Global teacher access: Any teacher can view any classroom → 200."""
         other_teacher_row = {**MOCK_CLASSROOM_ROW, "teacher_id": "different-teacher-uuid"}
         mock_admin = self._make_detail_mock(classroom_data=other_teacher_row)
 
         with patch("app.api.v1.endpoints.classroom.get_supabase_admin", return_value=mock_admin):
             resp = await client.get(f"/api/v1/classroom/{CLASSROOM_ID}")
 
-        assert resp.status_code == 403
+        assert resp.status_code == 200
+        assert resp.json()["class_code"] == "ABC123"
 
 
 # ── POST /api/v1/classroom/{id}/students/bulk ────────────────────────────────

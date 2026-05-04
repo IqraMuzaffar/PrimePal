@@ -357,9 +357,8 @@ async def generate_pillar_missions(
 
     # Build adaptive difficulty section from performance profile
     adaptive_section = ""
-    difficulty_dist_str = """  - 3 questions with difficulty "easy" (points_value: 5)
-  - 4 questions with difficulty "medium" (points_value: 10)
-  - 3 questions with difficulty "hard" (points_value: 20)"""
+    # ALL questions worth 10 points each for consistent scoring
+    difficulty_dist_str = """  - 10 questions with difficulty "medium" (points_value: 10)"""
 
     if performance_profile and not is_frustrated:
         overall_acc = performance_profile.get("overall_accuracy", 0)
@@ -389,23 +388,15 @@ STUDENT PERFORMANCE PROFILE (adapt difficulty accordingly):
 - Strong areas (increase difficulty): {strong_lines}
 
 ADAPTIVE DIFFICULTY RULES:
-- For weak topics (accuracy < 40%): generate Easy questions (points_value: 5), include urdu_hint
-- For medium topics (accuracy 40-70%): generate Medium questions (points_value: 10)
-- For strong topics (accuracy > 70%): generate Hard questions (points_value: 20)
-- For mastered topics (accuracy > 90%, 5+ attempts): minimal repetition, max difficulty
-- Mix: ~40% weak topic reinforcement, ~40% current topics, ~20% strong topics at higher difficulty"""
+- ALL questions must have points_value: 10 (consistent scoring)
+- For weak topics (accuracy < 40%): use simpler vocabulary and sentence structure, include urdu_hint
+- For medium topics (accuracy 40-70%): use grade-appropriate complexity
+- For strong topics (accuracy > 70%): use more challenging vocabulary and complex structures
+- For mastered topics (accuracy > 90%, 5+ attempts): minimal repetition, introduce new related concepts
+- Mix: ~40% weak topic reinforcement, ~40% current topics, ~20% strong topics at higher complexity"""
 
-        # Override difficulty distribution based on performance
-        if diff_rec == "easy":
-            # Struggling student: more easy questions
-            difficulty_dist_str = """  - 4 questions with difficulty "easy" (points_value: 5)
-  - 4 questions with difficulty "medium" (points_value: 10)
-  - 2 questions with difficulty "hard" (points_value: 20)"""
-        elif diff_rec == "hard":
-            # Strong student: more hard questions, fewer easy
-            difficulty_dist_str = """  - 1 questions with difficulty "easy" (points_value: 5)
-  - 4 questions with difficulty "medium" (points_value: 10)
-  - 5 questions with difficulty "hard" (points_value: 20)"""
+        # Keep all questions at 10 points - adaptive difficulty no longer changes point values
+        # (Difficulty can still vary in question complexity, but all worth 10 points)
 
     confidence_override = ""
     if is_frustrated:
@@ -414,7 +405,7 @@ CRITICAL OVERRIDE — CONFIDENCE BUILDER MODE:
 - Reduce vocabulary complexity by 1-2 grade levels below grade {grade_level}.
 - Make correct answers obvious. Use simple sentences.
 - Frame with encouragement ("Great job!", "You can do it!").
-- Ensure 7/10 questions are easy (difficulty: "easy", points_value: 5)."""
+- All questions still worth points_value: 10, but use simpler content."""
 
     system_prompt = f"""\
 You are an ESL mission designer for Pakistani primary school Grade {grade_level} students.
@@ -461,13 +452,33 @@ RULES:
         ])
 
         chain = prompt | llm
-        result: PillarMissions = await asyncio.wait_for(
-            chain.ainvoke({}),
-            timeout=60.0,  # Increased from 20s to 60s for complex prompts
-        )
+
+        # Retry up to 3 times if LLM returns < 10 questions
+        result: PillarMissions | None = None
+        for attempt in range(3):
+            result = await asyncio.wait_for(
+                chain.ainvoke({}),
+                timeout=60.0,
+            )
+
+            if result and result.questions and len(result.questions) >= PILLAR_QUESTIONS_COUNT:
+                break  # Success!
+
+            if attempt < 2:  # Don't log on last attempt
+                logger.warning(
+                    f"LLM generated {len(result.questions) if result and result.questions else 0} questions "
+                    f"(expected {PILLAR_QUESTIONS_COUNT}), retrying... (attempt {attempt + 1}/3)"
+                )
 
         if result is None or not result.questions:
-            raise ValueError("LLM returned empty result")
+            raise ValueError("LLM returned empty result after 3 attempts")
+
+        # Validate question count after retries
+        if len(result.questions) < PILLAR_QUESTIONS_COUNT:
+            raise RuntimeError(
+                f"LLM generated only {len(result.questions)} questions instead of {PILLAR_QUESTIONS_COUNT} "
+                f"after 3 attempts. Please try again later."
+            )
 
         # Normalize and validate
         validated = []
@@ -479,8 +490,8 @@ RULES:
                 d["task_type"] = "multiple_choice"
             if not d.get("difficulty"):
                 d["difficulty"] = "medium"
-            if not d.get("points_value"):
-                d["points_value"] = POINTS_BY_DIFFICULTY.get(d["difficulty"], 10)
+            # Always set to 10 points - consistent scoring across all questions
+            d["points_value"] = 10
             d["is_weakness_focused"] = False
             validated.append(d)
 

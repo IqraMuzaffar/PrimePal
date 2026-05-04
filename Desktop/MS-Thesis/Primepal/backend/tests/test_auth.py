@@ -426,7 +426,7 @@ class TestTeacherPINReset:
     def override_teacher_dep(self):
         from app.main import app
         from app.core.security import get_current_teacher
-        app.dependency_overrides[get_current_teacher] = lambda: {"id": TEACHER_ID}
+        app.dependency_overrides[get_current_teacher] = lambda: {"id": TEACHER_ID, "role": "admin"}
         yield
         app.dependency_overrides.pop(get_current_teacher, None)
 

@@ -37,7 +37,7 @@ function ScorePopup({ points, isCorrect }: { points: number; isCorrect: boolean 
       <motion.div
         initial={{ scale: 0 }}
         animate={{ scale: [0, 1.2, 1] }}
-        transition={{ duration: 0.5 }}
+        transition={{ type: "tween", duration: 0.5 }}
         className={`${
           isCorrect
             ? 'bg-gradient-to-br from-green-400 to-green-600'
