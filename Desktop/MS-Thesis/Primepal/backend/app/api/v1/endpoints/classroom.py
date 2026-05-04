@@ -152,11 +152,9 @@ async def create_classroom(
 
 @router.get("/", response_model=List[ClassroomResponse])
 async def list_classrooms(teacher: dict = Depends(get_current_teacher)):
-    """Returns all classrooms owned by the authenticated teacher (admin sees all), newest first."""
+    """Returns all classrooms (global teacher access), newest first."""
     supabase = get_supabase_admin()
     query = supabase.table("classrooms").select("*")
-    if not teacher.get("is_admin"):
-        query = query.eq("teacher_id", teacher["id"])
     result = query.order("created_at", desc=True).execute()
     return result.data or []
 
@@ -166,7 +164,7 @@ async def get_classroom(
     classroom_id: str,
     teacher: dict = Depends(get_current_teacher),
 ):
-    """Returns classroom details plus the full student roster."""
+    """Returns classroom details plus the full student roster (global teacher access)."""
     supabase = get_supabase_admin()
 
     classroom_res = (
@@ -178,9 +176,8 @@ async def get_classroom(
     )
     if not classroom_res.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found")
-    if classroom_res.data["teacher_id"] != teacher["id"] and not teacher.get("is_admin"):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not your classroom")
 
+    # Global teacher access - no ownership check needed
     students_res = (
         supabase.table("students")
         .select("id, student_name, avatar_url, secret_pin, roll_number, email, avatar_style, theme_color, points, father_name")
@@ -612,9 +609,9 @@ async def get_syllabus(
     classroom_id: str,
     teacher: dict = Depends(get_current_teacher),
 ):
-    """Returns the 30-week pacing calendar for a classroom."""
+    """Returns the 30-week pacing calendar for a classroom (global teacher access)."""
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
+    # Global teacher access - no ownership check needed
 
     result = (
         supabase.table("classroom_syllabus")
