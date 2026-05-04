@@ -1,0 +1,139 @@
+"""
+Student Scores Endpoint
+GET /api/v1/student/my-scores - View own performance stats
+"""
+from datetime import datetime, timedelta
+from typing import Literal
+
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
+
+from app.core.security import get_current_student
+from app.core.supabase_client import get_supabase_admin
+
+router = APIRouter()
+
+
+# ── Schemas ──────────────────────────────────────────────────────────────────
+
+
+class PillarScore(BaseModel):
+    pillar: str
+    total: int
+    correct: int
+    accuracy_pct: int
+
+
+class MyScoresResponse(BaseModel):
+    total_questions: int
+    total_correct: int
+    overall_accuracy_pct: int
+    total_points: int
+    pillar_scores: list[PillarScore]
+    time_range_label: str
+
+
+# ── Endpoints ────────────────────────────────────────────────────────────────
+
+
+@router.get(
+    "/my-scores",
+    response_model=MyScoresResponse,
+    summary="Get student's own performance scores",
+)
+async def get_my_scores(
+    student: dict = Depends(get_current_student),
+    time_range: Literal["everything", "week", "month"] = Query("everything"),
+) -> MyScoresResponse:
+    """
+    Returns student's performance stats filtered by time range.
+
+    Time ranges:
+    - everything: All time
+    - week: Last 7 days
+    - month: Last 30 days
+
+    Returns overall stats (questions, accuracy, points) and per-pillar breakdown.
+    """
+    from collections import defaultdict
+
+    supabase = get_supabase_admin()
+    student_id: str = student["sub"]
+
+    # 1. Calculate date range
+    date_from = None
+    time_range_label = "Everything"
+
+    if time_range == "week":
+        date_from = (datetime.now() - timedelta(days=7)).date().isoformat()
+        time_range_label = "This Week"
+    elif time_range == "month":
+        date_from = (datetime.now() - timedelta(days=30)).date().isoformat()
+        time_range_label = "This Month"
+
+    # 2. Query interactions with date filter
+    query = (
+        supabase.table("student_interactions")
+        .select("pillar, correct")
+        .eq("student_id", student_id)
+        .not_.is_("correct", "null")
+    )
+
+    if date_from:
+        query = query.gte("created_at", date_from)
+
+    interactions_resp = query.execute()
+    interactions = interactions_resp.data or []
+
+    # 3. Aggregate overall stats
+    total_questions = len(interactions)
+    total_correct = sum(1 for i in interactions if i.get("correct"))
+    overall_accuracy_pct = round((total_correct / total_questions * 100)) if total_questions > 0 else 0
+
+    # 4. Aggregate by pillar
+    pillar_data = defaultdict(lambda: {"total": 0, "correct": 0})
+    for interaction in interactions:
+        pillar = interaction.get("pillar")
+        if pillar:
+            pillar_data[pillar]["total"] += 1
+            if interaction.get("correct"):
+                pillar_data[pillar]["correct"] += 1
+
+    # 5. Build pillar scores (always return all 4 pillars)
+    all_pillars = ["reading", "writing", "listening", "speaking"]
+    pillar_scores = []
+
+    for pillar in all_pillars:
+        data = pillar_data[pillar]
+        total = data["total"]
+        correct = data["correct"]
+        accuracy_pct = round((correct / total * 100)) if total > 0 else 0
+
+        pillar_scores.append(
+            PillarScore(
+                pillar=pillar,
+                total=total,
+                correct=correct,
+                accuracy_pct=accuracy_pct,
+            )
+        )
+
+    # 6. Get total points from students table
+    student_resp = (
+        supabase.table("students")
+        .select("points")
+        .eq("id", student_id)
+        .maybe_single()
+        .execute()
+    )
+
+    total_points = student_resp.data.get("points", 0) if student_resp.data else 0
+
+    return MyScoresResponse(
+        total_questions=total_questions,
+        total_correct=total_correct,
+        overall_accuracy_pct=overall_accuracy_pct,
+        total_points=total_points,
+        pillar_scores=pillar_scores,
+        time_range_label=time_range_label,
+    )

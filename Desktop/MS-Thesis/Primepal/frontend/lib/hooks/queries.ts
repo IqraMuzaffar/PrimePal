@@ -71,6 +71,22 @@ export interface PointsBreakdown {
   total_points: number;
 }
 
+export interface PillarScore {
+  pillar: string;
+  total: number;
+  correct: number;
+  accuracy_pct: number;
+}
+
+export interface MyScoresData {
+  total_questions: number;
+  total_correct: number;
+  overall_accuracy_pct: number;
+  total_points: number;
+  pillar_scores: PillarScore[];
+  time_range_label: string;
+}
+
 export const queryKeys = {
   studentProfile: ["studentProfile"] as const,
   streak: ["streak"] as const,
@@ -87,6 +103,7 @@ export const queryKeys = {
   missionPillar: (pillar: string) => ["missionPillar", pillar] as const,
   weeklyProgress: ["weeklyProgress"] as const,
   pointsBreakdown: ["pointsBreakdown"] as const,
+  myScores: (timeRange: string) => ["myScores", timeRange] as const,
 };
 
 export function useStudentProfile() {
@@ -292,5 +309,13 @@ export function usePointsBreakdown() {
     queryKey: queryKeys.pointsBreakdown,
     queryFn: () => studentFetch<PointsBreakdown>("/rewards/points-breakdown"),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useMyScores(timeRange: string = "everything") {
+  return useQuery({
+    queryKey: queryKeys.myScores(timeRange),
+    queryFn: () => studentFetch<MyScoresData>(`/student/my-scores?time_range=${timeRange}`),
+    staleTime: 30 * 1000,
   });
 }
