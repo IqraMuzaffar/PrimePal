@@ -10,11 +10,12 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         "report:read",
         "report:export",
         "topic:read",
-        "topic:select",
         "dashboard:read",
         "analytics:read",
         "assistant:use",
         "syllabus:read",
+        # NOTE: classroom/student CRUD operations require is_admin=True
+        # These are enforced via check_admin() function, not permission strings
     },
 }
 
@@ -29,3 +30,16 @@ def check_permission(teacher: dict, action: str) -> None:
         status_code=status.HTTP_403_FORBIDDEN,
         detail="This action requires admin privileges",
     )
+
+
+def check_admin(teacher: dict) -> None:
+    """Raise 403 if the teacher is not an admin.
+
+    Use this for write operations (create, update, delete) on classrooms and students.
+    All teachers can read data, but only admins can modify it.
+    """
+    if not teacher.get("is_admin", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This operation requires admin privileges",
+        )

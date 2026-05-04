@@ -21,7 +21,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.security import get_current_teacher
-from app.core.permissions import check_permission
+from app.core.permissions import check_permission, check_admin
 from app.core.supabase_client import get_supabase_admin
 from app.schemas.classroom import (
     ClassroomCreate,
@@ -68,8 +68,10 @@ async def create_classroom(
 
     Validates that each grade can only have one classroom per section.
     Example: Grade 3 can have one 3A, one 3B, one 3C, but NOT two 3A classrooms.
+
+    ADMIN ONLY: Only admin users can create classrooms.
     """
-    check_permission(teacher, "classroom:create")
+    check_admin(teacher)
     supabase = get_supabase_admin()
 
     # Auto-generate class_name if not provided: "Grade X - Section Y"
@@ -195,10 +197,11 @@ async def delete_classroom(
     """
     Deletes a classroom. Protection: classroom must have 0 students.
     Returns 400 Bad Request if students are present.
+
+    ADMIN ONLY: Only admin users can delete classrooms.
     """
-    check_permission(teacher, "classroom:delete")
+    check_admin(teacher)
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     # Check if classroom has students
     students_res = (
@@ -231,10 +234,12 @@ async def update_classroom(
     request: ClassroomUpdate,
     teacher: dict = Depends(get_current_teacher),
 ):
-    """Update classroom settings (e.g., class_name). Teacher ownership verified."""
-    check_permission(teacher, "classroom:update")
+    """Update classroom settings (e.g., class_name).
+
+    ADMIN ONLY: Only admin users can update classrooms.
+    """
+    check_admin(teacher)
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     # Build update payload with only non-None fields
     update_data = {}
@@ -267,10 +272,12 @@ async def bulk_add_students(
     request: StudentBulkCreate,
     teacher: dict = Depends(get_current_teacher),
 ):
-    """Bulk-creates student ghost profiles with randomly assigned avatars."""
-    check_permission(teacher, "student:create")
+    """Bulk-creates student ghost profiles with randomly assigned avatars.
+
+    ADMIN ONLY: Only admin users can create students.
+    """
+    check_admin(teacher)
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     names = [n.strip() for n in request.names if n.strip()]
     if not names:
@@ -300,10 +307,12 @@ async def bulk_add_students_v2(
     request: StudentBulkCreateV2,
     teacher: dict = Depends(get_current_teacher),
 ):
-    """Bulk-creates student profiles with name, roll_number, and email fields."""
-    check_permission(teacher, "student:create")
+    """Bulk-creates student profiles with name, roll_number, and email fields.
+
+    ADMIN ONLY: Only admin users can create students.
+    """
+    check_admin(teacher)
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     students = [s for s in request.students if s.student_name and s.student_name.strip()]
     if not students:
@@ -335,10 +344,12 @@ async def remove_student(
     student_id: str,
     teacher: dict = Depends(get_current_teacher),
 ):
-    """Removes a student ghost profile from the roster."""
-    check_permission(teacher, "student:delete")
+    """Removes a student ghost profile from the roster.
+
+    ADMIN ONLY: Only admin users can delete students.
+    """
+    check_admin(teacher)
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     result = (
         supabase.table("students")
@@ -359,10 +370,12 @@ async def update_student(
     request: StudentUpdate,
     teacher: dict = Depends(get_current_teacher),
 ):
-    """Update student identity fields (name, roll_number, email). Teacher ownership verified."""
-    check_permission(teacher, "student:update")
+    """Update student identity fields (name, roll_number, email).
+
+    ADMIN ONLY: Only admin users can update students.
+    """
+    check_admin(teacher)
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     update_data = {k: v for k, v in request.model_dump().items() if v is not None}
     if not update_data:
@@ -501,10 +514,11 @@ async def update_classroom_active_topics(
     """
     Replaces all active topic selections for this classroom.
     Send topic_ids: [] to reset to default (all active).
+
+    ADMIN ONLY: Only admin users can update topic selections.
     """
-    check_permission(teacher, "topic:select")
+    check_admin(teacher)
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
     return await save_active_topics(classroom_id, body.topic_ids, supabase)
 
 
@@ -634,10 +648,12 @@ async def update_syllabus_week(
     request: UpdateWeekStatusRequest,
     teacher: dict = Depends(get_current_teacher),
 ):
-    """Update the status of a specific week in the pacing calendar."""
-    check_permission(teacher, "syllabus:update")
+    """Update the status of a specific week in the pacing calendar.
+
+    ADMIN ONLY: Only admin users can update syllabus status.
+    """
+    check_admin(teacher)
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
 
     result = (
         supabase.table("classroom_syllabus")

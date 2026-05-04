@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Lock, CheckCircle2, ChevronRight } from "lucide-react";
 import { useTeacherSyllabus, useUnlockNextWeek } from "@/lib/hooks/teacher-queries";
+import { useTeacherRole } from "@/lib/useTeacherRole";
 
 interface Props {
   params: { id: string };
@@ -10,6 +11,7 @@ interface Props {
 
 export default function SyllabusPage({ params }: Props) {
   const [error, setError] = useState<string | null>(null);
+  const { isAdmin } = useTeacherRole();
 
   const { data: syllabusData, isLoading: loading } = useTeacherSyllabus(params.id);
   const weeks = syllabusData?.weeks ?? [];
@@ -137,8 +139,8 @@ export default function SyllabusPage({ params }: Props) {
         </div>
       </div>
 
-      {/* Unlock Next Week Button */}
-      {hasNextWeek && (
+      {/* Unlock Next Week Button - Admin Only */}
+      {isAdmin && hasNextWeek && (
         <div className="flex justify-end">
           <button
             onClick={unlockNextWeek}
