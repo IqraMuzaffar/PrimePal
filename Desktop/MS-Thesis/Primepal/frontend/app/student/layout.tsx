@@ -31,7 +31,7 @@ const NAV_LINKS = [
   { href: "/student/home",         label: "Home",        icon: "🏠" },
   { href: "/student/chat",         label: "Chat",        icon: "💬" },
   { href: "/student/missions",     label: "Missions",    icon: "🎯" },
-  { href: "/student/quests",       label: "Quests",      icon: "📋" },
+  { href: "/student/scores",       label: "My Scores",   icon: "📊" },
   { href: "/student/achievements", label: "Badges",      icon: "🏅" },
   { href: "/student/leaderboard",  label: "Leaderboard", icon: "🏆" },
 ];
