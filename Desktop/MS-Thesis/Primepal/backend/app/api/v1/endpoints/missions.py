@@ -527,8 +527,6 @@ async def submit_batch(
 
         pts = (answer.points_value or _POINTS_PER_CORRECT) if answer.question_correct else 0
         current_points += pts
-        if pts > 0:
-            current_missions += 1
         processed += 1
 
         background_tasks.add_task(

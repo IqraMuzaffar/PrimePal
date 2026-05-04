@@ -18,7 +18,6 @@ from pydantic import BaseModel
 
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
-from app.core.cache import cache_get, cache_set, make_cache_key
 
 logger = logging.getLogger(__name__)
 
@@ -108,71 +107,53 @@ async def claim_daily_reward(
     supabase = get_supabase_admin()
 
     # ------------------------------------------------------------------
-    # Step 1: Fetch current student data
+    # Step 1: Generate reward upfront (cheap, no DB needed)
     # ------------------------------------------------------------------
-    student_resp = (
+    reward_type, reward_amount = generate_daily_reward()
+
+    # ------------------------------------------------------------------
+    # Step 2: Atomically claim — stamp the timestamp only if not yet
+    # claimed today. This prevents double-claim race conditions.
+    # ------------------------------------------------------------------
+    now_utc = datetime.now(timezone.utc)
+    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+
+    claim_resp = (
         supabase.table("students")
-        .select("points, last_daily_reward_at")
+        .update({"last_daily_reward_at": now_utc.isoformat() + "Z"})
         .eq("id", student_id)
-        .maybe_single()
+        .or_(
+            "last_daily_reward_at.is.null,"
+            f"last_daily_reward_at.lt.{today_start.isoformat()}Z"
+        )
         .execute()
     )
-    if not student_resp.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student record not found",
-        )
 
-    data = student_resp.data
-    current_points: int = data.get("points") or 0
-    last_claimed_timestamp = data.get("last_daily_reward_at")
-
-    # ------------------------------------------------------------------
-    # Step 2: Anti-cheat validation (server-side time check)
-    # ------------------------------------------------------------------
-    if is_today(last_claimed_timestamp):
+    if not claim_resp.data:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="You have already claimed your daily reward today. Come back tomorrow!",
         )
 
     # ------------------------------------------------------------------
-    # Step 3: Generate random reward
+    # Step 3: Atomically increment points (safe — claim gate passed)
     # ------------------------------------------------------------------
-    reward_type, reward_amount = generate_daily_reward()
-    new_total = current_points + reward_amount
-
-    # ------------------------------------------------------------------
-    # Step 4: Update student record with new points and timestamp
-    # ------------------------------------------------------------------
-    now_utc = datetime.now(timezone.utc)
-    update_data = {
-        "points": new_total,
-        "last_daily_reward_at": now_utc.isoformat() + "Z",  # ISO format with Z for UTC
-    }
-
-    result = (
-        supabase.table("students")
-        .update(update_data)
-        .eq("id", student_id)
-        .execute()
-    )
-
-    if not result.data:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to claim daily reward",
-        )
+    rpc_result = supabase.rpc("increment_student_points", {
+        "p_student_id": student_id,
+        "p_points": reward_amount,
+    }).execute()
+    result_data = rpc_result.data[0] if rpc_result.data else {}
+    new_total = result_data.get("new_points", reward_amount)
 
     # ------------------------------------------------------------------
     # Step 5: Build response message
     # ------------------------------------------------------------------
-    if reward_type == "stars_25":
-        message = "You earned +25 Stars! ⭐"
-    elif reward_type == "stars_50":
-        message = "You earned +50 Stars! 🌟"
-    else:  # multiplier_2x
-        message = "You unlocked a 2x Points Multiplier! 🚀"
+    if reward_type == "stars_5":
+        message = "You earned +5 Stars! ⭐"
+    elif reward_type == "stars_10":
+        message = "You earned +10 Stars! 🌟"
+    else:
+        message = "You earned +15 Stars! 🌟🌟"
 
     logger.info(
         "Daily reward claimed: student=%s, reward_type=%s, amount=%d, new_total=%d",
@@ -268,16 +249,10 @@ async def get_daily_summary(
     - total_points: cumulative points from student record
     - missions_today: count of correct interactions today
 
-    Cached for 2 minutes.
     Authentication: student JWT (Bearer token).
     """
     student_id: str = student["sub"]
     supabase = get_supabase_admin()
-
-    cache_key = make_cache_key("daily_summary", student_id)
-    cached = await cache_get(cache_key)
-    if cached:
-        return DailySummaryResponse(**cached)
 
     student_resp = (
         supabase.table("students")
@@ -301,14 +276,11 @@ async def get_daily_summary(
     today_points = sum(r.get("score") or 10 for r in rows)
     missions_today = len(rows)
 
-    response = DailySummaryResponse(
+    return DailySummaryResponse(
         today_points=today_points,
         total_points=total_points,
         missions_today=missions_today,
     )
-
-    await cache_set(cache_key, response.model_dump(), ttl=120)
-    return response
 
 
 # ---------------------------------------------------------------------------
@@ -347,4 +319,90 @@ async def get_streak(student: dict = Depends(get_current_student)):
         current_streak=data.get("current_streak") or 0,
         longest_streak=data.get("longest_streak") or 0,
         last_activity_date=data.get("last_activity_date"),
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /points-breakdown (Points Breakdown by Activity)
+# ---------------------------------------------------------------------------
+
+_ACTIVITY_MAP = {
+    "mission_mc": "Missions",
+    "mission_fill": "Missions",
+    "mission_speaking": "Missions",
+    "spelling_bee": "Spelling Bee",
+    "story_time": "Story Time",
+    "speaking_practice": "Speaking",
+    "speaking_pro": "Speaking",
+}
+
+
+class ActivityPoints(BaseModel):
+    activity: str
+    points: int
+    count: int
+
+
+class PointsBreakdownResponse(BaseModel):
+    today: list[ActivityPoints]
+    this_week: list[ActivityPoints]
+    total_points: int
+
+
+@router.get("/points-breakdown", response_model=PointsBreakdownResponse, summary="Points breakdown by activity")
+async def get_points_breakdown(
+    student: dict = Depends(get_current_student),
+):
+    """
+    Return today's and this week's points grouped by activity type.
+
+    Authentication: student JWT (Bearer token).
+    """
+    student_id: str = student["sub"]
+    supabase = get_supabase_admin()
+
+    now_utc = datetime.now(timezone.utc)
+    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
+    week_start = (now_utc - timedelta(days=7)).isoformat()
+
+    student_resp = (
+        supabase.table("students")
+        .select("points")
+        .eq("id", student_id)
+        .maybe_single()
+        .execute()
+    )
+    total_points = (student_resp.data.get("points") or 0) if student_resp.data else 0
+
+    week_resp = (
+        supabase.table("student_interactions")
+        .select("interaction_type, score, created_at")
+        .eq("student_id", student_id)
+        .eq("correct", True)
+        .gte("created_at", week_start)
+        .execute()
+    )
+    rows = week_resp.data or []
+
+    def aggregate(filtered_rows: list[dict]) -> list[ActivityPoints]:
+        buckets: dict[str, dict] = {}
+        for r in filtered_rows:
+            raw_type = r.get("interaction_type", "")
+            display = _ACTIVITY_MAP.get(raw_type, raw_type.replace("_", " ").title())
+            if display not in buckets:
+                buckets[display] = {"points": 0, "count": 0}
+            buckets[display]["points"] += r.get("score") or 10
+            buckets[display]["count"] += 1
+        return sorted(
+            [ActivityPoints(activity=k, points=v["points"], count=v["count"]) for k, v in buckets.items()],
+            key=lambda x: x.points,
+            reverse=True,
+        )
+
+    today_rows = [r for r in rows if r.get("created_at", "") >= today_start]
+
+    return PointsBreakdownResponse(
+        today=aggregate(today_rows),
+        this_week=aggregate(rows),
+        total_points=total_points,
     )

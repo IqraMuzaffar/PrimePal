@@ -47,6 +47,30 @@ export interface AchievementsResponse {
   achievements: AchievementProgress[];
 }
 
+export interface PillarProgress {
+  pillar: string;
+  done: number;
+  target: number;
+  pct: number;
+}
+
+export interface WeeklyProgress {
+  week_topic: string | null;
+  pillars: PillarProgress[];
+}
+
+export interface ActivityPoints {
+  activity: string;
+  points: number;
+  count: number;
+}
+
+export interface PointsBreakdown {
+  today: ActivityPoints[];
+  this_week: ActivityPoints[];
+  total_points: number;
+}
+
 export const queryKeys = {
   studentProfile: ["studentProfile"] as const,
   streak: ["streak"] as const,
@@ -61,6 +85,8 @@ export const queryKeys = {
   evalStatus: ["evalStatus"] as const,
   evalQuestions: (type: string) => ["evalQuestions", type] as const,
   missionPillar: (pillar: string) => ["missionPillar", pillar] as const,
+  weeklyProgress: ["weeklyProgress"] as const,
+  pointsBreakdown: ["pointsBreakdown"] as const,
 };
 
 export function useStudentProfile() {
@@ -249,6 +275,22 @@ export function useMissionPillar(pillar: string) {
         `/missions/pillar?pillar=${pillar}`
       ),
     enabled: !!pillar,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useWeeklyProgress() {
+  return useQuery({
+    queryKey: queryKeys.weeklyProgress,
+    queryFn: () => studentFetch<WeeklyProgress>("/missions/weekly-progress"),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function usePointsBreakdown() {
+  return useQuery({
+    queryKey: queryKeys.pointsBreakdown,
+    queryFn: () => studentFetch<PointsBreakdown>("/rewards/points-breakdown"),
     staleTime: 5 * 60 * 1000,
   });
 }

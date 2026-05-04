@@ -6,16 +6,18 @@ Endpoints (all require student JWT):
   POST /api/v1/spelling-bee/submit  — Record spelling attempt, award points
 """
 
+import asyncio
 import json
 import logging
 from openai import AsyncOpenAI
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.config import settings
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
 from app.utils.streak import update_streak
+from app.agents.evaluator_agent.interaction_logger import log_interaction
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -67,33 +69,34 @@ async def get_spelling_words(student: dict = Depends(get_current_student)):
     classroom_id: str = student["classroom_id"]
 
     # ------------------------------------------------------------------
-    # Step 1: Fetch grade level and active week topic
+    # Step 1: Fetch grade level and active week topic in parallel
     # ------------------------------------------------------------------
-    classroom_resp = (
-        supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
+    classroom_resp, syllabus_resp = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("classroom_syllabus")
+            .select("topic_title, week_number")
+            .eq("classroom_id", classroom_id)
+            .eq("status", "active")
+            .order("week_number")
+            .limit(1)
+            .maybe_single()
+            .execute()
+        ),
     )
+
     if not classroom_resp.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Classroom not found",
         )
     grade_level: int = classroom_resp.data["grade_level"]
-
-    # Fetch the active week topic from classroom_syllabus
-    syllabus_resp = (
-        supabase.table("classroom_syllabus")
-        .select("topic_title, week_number")
-        .eq("classroom_id", classroom_id)
-        .eq("status", "active")
-        .order("week_number")
-        .limit(1)
-        .maybe_single()
-        .execute()
-    )
 
     # Fallback: if no active week, use a random active topic from snc_topics
     if not syllabus_resp.data:
@@ -202,6 +205,7 @@ Format: [
 @router.post("/submit", response_model=SpellingSubmitResponse)
 async def submit_spelling(
     request: SpellingSubmitRequest,
+    background_tasks: BackgroundTasks,
     student: dict = Depends(get_current_student),
 ):
     """
@@ -218,24 +222,29 @@ async def submit_spelling(
     student_id: str = student["sub"]
     classroom_id: str = student["classroom_id"]
 
-    # ------------------------------------------------------------------
-    # Step 1: Calculate points
-    # ------------------------------------------------------------------
     if request.correct:
         points = 10 if request.attempt_number == 1 else 5
     else:
         points = 0
 
-    # ------------------------------------------------------------------
-    # Step 2: Fetch student's current points
-    # ------------------------------------------------------------------
-    student_resp = (
-        supabase.table("students")
-        .select("points")
-        .eq("id", student_id)
-        .maybe_single()
-        .execute()
+    # Fetch student points + grade level in parallel
+    student_resp, classroom_resp = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("students")
+            .select("points")
+            .eq("id", student_id)
+            .maybe_single()
+            .execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        ),
     )
+
     if not student_resp.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -243,52 +252,31 @@ async def submit_spelling(
         )
 
     current_points = student_resp.data.get("points") or 0
-    new_total = current_points + points
+    grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
-    # ------------------------------------------------------------------
-    # Step 3: Update student points
-    # ------------------------------------------------------------------
-    update_resp = (
-        supabase.table("students")
-        .update({"points": new_total})
-        .eq("id", student_id)
-        .execute()
-    )
-    if not update_resp.data:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update points",
-        )
-
-    # ------------------------------------------------------------------
-    # Step 4: Log interaction (asynchronous, no await)
-    # ------------------------------------------------------------------
-    try:
-        # Fetch grade level from classroom (needed for logging)
-        classroom_resp = (
-            supabase.table("classrooms")
-            .select("grade_level")
-            .eq("id", classroom_id)
-            .maybe_single()
-            .execute()
-        )
-        grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
-
-        supabase.table("student_interactions").insert({
-            "student_id": student_id,
-            "classroom_id": classroom_id,
-            "grade_level": grade_level,
-            "interaction_type": "spelling_bee",
-            "original_message": request.word,  # the word being practiced
-            "correct": request.correct,
-            "context_used": False,
-            "score": points,
+    if points > 0:
+        rpc_result = supabase.rpc("increment_student_points", {
+            "p_student_id": student_id,
+            "p_points": points,
         }).execute()
-    except Exception as exc:
-        logger.warning(f"Failed to log spelling interaction: {exc}")
-        # Don't fail the request — logging is non-critical
+        result_data = rpc_result.data[0] if rpc_result.data else {}
+        new_total = result_data.get("new_points", current_points + points)
+    else:
+        new_total = current_points
 
-    # Update daily streak
+    background_tasks.add_task(
+        log_interaction,
+        student_id=student_id,
+        classroom_id=classroom_id,
+        grade_level=grade_level,
+        interaction_type="spelling_bee",
+        original_message=request.word,
+        correct=request.correct,
+        context_used=False,
+        pillar="writing",
+        score=points,
+    )
+
     await update_streak(student_id)
 
     return SpellingSubmitResponse(
