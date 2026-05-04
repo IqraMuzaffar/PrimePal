@@ -24,11 +24,6 @@ export interface DailySummary {
   missions_today: number;
 }
 
-export interface RewardStatus {
-  has_claimed_today: boolean;
-  last_claimed_at: string | null;
-}
-
 export interface AchievementProgress {
   id: string;
   name: string;
@@ -91,7 +86,6 @@ export const queryKeys = {
   studentProfile: ["studentProfile"] as const,
   streak: ["streak"] as const,
   dailySummary: ["dailySummary"] as const,
-  rewardStatus: ["rewardStatus"] as const,
   achievements: ["achievements"] as const,
   leaderboard: (classroomId: string) => ["leaderboard", classroomId] as const,
   studentLeaderboard: ["studentLeaderboard"] as const,
@@ -127,14 +121,6 @@ export function useDailySummary() {
     queryKey: queryKeys.dailySummary,
     queryFn: () => studentFetch<DailySummary>("/rewards/daily-summary"),
     staleTime: 5 * 60 * 1000,
-  });
-}
-
-export function useRewardStatus() {
-  return useQuery({
-    queryKey: queryKeys.rewardStatus,
-    queryFn: () => studentFetch<RewardStatus>("/rewards/status"),
-    staleTime: 2 * 60 * 1000,
   });
 }
 

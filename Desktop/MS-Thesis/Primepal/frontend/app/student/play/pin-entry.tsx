@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Loader2, Delete } from "lucide-react";
@@ -31,9 +31,12 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
   const [inputValue, setInputValue] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  // Remove auto-submit — user must click "Let's Go" button
-  // (Keeping digits state and effect structure for clarity)
+  // Keep input focused so physical keyboard always works
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, [digits]);
 
   async function submitPin(pin: string) {
     setLoading(true);
@@ -56,16 +59,16 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
 
       // Check specific error types and show friendly messages
       let friendlyMsg: string;
-      if (msg === "Incorrect PIN") {
-        friendlyMsg = "Oops! Wrong PIN. Try again 🔐";
-      } else if (msg.includes("Failed to fetch") || msg.includes("fetch")) {
-        friendlyMsg = "😕 Can't reach the server. Check your internet connection!";
-      } else if (msg.includes("No classroom found")) {
-        friendlyMsg = "❌ Invalid class code. Ask your teacher!";
+      if (msg === "Incorrect PIN" || msg.toLowerCase().includes("pin")) {
+        friendlyMsg = "Oops! That PIN isn't right. Try again! 🔐";
+      } else if (msg.includes("Failed to fetch") || msg.includes("fetch") || msg.includes("network")) {
+        friendlyMsg = "Oh no! We can't connect right now. Check your internet! 🌐";
+      } else if (msg.includes("No classroom found") || msg.includes("classroom")) {
+        friendlyMsg = "Hmm, that class code doesn't work. Ask your teacher! 🏫";
       } else if (msg.includes("does not belong")) {
-        friendlyMsg = "⚠️ You're not in this class. Check your class code!";
+        friendlyMsg = "Oops! You're not in this class. Check your class code! 📋";
       } else {
-        friendlyMsg = msg;
+        friendlyMsg = "Something went wrong. Try again or ask your teacher for help! 🤔";
       }
 
       setError(friendlyMsg);
@@ -132,21 +135,7 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
         <p className="text-sm text-slate-500">Enter your Secret PIN</p>
       </div>
 
-      {/* Hidden input for native keyboard */}
-      <input
-        type="tel"
-        inputMode="numeric"
-        pattern="[0-9]*"
-        maxLength={4}
-        value={inputValue}
-        onChange={handleInputChange}
-        disabled={loading}
-        className="sr-only"
-        autoFocus
-        aria-label="Enter PIN using keyboard"
-      />
-
-      {/* 4 dot indicators */}
+      {/* PIN input — works with both physical keyboard and on-screen keypad */}
       <style>{`
         @keyframes pin-shake {
           0%, 100% { transform: translateX(0); }
@@ -161,17 +150,40 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
       {loading ? (
         <Loader2 size={28} className="animate-spin text-indigo-500" />
       ) : (
-        <div className={`flex gap-4 ${shake ? "pin-shake" : ""}`}>
+        <div
+          className={`flex gap-3 ${shake ? "pin-shake" : ""}`}
+          onClick={() => inputRef.current?.focus()}
+        >
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className={`w-5 h-5 rounded-full border-2 transition-all duration-150 ${
+              className={`w-12 h-14 rounded-xl border-2 flex items-center justify-center text-2xl font-extrabold transition-all duration-150 ${
                 i < digits.length
-                  ? "bg-indigo-600 border-indigo-600"
-                  : "bg-white border-slate-300"
+                  ? "border-indigo-600 bg-indigo-50 text-indigo-700"
+                  : "border-slate-300 bg-white text-transparent"
               }`}
-            />
+            >
+              {digits[i] ? "●" : ""}
+            </div>
           ))}
+          <input
+            ref={inputRef}
+            type="tel"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            maxLength={4}
+            value={inputValue}
+            onChange={handleInputChange}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && digits.length === 4 && !loading) {
+                submitPin(digits.join(""));
+              }
+            }}
+            disabled={loading}
+            className="absolute opacity-0 w-0 h-0"
+            autoFocus
+            aria-label="Enter PIN using keyboard"
+          />
         </div>
       )}
 

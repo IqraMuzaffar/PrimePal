@@ -34,20 +34,19 @@ export default function StudentPlayPage() {
     try {
       const data = await apiFetch<Avatar[]>(`/auth/classroom/${code}/avatars`);
       if (data.length === 0) {
-        setError("No students found in this class. Ask your teacher!");
+        setError("No students in this class yet. Ask your teacher to add you! 👋");
       } else {
         setAvatars(data);
         setStep("pick-avatar");
       }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "Something went wrong. Try again!";
-      // Network errors show "Failed to fetch" - make it user-friendly
-      if (errorMsg.includes("Failed to fetch") || errorMsg.includes("fetch")) {
-        setError("😕 Can't reach the server. Check your internet connection!");
-      } else if (errorMsg.includes("No classroom found")) {
-        setError("❌ Invalid class code. Check with your teacher!");
+      if (errorMsg.includes("No classroom found") || errorMsg.includes("classroom") || errorMsg.includes("API error 404")) {
+        setError("Hmm, that class code doesn't exist. Check with your teacher! 🏫");
+      } else if (errorMsg.includes("Failed to fetch") || errorMsg.includes("fetch") || errorMsg.includes("network")) {
+        setError("Oh no! We can't connect right now. Check your internet! 🌐");
       } else {
-        setError(errorMsg);
+        setError("Something went wrong. Try again or ask your teacher for help! 🤔");
       }
     } finally {
       setLoading(false);

@@ -273,17 +273,7 @@ class TestStudentLearningJourney:
 
             assert response_submit.status_code in [200, 400, 404]
 
-    async def test_05_student_claims_daily_reward(self, client):
-        """Step 5: Student claims daily chest reward."""
-        with patch("app.api.v1.endpoints.rewards.get_supabase"):
-            response = await client.post(
-                "/api/v1/rewards/daily-chest/claim",
-                headers={"Authorization": "Bearer student-token"}
-            )
-
-            assert response.status_code in [200, 400, 409]  # 409 if already claimed
-
-    async def test_06_student_checks_leaderboard(self, client):
+    async def test_05_student_checks_leaderboard(self, client):
         """Step 6: Student views classroom leaderboard."""
         with patch("app.api.v1.endpoints.leaderboard.get_supabase") as mock_get_sub:
             mock_sub = _make_mock_supabase()

@@ -109,7 +109,15 @@
       "Bash(find frontend/app -name *classroom* -o -path */teacher/classroom/*)",
       "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
       "Bash(grep -r \"snc_topics\" supabase/migrations/*.sql)",
-      "Bash(grep -r quests frontend/app/student/layout.tsx frontend/app/student/*/page.tsx)"
+      "Bash(grep -r quests frontend/app/student/layout.tsx frontend/app/student/*/page.tsx)",
+      "Bash(grep -r student/scores --include=*.tsx --include=*.ts --include=*.py)",
+      "Bash(gh pr:*)",
+      "Bash(grep -r \"claim_reward\\\\|claimReward\\\\|/reward\" /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/backend/app/api --include=*.py)",
+      "Bash(find /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/backend -type f -name *migration* -o -name *sql)",
+      "Bash(grep -r \"DailyChest\\\\|dailyChest\\\\|daily_chest\" /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal --include=*.md)",
+      "Bash(npx next:*)",
+      "Bash(rd:*)",
+      "Bash(find /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal -name *.sql)"
     ]
   }
 }

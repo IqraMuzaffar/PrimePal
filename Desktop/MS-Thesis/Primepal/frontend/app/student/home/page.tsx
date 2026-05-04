@@ -3,34 +3,17 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Pencil } from "lucide-react";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   useStudentProfile,
   useStreak,
   useDailySummary,
-  useRewardStatus,
   useAchievements,
   usePointsBreakdown,
-  queryKeys,
   type AchievementProgress,
 } from "@/lib/hooks/queries";
-import { useClaimReward } from "@/lib/hooks/mutations";
-import AvatarCustomizeModal from "@/components/student/AvatarCustomizeModal";
-import DailyChestModal from "@/components/student/DailyChestModal";
 import AchievementPopup from "@/components/student/AchievementPopup";
-
-// ── Types ────────────────────────────────────────────────────────────────────
-
-// Shape expected by DailyChestModal
-interface DailyRewardLocal {
-  reward_type: string;
-  amount: number;
-  new_total: number;
-  message: string;
-}
 
 // ── Constants ────────────────────────────────────────────────────────────────
 
@@ -102,28 +85,17 @@ function LockedCard({ icon, label, tagline }: { icon: string; label: string; tag
 
 export default function HomePage() {
   const router = useRouter();
-  const queryClient = useQueryClient();
 
   // ── Data fetching via TanStack Query (all fire in parallel) ──
   const { data: profile, isLoading: loadingProfile } = useStudentProfile();
   const { data: streak } = useStreak();
   const { data: dailySummary } = useDailySummary();
-  const { data: rewardStatus } = useRewardStatus();
   const { data: achievementsData } = useAchievements();
   const { data: pointsBreakdown } = usePointsBreakdown();
 
-  // ── Reward claim mutation ──
-  const claimReward = useClaimReward();
-
   // ── Local UI state ──
-  const [showModal, setShowModal] = useState(false);
-  const [avatarStyle, setAvatarStyle] = useState("adventurer");
-  const [themeColor, setThemeColor] = useState("#6366f1");
   const [quoteIndex, setQuoteIndex] = useState(0);
   const [quoteFading, setQuoteFading] = useState(false);
-  const [isDailyChestOpen, setIsDailyChestOpen] = useState(false);
-  const [claimingReward, setClaimingReward] = useState(false);
-  const [dailyReward, setDailyReward] = useState<DailyRewardLocal | null>(null);
   const [achievementPopup, setAchievementPopup] = useState<{ name: string; icon: string; tier: "bronze" | "silver" | "gold" } | null>(null);
   const [streakResetBanner, setStreakResetBanner] = useState(false);
 
@@ -132,13 +104,6 @@ export default function HomePage() {
     const token = typeof window !== "undefined" ? localStorage.getItem("primepal_student_token") : null;
     if (!token) { router.push("/student/play"); }
   }, [router]);
-
-  // Open daily chest when reward status loads and not yet claimed
-  useEffect(() => {
-    if (rewardStatus && !rewardStatus.has_claimed_today) {
-      setIsDailyChestOpen(true);
-    }
-  }, [rewardStatus]);
 
   // Detect streak reset
   useEffect(() => {
@@ -157,50 +122,13 @@ export default function HomePage() {
     return () => clearInterval(t);
   }, []);
 
-  function handleCustomizeSave(style: string, color: string) {
-    setAvatarStyle(style);
-    setThemeColor(color);
-    setShowModal(false);
-    // Invalidate profile so layout also picks up the new avatar_url
-    queryClient.invalidateQueries({ queryKey: queryKeys.studentProfile });
-  }
-
-  async function handleClaimReward(_reward: DailyRewardLocal) {
-    setClaimingReward(true);
-
-    claimReward.mutate(undefined, {
-      onSuccess: (data) => {
-        // Map mutation response to the local reward shape
-        const mapped: DailyRewardLocal = {
-          reward_type: data.reward_type,
-          amount: data.amount,
-          new_total: data.new_total,
-          message: data.message,
-        };
-        setDailyReward(mapped);
-
-        // Close modal after brief delay
-        setTimeout(() => {
-          setIsDailyChestOpen(false);
-          setDailyReward(null);
-        }, 2000);
-      },
-      onError: () => {
-        setIsDailyChestOpen(false);
-      },
-      onSettled: () => {
-        setClaimingReward(false);
-      },
-    });
-  }
-
   const points = profile?.points ?? 0;
   const name = profile?.student_name
     ?? (typeof window !== "undefined" ? localStorage.getItem("primepal_student_name") : null)
     ?? "Champion";
 
   // Resolve avatar URL: prefer profile value, fall back to generated dicebear
-  const resolvedAvatarUrl = profile?.avatar_url || dicebearUrl(avatarStyle, name);
+  const resolvedAvatarUrl = profile?.avatar_url || dicebearUrl("adventurer", name);
 
   return (
     <div className="max-w-md mx-auto space-y-6 pb-10">
@@ -229,17 +157,6 @@ export default function HomePage() {
               Hi {name}! 🌟
             </h1>
             <p className="text-white/80 text-sm mt-1">Ready to level up?</p>
-            <motion.button
-              onClick={() => {
-                setShowModal(true);
-              }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="mt-2 flex items-center gap-1 bg-white/20 hover:bg-white/30 text-white text-xs font-bold px-3 py-1 rounded-full transition-all duration-150"
-            >
-              <Pencil size={11} />
-              Edit Character
-            </motion.button>
           </div>
           <div className="flex items-center gap-2">
             {dailySummary && dailySummary.today_points > 0 && (
@@ -444,27 +361,6 @@ export default function HomePage() {
       <div className={["w-full rounded-2xl bg-indigo-50 border border-indigo-100 px-5 py-4 text-center transition-opacity duration-[400ms]", quoteFading ? "opacity-0" : "opacity-100"].join(" ")}>
         <p className="text-sm font-bold text-indigo-700">{QUOTES[quoteIndex]}</p>
       </div>
-
-      {/* Customization modal */}
-      {showModal && profile && (
-        <AvatarCustomizeModal
-          studentName={profile.student_name}
-          currentStyle={avatarStyle}
-          currentColor={themeColor}
-          onSave={handleCustomizeSave}
-          onClose={() => setShowModal(false)}
-        />
-      )}
-
-      {/* Daily Chest modal */}
-      {isDailyChestOpen && (
-        <DailyChestModal
-          isOpen={isDailyChestOpen}
-          onRewardClaimed={handleClaimReward}
-          reward={dailyReward || { reward_type: "stars", amount: 25, new_total: 0, message: "🎁 Claim your daily reward!" }}
-          isClaiming={claimingReward}
-        />
-      )}
 
       {/* Achievement popup */}
       {achievementPopup && (
