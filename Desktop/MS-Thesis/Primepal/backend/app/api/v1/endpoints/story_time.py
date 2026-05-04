@@ -16,13 +16,17 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
+from app.core.cache import cache_get, cache_set, make_cache_key
 from app.agents.evaluator_agent.interaction_logger import log_interaction
 from app.utils.streak import update_streak
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+client = AsyncOpenAI(
+    api_key=settings.OPENAI_API_KEY,
+    timeout=10.0,  # 10-second timeout for all OpenAI calls
+)
 
 # ---------------------------------------------------------------------------
 # Response Schemas
@@ -102,6 +106,18 @@ async def get_story(student: dict = Depends(get_current_student)):
     topic_title: str = syllabus_resp.data["topic_title"]
     week_number: int = syllabus_resp.data["week_number"]
 
+    # ------------------------------------------------------------------
+    # Check cache first (1 hour TTL)
+    # ------------------------------------------------------------------
+    cache_key = make_cache_key("story_time", classroom_id, topic_title, str(grade_level))
+    cached = await cache_get(cache_key)
+    if cached:
+        logger.info(f"Cache hit for story time: {cache_key}")
+        return StoryResponse(**cached)
+
+    # ------------------------------------------------------------------
+    # Generate story via LLM (with 12s timeout)
+    # ------------------------------------------------------------------
     prompt = f"""You are generating a reading comprehension activity for Grade {grade_level} Pakistani primary school students studying English.
 
 Topic: {topic_title}
@@ -122,11 +138,15 @@ Return ONLY valid JSON (no markdown code blocks).
 """
 
     try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=800,
+        # 12-second timeout for LLM call (consistent with missions endpoints)
+        response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=800,
+            ),
+            timeout=12.0,
         )
 
         response_text = response.choices[0].message.content.strip()
@@ -161,6 +181,12 @@ Return ONLY valid JSON (no markdown code blocks).
                 correct_index=q["correct_index"],
             ))
 
+    except asyncio.TimeoutError:
+        logger.error(f"Story generation timeout (12s) for topic: {topic_title}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Story generation timed out. Please try again.",
+        )
     except json.JSONDecodeError as exc:
         logger.error(f"Failed to parse LLM response for story: {exc}")
         raise HTTPException(
@@ -174,13 +200,18 @@ Return ONLY valid JSON (no markdown code blocks).
             detail="Failed to generate story",
         )
 
-    return StoryResponse(
+    response = StoryResponse(
         story_title=data.get("story_title", "Untitled Story"),
         story_text=data.get("story_text", ""),
         topic=topic_title,
         week_number=week_number,
         questions=questions,
     )
+
+    # Cache for 1 hour (same topic/grade will get same story)
+    await cache_set(cache_key, response.model_dump(), ttl=3600)
+
+    return response
 
 
 # ---------------------------------------------------------------------------

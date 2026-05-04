@@ -200,21 +200,26 @@ async def get_daily_missions(
     supabase = get_supabase_admin()
 
     # ------------------------------------------------------------------
-    # Step 1: Resolve grade_level — server-side guardrail
+    # Step 1: Fetch classroom grade (needed for active topics)
     # ------------------------------------------------------------------
-    classroom_resp = (
-        supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
-    )
-    if not classroom_resp.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Classroom not found for this student",
+    async def fetch_classroom_grade():
+        """Fetch classroom grade level."""
+        resp = (
+            supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
         )
-    grade_level: int = classroom_resp.data["grade_level"]
+        if not resp.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Classroom not found for this student",
+            )
+        return resp.data["grade_level"]
+
+    # Fetch grade level first (needed for active topics)
+    grade_level = await asyncio.to_thread(fetch_classroom_grade)
 
     # ------------------------------------------------------------------
     # Step 2: Resolve active topics for topic-aware cache key + seed phrase

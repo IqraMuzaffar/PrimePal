@@ -20,6 +20,7 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
+from app.core.cache import cache_get, cache_set, make_cache_key
 from app.utils.pronunciation import compare_phrases, calculate_pronunciation_score
 from app.utils.streak import update_streak
 from app.agents.evaluator_agent.interaction_logger import log_interaction
@@ -27,7 +28,10 @@ from app.agents.evaluator_agent.interaction_logger import log_interaction
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+client = AsyncOpenAI(
+    api_key=settings.OPENAI_API_KEY,
+    timeout=10.0,  # 10-second timeout for all OpenAI calls
+)
 
 # Whisper prompt to prime for Pakistani English accent patterns
 WHISPER_ACCENT_PROMPT = (
@@ -137,6 +141,18 @@ async def get_prompts(student: dict = Depends(get_current_student)):
     topic_title: str = syllabus_resp.data["topic_title"]
     week_number: int = syllabus_resp.data["week_number"]
 
+    # ------------------------------------------------------------------
+    # Check cache first (1 hour TTL)
+    # ------------------------------------------------------------------
+    cache_key = make_cache_key("speaking_prompts", classroom_id, topic_title, str(grade_level))
+    cached = await cache_get(cache_key)
+    if cached:
+        logger.info(f"Cache hit for speaking prompts: {cache_key}")
+        return PromptsResponse(**cached)
+
+    # ------------------------------------------------------------------
+    # Generate prompts via LLM (with 12s timeout)
+    # ------------------------------------------------------------------
     prompt = f"""Generate 3 simple speaking prompts for Grade {grade_level} Pakistani primary school students studying English.
 Topic: {topic_title}
 
@@ -152,11 +168,15 @@ Return ONLY valid JSON (no markdown):
 """
 
     try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.7,
-            max_tokens=400,
+        # 12-second timeout for LLM call (consistent with missions endpoints)
+        response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.7,
+                max_tokens=400,
+            ),
+            timeout=12.0,
         )
 
         response_text = response.choices[0].message.content.strip()
@@ -181,6 +201,12 @@ Return ONLY valid JSON (no markdown):
                 hint=item["hint"],
             ))
 
+    except asyncio.TimeoutError:
+        logger.error(f"Speaking prompt generation timeout (12s) for topic: {topic_title}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Prompt generation timed out. Please try again.",
+        )
     except json.JSONDecodeError as exc:
         logger.error(f"Failed to parse LLM response for prompts: {exc}")
         raise HTTPException(
@@ -194,11 +220,16 @@ Return ONLY valid JSON (no markdown):
             detail="Failed to generate prompts",
         )
 
-    return PromptsResponse(
+    response = PromptsResponse(
         prompts=prompts,
         topic=topic_title,
         week_number=week_number,
     )
+
+    # Cache for 1 hour (same topic/grade will get same prompts)
+    await cache_set(cache_key, response.model_dump(), ttl=3600)
+
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -292,11 +323,15 @@ Return ONLY valid JSON:
 Keep the feedback encouraging, short (1-2 sentences), and suitable for a young child."""
 
     try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": eval_prompt}],
-            temperature=0.5,
-            max_tokens=200,
+        # 10-second timeout for evaluation LLM call
+        response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": eval_prompt}],
+                temperature=0.5,
+                max_tokens=200,
+            ),
+            timeout=10.0,
         )
 
         response_text = response.choices[0].message.content.strip()
@@ -410,8 +445,18 @@ async def evaluate_pronunciation(
         )
 
     try:
-        (student_resp, classroom_resp), transcript_response = await asyncio.gather(
-            fetch_student_data(), transcribe_audio()
+        # 15-second timeout for Whisper transcription (audio processing can be slower)
+        (student_resp, classroom_resp), transcript_response = await asyncio.wait_for(
+            asyncio.gather(
+                fetch_student_data(), transcribe_audio()
+            ),
+            timeout=15.0,
+        )
+    except asyncio.TimeoutError:
+        logger.error("Whisper transcription timeout (15s)")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Audio transcription timed out. Please try again.",
         )
     except Exception as exc:
         logger.error(f"Failed to transcribe audio or fetch data: {exc}")
@@ -500,14 +545,18 @@ Generate SHORT, encouraging feedback (1-2 sentences max). If score >= 70, congra
 If < 70, gently point out which word(s) to practice. Make it suitable for young children."""
 
     try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": feedback_prompt}],
-            temperature=0.5,
-            max_tokens=150,
+        # 10-second timeout for feedback generation
+        response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": feedback_prompt}],
+                temperature=0.5,
+                max_tokens=150,
+            ),
+            timeout=10.0,
         )
         feedback: str = response.choices[0].message.content.strip()
-    except Exception as exc:
+    except (asyncio.TimeoutError, Exception) as exc:
         logger.error(f"Failed to generate feedback: {exc}")
         feedback = "Great attempt! Keep practicing!" if overall_correct else "Keep practicing, you're getting closer!"
 

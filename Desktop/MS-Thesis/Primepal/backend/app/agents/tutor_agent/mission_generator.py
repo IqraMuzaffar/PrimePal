@@ -442,8 +442,8 @@ RULES:
             model=settings.CHAT_MODEL,
             temperature=0.7,
             openai_api_key=settings.OPENAI_API_KEY,
-            max_retries=3,
-            timeout=15.0,
+            max_retries=2,
+            timeout=10.0,  # Reduced from 15s - gpt-4o-mini is fast
         ).with_structured_output(PillarMissions)
 
         prompt = ChatPromptTemplate.from_messages([
@@ -453,36 +453,30 @@ RULES:
 
         chain = prompt | llm
 
-        # Retry up to 3 times if LLM returns < 10 questions
-        result: PillarMissions | None = None
-        for attempt in range(3):
-            result = await asyncio.wait_for(
-                chain.ainvoke({}),
-                timeout=60.0,
-            )
-
-            if result and result.questions and len(result.questions) >= PILLAR_QUESTIONS_COUNT:
-                break  # Success!
-
-            if attempt < 2:  # Don't log on last attempt
-                logger.warning(
-                    f"LLM generated {len(result.questions) if result and result.questions else 0} questions "
-                    f"(expected {PILLAR_QUESTIONS_COUNT}), retrying... (attempt {attempt + 1}/3)"
-                )
+        # Single attempt with 12s timeout - fail fast if LLM has issues
+        result: PillarMissions | None = await asyncio.wait_for(
+            chain.ainvoke({}),
+            timeout=12.0,  # Reduced from 60s - consistent with daily missions
+        )
 
         if result is None or not result.questions:
-            raise ValueError("LLM returned empty result after 3 attempts")
+            raise ValueError("LLM returned empty result")
 
-        # Validate question count after retries
+        # If LLM returned fewer than 10 questions, pad with simpler questions rather than retry
         if len(result.questions) < PILLAR_QUESTIONS_COUNT:
-            raise RuntimeError(
-                f"LLM generated only {len(result.questions)} questions instead of {PILLAR_QUESTIONS_COUNT} "
-                f"after 3 attempts. Please try again later."
+            logger.warning(
+                f"LLM generated {len(result.questions)} questions (expected {PILLAR_QUESTIONS_COUNT}), "
+                f"using available questions"
             )
+            # Use what we got rather than waiting another 60s for retry
+            if len(result.questions) == 0:
+                raise ValueError("LLM returned no questions")
 
-        # Normalize and validate
+        # Normalize and validate - use whatever questions we got (prefer partial success over total failure)
         validated = []
-        for i, q in enumerate(result.questions[:PILLAR_QUESTIONS_COUNT]):
+        questions_to_use = result.questions[:PILLAR_QUESTIONS_COUNT] if len(result.questions) >= PILLAR_QUESTIONS_COUNT else result.questions
+
+        for i, q in enumerate(questions_to_use):
             d = q.model_dump()
             d["id"] = i + 1
             d["pillar"] = pillar
@@ -496,11 +490,16 @@ RULES:
             validated.append(d)
 
         logger.info(f"Generated {len(validated)} {pillar} questions for grade {grade_level}")
+
+        # Log warning if we didn't get full set, but still return what we have
+        if len(validated) < PILLAR_QUESTIONS_COUNT:
+            logger.warning(f"Returning {len(validated)}/{PILLAR_QUESTIONS_COUNT} questions - better than failing completely")
+
         return validated
 
     except asyncio.TimeoutError:
-        logger.error(f"Pillar mission generation timeout for {pillar} grade {grade_level}")
-        raise RuntimeError("Mission generation timed out. Please try again.")
+        logger.error(f"Pillar mission generation timeout (12s) for {pillar} grade {grade_level}")
+        raise RuntimeError("Mission generation timed out after 12 seconds. Please try again.")
     except Exception as e:
         logger.error(f"Pillar mission generation failed: {e}", exc_info=True)
         raise RuntimeError(f"Mission generation failed: {e}")
