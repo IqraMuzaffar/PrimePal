@@ -38,7 +38,8 @@ def check_admin(teacher: dict) -> None:
     Use this for write operations (create, update, delete) on classrooms and students.
     All teachers can read data, but only admins can modify it.
     """
-    if not teacher.get("is_admin", False):
+    role = teacher.get("role", "teacher")
+    if role != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This operation requires admin privileges",
