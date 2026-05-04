@@ -8,10 +8,16 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
+from app.core.cache import cache_get, cache_set, cache_delete_pattern, make_cache_key
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
 
 router = APIRouter()
+
+
+async def invalidate_scores_cache(student_id: str) -> None:
+    """Invalidate all scores caches for a student (call after mission completion)."""
+    await cache_delete_pattern(f"student_scores:{student_id}:*")
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -57,8 +63,14 @@ async def get_my_scores(
     """
     from collections import defaultdict
 
-    supabase = get_supabase_admin()
     student_id: str = student["sub"]
+
+    cache_key = make_cache_key("student_scores", student_id, time_range)
+    cached = await cache_get(cache_key)
+    if cached:
+        return MyScoresResponse(**cached)
+
+    supabase = get_supabase_admin()
 
     # 1. Calculate date range
     date_from = None
@@ -129,7 +141,7 @@ async def get_my_scores(
 
     total_points = student_resp.data.get("points", 0) if student_resp.data else 0
 
-    return MyScoresResponse(
+    result = MyScoresResponse(
         total_questions=total_questions,
         total_correct=total_correct,
         overall_accuracy_pct=overall_accuracy_pct,
@@ -137,3 +149,5 @@ async def get_my_scores(
         pillar_scores=pillar_scores,
         time_range_label=time_range_label,
     )
+    await cache_set(cache_key, result.model_dump(), ttl=300)
+    return result

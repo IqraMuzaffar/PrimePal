@@ -7,12 +7,18 @@ from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
 
+from app.core.cache import cache_get, cache_set, cache_delete_pattern, make_cache_key
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+async def invalidate_rewards_cache(student_id: str) -> None:
+    """Invalidate all rewards caches for a student (call after mission completion)."""
+    await cache_delete_pattern(f"rewards:*:{student_id}")
 
 
 # ---------------------------------------------------------------------------
@@ -39,6 +45,12 @@ async def get_daily_summary(
     Authentication: student JWT (Bearer token).
     """
     student_id: str = student["sub"]
+
+    cache_key = make_cache_key("rewards", "daily_summary", student_id)
+    cached = await cache_get(cache_key)
+    if cached:
+        return DailySummaryResponse(**cached)
+
     supabase = get_supabase_admin()
 
     student_resp = (
@@ -63,11 +75,13 @@ async def get_daily_summary(
     today_points = sum(r.get("score") or 10 for r in rows)
     missions_today = len(rows)
 
-    return DailySummaryResponse(
+    result = DailySummaryResponse(
         today_points=today_points,
         total_points=total_points,
         missions_today=missions_today,
     )
+    await cache_set(cache_key, result.model_dump(), ttl=300)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -92,6 +106,12 @@ async def get_streak(student: dict = Depends(get_current_student)):
     Authentication: student JWT (Bearer token).
     """
     student_id: str = student["sub"]
+
+    cache_key = make_cache_key("rewards", "streak", student_id)
+    cached = await cache_get(cache_key)
+    if cached:
+        return StreakResponse(**cached)
+
     supabase = get_supabase_admin()
 
     resp = supabase.table("students").select(
@@ -102,11 +122,13 @@ async def get_streak(student: dict = Depends(get_current_student)):
         raise HTTPException(status_code=404, detail="Student not found")
 
     data = resp.data
-    return StreakResponse(
+    result = StreakResponse(
         current_streak=data.get("current_streak") or 0,
         longest_streak=data.get("longest_streak") or 0,
         last_activity_date=data.get("last_activity_date"),
     )
+    await cache_set(cache_key, result.model_dump(), ttl=300)
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +168,12 @@ async def get_points_breakdown(
     Authentication: student JWT (Bearer token).
     """
     student_id: str = student["sub"]
+
+    cache_key = make_cache_key("rewards", "points_breakdown", student_id)
+    cached = await cache_get(cache_key)
+    if cached:
+        return PointsBreakdownResponse(**cached)
+
     supabase = get_supabase_admin()
 
     now_utc = datetime.now(timezone.utc)
@@ -188,8 +216,10 @@ async def get_points_breakdown(
 
     today_rows = [r for r in rows if r.get("created_at", "") >= today_start]
 
-    return PointsBreakdownResponse(
+    result = PointsBreakdownResponse(
         today=aggregate(today_rows),
         this_week=aggregate(rows),
         total_points=total_points,
     )
+    await cache_set(cache_key, result.model_dump(), ttl=300)
+    return result
