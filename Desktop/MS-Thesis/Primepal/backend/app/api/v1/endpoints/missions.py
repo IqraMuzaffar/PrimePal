@@ -16,6 +16,7 @@ question_correct (bool) to /complete, which the server trusts (thesis prototype)
 The pillar endpoint (Feature 3) generates missions weighted by student weaknesses and
 the teacher-configured current_week_topic.
 """
+import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -80,7 +81,7 @@ class MissionQuestionOut(BaseModel):
     sentence_start: str | None = None
     urdu_hint: str = ""
     correct_order: list[str] | None = None  # Needed for frontend validation (sentence_scramble, guided_translation)
-    # correct_answer deliberately ABSENT (stripped server-side for security)
+    correct_answer: str | None = None  # Included for frontend validation (primary students, learning-focused)
 
 
 class DailyMissionsResponse(BaseModel):
@@ -127,7 +128,7 @@ class PillarMissionsResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 def _strip_answer(q) -> MissionQuestionOut:
-    """Strip correct_answer but keep correct_order for frontend validation."""
+    """Include correct_answer and correct_order for frontend validation."""
     if isinstance(q, dict):
         return MissionQuestionOut(
             id=q.get("id", 0),
@@ -148,6 +149,7 @@ def _strip_answer(q) -> MissionQuestionOut:
             sentence_start=q.get("sentence_start"),
             urdu_hint=q.get("urdu_hint", ""),
             correct_order=q.get("correct_order"),  # Include for frontend validation!
+            correct_answer=q.get("correct_answer"),  # Include for frontend validation!
         )
     return MissionQuestionOut(
         id=q.id,
@@ -162,6 +164,7 @@ def _strip_answer(q) -> MissionQuestionOut:
         audio_text=getattr(q, 'audio_text', None),
         image_context=getattr(q, 'image_context', None),
         correct_order=getattr(q, 'correct_order', None),  # Include for frontend validation!
+        correct_answer=getattr(q, 'correct_answer', None),  # Include for frontend validation!
         image_options=[QuestionOptionOut(id=o.id, text=o.text, emoji=getattr(o, 'emoji', None)) for o in q.image_options] if getattr(q, 'image_options', None) else None,
         word_bank=getattr(q, 'word_bank', None),
         word_with_blanks=getattr(q, 'word_with_blanks', None),
@@ -674,22 +677,57 @@ async def get_pillar_missions(
         )
 
     # ------------------------------------------------------------------
-    # Step 2: Fetch classroom grade + resolve active topics
+    # Step 2: Fetch classroom grade + resolve active topics (parallelize initial queries)
     # ------------------------------------------------------------------
-    classroom_resp = (
-        supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
-    )
-    if not classroom_resp.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Classroom not found for this student",
+    async def fetch_classroom_grade():
+        """Fetch classroom grade level."""
+        resp = (
+            supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
         )
-    grade_level: int = classroom_resp.data["grade_level"]
+        if not resp.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Classroom not found for this student",
+            )
+        return resp.data["grade_level"]
 
+    async def fetch_weaknesses():
+        """Fetch student's recent incorrect answers (weaknesses)."""
+        try:
+            resp = (
+                supabase.table("student_interactions")
+                .select("original_message, interaction_type")
+                .eq("student_id", student_id)
+                .eq("correct", False)
+                .order("created_at", desc=True)
+                .limit(5)
+                .execute()
+            )
+            return [
+                r["original_message"]
+                for r in (resp.data or [])
+                if r.get("original_message")
+            ]
+        except Exception as exc:
+            logger.warning("Could not fetch student weaknesses: %s", exc)
+            return []
+
+    # Run all independent queries in parallel
+    grade_level, student_weaknesses, performance_profile = await asyncio.gather(
+        fetch_classroom_grade(),
+        fetch_weaknesses(),
+        get_student_performance_profile(student_id)
+    )
+
+    # Log performance profile if available
+    if performance_profile:
+        logger.info("Performance profile loaded for student %s: overall=%.1f%%", student_id, performance_profile.get("overall_accuracy", 0))
+
+    # Fetch active topics (depends on grade_level from fetch_classroom_grade)
     active_topic_objs = await get_active_topics(classroom_id, grade_level, supabase)
     active_topic_names = [t["topic_name"] for t in active_topic_objs]
     topics_hash = str(hash(tuple(sorted(active_topic_names))))
@@ -703,41 +741,6 @@ async def get_pillar_missions(
         if cached:
             logger.info(f"Cache hit for pillar missions: {cache_key}")
             return PillarMissionsResponse(**cached)
-
-    # ------------------------------------------------------------------
-    # Step 3: Fetch student's recent incorrect answers (weaknesses)
-    # Query student_interactions table for failed interactions
-    # ------------------------------------------------------------------
-    try:
-        interactions_resp = (
-            supabase.table("student_interactions")
-            .select("original_message, interaction_type")
-            .eq("student_id", student_id)
-            .eq("correct", False)
-            .order("created_at", desc=True)
-            .limit(5)
-            .execute()
-        )
-        student_weaknesses = [
-            r["original_message"]
-            for r in (interactions_resp.data or [])
-            if r.get("original_message")
-        ]
-    except Exception as exc:
-        logger.warning(
-            "Could not fetch student weaknesses: %s", exc
-        )
-        student_weaknesses = []
-
-    # ------------------------------------------------------------------
-    # Step 3b: Fetch student performance profile for adaptive difficulty
-    # ------------------------------------------------------------------
-    performance_profile = None
-    try:
-        performance_profile = await get_student_performance_profile(student_id)
-        logger.info("Performance profile loaded for student %s: overall=%.1f%%", student_id, performance_profile.get("overall_accuracy", 0))
-    except Exception as exc:
-        logger.warning("Could not fetch performance profile for student %s: %s", student_id, exc)
 
     # ------------------------------------------------------------------
     # Step 4: Generate pillar missions via mission generator

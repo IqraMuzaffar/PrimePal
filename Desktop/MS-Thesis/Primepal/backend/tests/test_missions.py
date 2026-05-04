@@ -41,7 +41,7 @@ MOCK_MISSIONS = DailyMissions(
     questions=[
         MissionQuestion(
             id=1,
-            type="multiple_choice",
+            task_type="multiple_choice",
             question="Which is an animal?",
             options=[
                 QuestionOption(id="a", text="Cat"),
@@ -54,7 +54,7 @@ MOCK_MISSIONS = DailyMissions(
         ),
         MissionQuestion(
             id=2,
-            type="multiple_choice",
+            task_type="multiple_choice",
             question="What does 'big' mean?",
             options=[
                 QuestionOption(id="a", text="Small"),
@@ -67,7 +67,7 @@ MOCK_MISSIONS = DailyMissions(
         ),
         MissionQuestion(
             id=3,
-            type="fill_blank",
+            task_type="fill_blank",
             question="The ___ is sleeping.",
             options=None,
             correct_answer="cat",
@@ -307,9 +307,15 @@ class TestPostCompleteMission:
 
     async def test_correct_answer_awards_10_points(self, client: AsyncClient):
         """Student has 20 points, question_correct=True → points_awarded=10, new_total=30."""
-        with patch(
-            "app.api.v1.endpoints.missions.get_supabase_admin",
-            return_value=_make_student_supabase_mock(points=20),
+        with (
+            patch(
+                "app.api.v1.endpoints.missions.get_supabase_admin",
+                return_value=_make_student_supabase_mock(points=20),
+            ),
+            patch(
+                "app.api.v1.endpoints.missions.update_streak",
+                new=AsyncMock(return_value={"current_streak": 1, "longest_streak": 1}),
+            ),
         ):
             resp = await client.post(
                 "/api/v1/missions/complete",
@@ -324,9 +330,15 @@ class TestPostCompleteMission:
 
     async def test_wrong_answer_awards_0_points(self, client: AsyncClient):
         """Student has 20 points, question_correct=False → points_awarded=0, new_total=20."""
-        with patch(
-            "app.api.v1.endpoints.missions.get_supabase_admin",
-            return_value=_make_student_supabase_mock(points=20),
+        with (
+            patch(
+                "app.api.v1.endpoints.missions.get_supabase_admin",
+                return_value=_make_student_supabase_mock(points=20),
+            ),
+            patch(
+                "app.api.v1.endpoints.missions.update_streak",
+                new=AsyncMock(return_value={"current_streak": 1, "longest_streak": 1}),
+            ),
         ):
             resp = await client.post(
                 "/api/v1/missions/complete",
@@ -524,6 +536,7 @@ class TestGenerateDailyMissions:
                 result = await generate_daily_missions(
                     grade_level=3,
                     context_chunks=FAKE_CHUNKS,
+                    active_topics=["Animals", "Colors"],
                 )
 
         mock_chain.ainvoke.assert_called_once()
@@ -550,6 +563,7 @@ class TestGenerateDailyMissions:
                 result = await generate_daily_missions(
                     grade_level=3,
                     context_chunks=[],   # empty → fallback path
+                    active_topics=["Animals"],
                 )
 
         # The fallback chain must have been invoked once with just grade_level
@@ -615,9 +629,18 @@ class TestEndToEndMissionFlow:
 
         mock_client.table.side_effect = table_side_effect
 
+        mock_performance_profile = {
+            "overall_accuracy": 0.75,
+            "pillar_accuracy": {"reading": 0.8, "writing": 0.7, "listening": 0.75, "speaking": 0.7},
+            "weak_topics": [],
+            "strong_topics": [],
+            "difficulty_recommendation": "medium",
+        }
+
         with (
             patch("app.api.v1.endpoints.missions.get_supabase_admin", return_value=mock_client),
             patch("app.api.v1.endpoints.missions.generate_pillar_missions", new=AsyncMock(return_value=mock_pillar_missions)),
+            patch("app.api.v1.endpoints.missions.get_student_performance_profile", new=AsyncMock(return_value=mock_performance_profile)),
             patch("app.api.v1.endpoints.interactions.get_supabase_admin", return_value=mock_client),
         ):
             missions_response = await client.get(
@@ -631,7 +654,8 @@ class TestEndToEndMissionFlow:
             assert "questions" in missions_data
             assert len(missions_data["questions"]) == 10
             assert missions_data["pillar"] == "reading"
-            assert missions_data["current_week_topic"] == "Animals"
+            # Check active_topics_summary exists (replaces old current_week_topic)
+            assert "active_topics_summary" in missions_data
 
             questions = missions_data["questions"]
             results = [
@@ -678,9 +702,18 @@ class TestEndToEndMissionFlow:
 
             mock_client.table.side_effect = table_side_effect
 
+            mock_performance_profile = {
+                "overall_accuracy": 0.75,
+                "pillar_accuracy": {"reading": 0.8, "writing": 0.7, "listening": 0.75, "speaking": 0.7},
+                "weak_topics": [],
+                "strong_topics": [],
+                "difficulty_recommendation": "medium",
+            }
+
             with (
                 patch("app.api.v1.endpoints.missions.get_supabase_admin", return_value=mock_client),
                 patch("app.api.v1.endpoints.missions.generate_pillar_missions", new=AsyncMock(return_value=mock_pillar_missions)),
+                patch("app.api.v1.endpoints.missions.get_student_performance_profile", new=AsyncMock(return_value=mock_performance_profile)),
                 patch("app.api.v1.endpoints.interactions.get_supabase_admin", return_value=mock_client),
             ):
                 response = await client.get(
