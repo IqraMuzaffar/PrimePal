@@ -16,13 +16,17 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
+from app.core.cache import cache_get, cache_set, make_cache_key
 from app.utils.streak import update_streak
 from app.agents.evaluator_agent.interaction_logger import log_interaction
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-client = AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
+client = AsyncOpenAI(
+    api_key=settings.OPENAI_API_KEY,
+    timeout=10.0,  # 10-second timeout for all OpenAI calls
+)
 
 # ---------------------------------------------------------------------------
 # Response Schemas
@@ -129,7 +133,16 @@ async def get_spelling_words(student: dict = Depends(get_current_student)):
         week_number: int = syllabus_resp.data["week_number"]
 
     # ------------------------------------------------------------------
-    # Step 2: Generate spelling words via LLM
+    # Step 1.5: Check cache first (1 hour TTL)
+    # ------------------------------------------------------------------
+    cache_key = make_cache_key("spelling_words", classroom_id, topic_title, str(grade_level))
+    cached = await cache_get(cache_key)
+    if cached:
+        logger.info(f"Cache hit for spelling words: {cache_key}")
+        return SpellingWordsResponse(**cached)
+
+    # ------------------------------------------------------------------
+    # Step 2: Generate spelling words via LLM (with 12s timeout)
     # ------------------------------------------------------------------
     prompt = f"""You are generating spelling practice words for Grade {grade_level} Pakistani primary school students studying English.
 
@@ -146,13 +159,17 @@ Format: [
 """
 
     try:
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.7,
-            max_tokens=500,
+        # 12-second timeout for LLM call (consistent with missions endpoints)
+        response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.7,
+                max_tokens=500,
+            ),
+            timeout=12.0,
         )
 
         response_text = response.choices[0].message.content.strip()
@@ -178,6 +195,12 @@ Format: [
                 emoji=item["emoji"].strip()
             ))
 
+    except asyncio.TimeoutError:
+        logger.error(f"Spelling word generation timeout (12s) for topic: {topic_title}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Spelling word generation timed out. Please try again.",
+        )
     except json.JSONDecodeError as exc:
         logger.error(f"Failed to parse LLM response for spelling words: {exc}")
         raise HTTPException(
@@ -191,11 +214,16 @@ Format: [
             detail="Failed to generate spelling words",
         )
 
-    return SpellingWordsResponse(
+    response = SpellingWordsResponse(
         words=words,
         topic=topic_title,
         week_number=week_number,
     )
+
+    # Cache for 1 hour (same topic/grade will get same words)
+    await cache_set(cache_key, response.model_dump(), ttl=3600)
+
+    return response
 
 
 # ---------------------------------------------------------------------------
