@@ -515,9 +515,8 @@ async def update_classroom_active_topics(
     Replaces all active topic selections for this classroom.
     Send topic_ids: [] to reset to default (all active).
 
-    ADMIN ONLY: Only admin users can update topic selections.
+    Any authenticated teacher can update topic selections.
     """
-    check_admin(teacher)
     supabase = get_supabase_admin()
     return await save_active_topics(classroom_id, body.topic_ids, supabase)
 
@@ -530,10 +529,10 @@ async def get_topics_grouped_by_skill(
     """
     Returns topics organized by LSRW skills for the classroom's grade.
     Each skill has 4-5 topics. By default, all topics are active.
-    Teachers can select/deselect topics under each skill.
+    Teachers can select/deselect topics under each skill (global teacher access).
     """
     supabase = get_supabase_admin()
-    _verify_classroom_ownership(supabase, classroom_id, teacher["id"], is_admin=teacher.get("is_admin", False))
+    # Global teacher access - no ownership check needed
 
     # Get classroom grade level
     classroom_resp = (

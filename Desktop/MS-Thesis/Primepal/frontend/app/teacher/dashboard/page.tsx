@@ -2,7 +2,7 @@
 
 import { Suspense } from "react";
 import Link from "next/link";
-import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Zap, Activity, BookOpenCheck, Headphones, MessageSquare } from "lucide-react";
+import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Zap, Activity, BookOpenCheck, Headphones, MessageSquare, FileText } from "lucide-react";
 import FilterBar, { useFilterParams } from "@/components/teacher/FilterBar";
 import { useTeacherClassrooms, useTeacherDashboardStats, useTeacherSkillAccuracy } from "@/lib/hooks/teacher-queries";
 
@@ -198,13 +198,21 @@ function DashboardContent() {
         {/* Quick Links */}
         <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl border border-indigo-200 p-6">
           <h3 className="font-bold text-gray-900 mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <Link
               href="/teacher/analytics"
               className="flex items-center gap-3 p-3 bg-white rounded-lg hover:bg-indigo-50 transition-colors border border-gray-200 hover:border-indigo-300"
             >
               <BarChart3 className="w-5 h-5 text-indigo-600 flex-shrink-0" />
               <span className="text-sm font-medium text-gray-900">View Analytics</span>
+            </Link>
+
+            <Link
+              href="/teacher/reports"
+              className="flex items-center gap-3 p-3 bg-white rounded-lg hover:bg-indigo-50 transition-colors border border-gray-200 hover:border-indigo-300"
+            >
+              <FileText className="w-5 h-5 text-indigo-600 flex-shrink-0" />
+              <span className="text-sm font-medium text-gray-900">Generate Reports</span>
             </Link>
 
             <Link

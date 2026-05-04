@@ -104,7 +104,11 @@
       "Bash(python -m pytest tests/test_missions.py -k \"pillar\" -v)",
       "Bash(python -m pytest tests/test_missions.py -k \"not \\(daily or rewards\\)\" -v)",
       "Bash(python -c \"from app.api.v1.endpoints import missions; print\\(''missions.py imported successfully''\\)\")",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(find frontend:*)",
+      "Bash(find frontend/app -name *classroom* -o -path */teacher/classroom/*)",
+      "Bash(grep -E \"\\\\.\\(tsx?|jsx?\\)$\")",
+      "Bash(grep -r \"snc_topics\" supabase/migrations/*.sql)"
     ]
   }
 }

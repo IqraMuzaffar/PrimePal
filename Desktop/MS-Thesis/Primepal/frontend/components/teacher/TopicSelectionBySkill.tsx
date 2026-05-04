@@ -4,7 +4,6 @@
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { getTeacherHeaders } from "@/lib/teacherAuth";
-import { useTeacherRole } from "@/lib/useTeacherRole";
 
 interface SncTopic {
   id: number;
@@ -43,7 +42,6 @@ const SKILL_COLORS: Record<string, string> = {
 };
 
 export default function TopicSelectionBySkill({ classroomId }: TopicSelectionBySkillProps) {
-  const { isAdmin } = useTeacherRole();
   const [data, setData] = useState<TopicsBySkillResponse | null>(null);
   const [selectedTopicIds, setSelectedTopicIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -143,15 +141,13 @@ export default function TopicSelectionBySkill({ classroomId }: TopicSelectionByS
             Select topics to include in missions. Topics are organized by LSRW skills (Listening, Speaking, Reading, Writing).
           </p>
         </div>
-        {isAdmin && (
-          <button
-            onClick={saveSelections}
-            disabled={saving}
-            className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
-          >
-            {saving ? "Saving…" : "Save Changes"}
-          </button>
-        )}
+        <button
+          onClick={saveSelections}
+          disabled={saving}
+          className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+        >
+          {saving ? "Saving…" : "Save Changes"}
+        </button>
       </div>
 
       <div className="space-y-4">
@@ -179,16 +175,16 @@ export default function TopicSelectionBySkill({ classroomId }: TopicSelectionByS
                 return (
                   <button
                     key={topic.id}
-                    onClick={() => isAdmin && isGloballyActive && toggleTopic(topic.id)}
-                    disabled={!isAdmin || !isGloballyActive}
+                    onClick={() => isGloballyActive && toggleTopic(topic.id)}
+                    disabled={!isGloballyActive}
                     className={`px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all ${
-                      !isGloballyActive || !isAdmin
+                      !isGloballyActive
                         ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50"
                         : isSelected
                         ? "bg-indigo-600 text-white border-indigo-600"
                         : "bg-white text-gray-500 border-gray-300 hover:border-indigo-400"
                     }`}
-                    title={!isGloballyActive ? "This topic is deactivated at the grade level" : !isAdmin ? "Only admins can modify topic selections" : ""}
+                    title={!isGloballyActive ? "This topic is deactivated at the grade level" : ""}
                   >
                     {topic.topic_name}
                     {!isGloballyActive && <span className="ml-1.5 text-xs">🚫</span>}

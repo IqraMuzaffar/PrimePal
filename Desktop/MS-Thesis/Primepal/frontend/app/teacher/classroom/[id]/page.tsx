@@ -2,7 +2,6 @@
 "use client";
 
 import { useState } from "react";
-import Image from "next/image";
 import { Copy, Check, UserPlus, Trash2, Lock, Pencil } from "lucide-react";
 import { teacherMutate } from "@/lib/api-helpers";
 import { useTeacherRole } from "@/lib/useTeacherRole";
@@ -237,13 +236,6 @@ export default function ClassroomDetailPage({
                     key={s.id}
                     className="flex items-center gap-3 px-5 py-3"
                   >
-                    <Image
-                      src={s.avatar_url}
-                      alt={s.student_name}
-                      width={32}
-                      height={32}
-                      className="rounded-full bg-gray-100 shrink-0"
-                    />
                     <span className="flex-1 text-sm font-medium text-gray-800">
                       {s.student_name}
                     </span>
