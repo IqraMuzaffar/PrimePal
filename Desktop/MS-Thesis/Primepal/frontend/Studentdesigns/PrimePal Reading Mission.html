@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrimePal — Reading Mission</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; }
+body {
+  background: #f5f0e8;
+  font-family: 'Baloo 2', sans-serif;
+  display: flex; justify-content: center;
+  min-height: 100vh;
+}
+#root { width:100%; max-width:860px; min-height:100vh; }
+
+@keyframes floatUp {
+  0%,100% { transform:translateY(0); }
+  50%      { transform:translateY(-5px); }
+}
+@keyframes popIn {
+  0%   { transform:scale(0.7); opacity:0; }
+  70%  { transform:scale(1.1); }
+  100% { transform:scale(1);   opacity:1; }
+}
+@keyframes shake {
+  0%,100% { transform:translateX(0); }
+  20%     { transform:translateX(-8px); }
+  40%     { transform:translateX(8px); }
+  60%     { transform:translateX(-6px); }
+  80%     { transform:translateX(6px); }
+}
+@keyframes starBurst {
+  0%   { transform:scale(0) rotate(-20deg); opacity:0; }
+  60%  { transform:scale(1.3) rotate(8deg);  opacity:1; }
+  100% { transform:scale(1)  rotate(0deg);   opacity:1; }
+}
+@keyframes slideUp {
+  from { transform:translateY(20px); opacity:0; }
+  to   { transform:translateY(0);    opacity:1; }
+}
+@keyframes timerPulse {
+  0%,100% { transform:scale(1); }
+  50%     { transform:scale(1.12); }
+}
+@keyframes confettiFall {
+  0%   { transform:translateY(-20px) rotate(0deg); opacity:1; }
+  100% { transform:translateY(120px) rotate(360deg); opacity:0; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+
+/* ─── TASK DATA ─────────────────────────────────────────── */
+const tasks = [
+  {
+    type: 'picture-match',
+    label: 'Sentence–Picture Match',
+    instruction: 'Which sentence matches the picture?',
+    hint: 'تصویر میں کیا ہے؟ (What is in the picture?)',
+    picture: 'cat',
+    choices: ['The cat sits on the mat.', 'The dog runs fast.', 'A bird flies high.', 'The fish swims away.'],
+    answer: 0,
+    timer: 30,
+  },
+  {
+    type: 'odd-one-out',
+    label: 'Odd One Out',
+    instruction: 'Which word does NOT belong?',
+    hint: 'پھل کون سے ہیں؟ (Which ones are fruits?)',
+    choices: ['Apple', 'Banana', 'Chair', 'Mango'],
+    answer: 2,
+    timer: 15,
+  },
+  {
+    type: 'fill-blank',
+    label: 'Fill in the Blank',
+    instruction: 'Choose the correct word to complete the sentence.',
+    hint: 'سورج کیسا ہوتا ہے؟ (What is the sun like?)',
+    sentence: 'The sun is very ___ in the afternoon.',
+    choices: ['bright', 'cold', 'soft', 'heavy'],
+    answer: 0,
+    timer: 15,
+  },
+  {
+    type: 'true-false',
+    label: 'True or False',
+    instruction: 'Read the passage. Is the sentence true or false?',
+    hint: 'شیر بڑا ہے یا چھوٹا؟ (Is a lion big or small?)',
+    passage: 'A lion is a big, strong cat. It lives in the jungle and has a loud roar.',
+    statement: 'A lion is a small, quiet animal.',
+    choices: ['True', 'False'],
+    answer: 1,
+    timer: 30,
+  },
+  {
+    type: 'picture-match',
+    label: 'Sentence–Picture Match',
+    instruction: 'Which sentence matches the picture?',
+    hint: 'سیب کس رنگ کا ہوتا ہے؟ (What colour is the apple?)',
+    picture: 'apple',
+    choices: ['The apple is red and round.', 'The ball bounces high.', 'The flower smells sweet.', 'The book is very long.'],
+    answer: 0,
+    timer: 30,
+  },
+  {
+    type: 'odd-one-out',
+    label: 'Odd One Out',
+    instruction: 'Which word does NOT belong?',
+    hint: 'جانور کون سے ہیں؟ (Which ones are animals?)',
+    choices: ['Cat', 'Lion', 'Table', 'Deer'],
+    answer: 2,
+    timer: 15,
+  },
+  {
+    type: 'fill-blank',
+    label: 'Fill in the Blank',
+    instruction: 'Choose the correct word to complete the sentence.',
+    hint: 'پانی کہاں پایا جاتا ہے؟ (Where is water found?)',
+    sentence: 'Fish live in ___ water.',
+    choices: ['cold', 'loud', 'fast', 'dry'],
+    answer: 0,
+    timer: 15,
+  },
+  {
+    type: 'true-false',
+    label: 'True or False',
+    instruction: 'Read the passage. Is the sentence true or false?',
+    hint: 'آسمان کس وقت نیلا ہوتا ہے؟ (When is the sky blue?)',
+    passage: 'The sky is blue during the day. At night, it becomes dark and we can see stars.',
+    statement: 'The sky is dark during the daytime.',
+    choices: ['True', 'False'],
+    answer: 1,
+    timer: 30,
+  },
+  {
+    type: 'fill-blank',
+    label: 'Fill in the Blank',
+    instruction: 'Choose the correct word to complete the sentence.',
+    hint: 'پرندے کیا کرتے ہیں؟ (What do birds do?)',
+    sentence: 'Birds use their wings to ___ in the sky.',
+    choices: ['swim', 'fly', 'sleep', 'dig'],
+    answer: 1,
+    timer: 15,
+  },
+  {
+    type: 'odd-one-out',
+    label: 'Odd One Out',
+    instruction: 'Which word does NOT belong?',
+    hint: 'رنگ کون سے ہیں؟ (Which ones are colours?)',
+    choices: ['Red', 'Blue', 'Pencil', 'Green'],
+    answer: 2,
+    timer: 15,
+  },
+];
+
+const TOTAL = tasks.length;
+
+/* ─── PICTURE ILLUSTRATIONS ─────────────────────────────── */
+const PictureIllustration = ({ name }) => {
+  if (name === 'cat') return (
+    <svg width="110" height="90" viewBox="0 0 110 90" fill="none">
+      <ellipse cx="55" cy="68" rx="32" ry="18" fill="#e8a87c"/>
+      <ellipse cx="55" cy="52" rx="22" ry="22" fill="#e8a87c"/>
+      {/* Ears */}
+      <polygon points="36,34 28,14 46,28" fill="#e8a87c"/>
+      <polygon points="74,34 82,14 64,28" fill="#e8a87c"/>
+      <polygon points="37,32 31,18 45,28" fill="#f9a8d4"/>
+      <polygon points="73,32 79,18 65,28" fill="#f9a8d4"/>
+      {/* Eyes */}
+      <ellipse cx="46" cy="50" rx="5" ry="6" fill="#1a0e08"/>
+      <ellipse cx="64" cy="50" rx="5" ry="6" fill="#1a0e08"/>
+      <ellipse cx="45" cy="48" rx="2" ry="2" fill="white"/>
+      <ellipse cx="63" cy="48" rx="2" ry="2" fill="white"/>
+      {/* Nose */}
+      <polygon points="55,57 52,61 58,61" fill="#f472b6"/>
+      {/* Whiskers */}
+      <line x1="34" y1="60" x2="50" y2="62" stroke="#78716c" strokeWidth="1.2"/>
+      <line x1="34" y1="64" x2="50" y2="64" stroke="#78716c" strokeWidth="1.2"/>
+      <line x1="76" y1="60" x2="60" y2="62" stroke="#78716c" strokeWidth="1.2"/>
+      <line x1="76" y1="64" x2="60" y2="64" stroke="#78716c" strokeWidth="1.2"/>
+      {/* Smile */}
+      <path d="M52 62 Q55 66 58 62" stroke="#78716c" strokeWidth="1.5" fill="none"/>
+      {/* Paws */}
+      <ellipse cx="36" cy="82" rx="9" ry="6" fill="#e8a87c"/>
+      <ellipse cx="74" cy="82" rx="9" ry="6" fill="#e8a87c"/>
+      {/* Tail */}
+      <path d="M87 76 Q105 60 95 46" stroke="#e8a87c" strokeWidth="8" fill="none" strokeLinecap="round"/>
+      {/* Mat */}
+      <rect x="10" y="84" width="90" height="6" rx="3" fill="#fde68a"/>
+      <rect x="10" y="84" width="90" height="2" rx="1" fill="#fbbf24"/>
+    </svg>
+  );
+  if (name === 'apple') return (
+    <svg width="90" height="90" viewBox="0 0 90 90" fill="none">
+      <ellipse cx="45" cy="52" rx="32" ry="30" fill="#ef4444"/>
+      <ellipse cx="45" cy="52" rx="32" ry="30" fill="url(#appleGrad)"/>
+      <defs>
+        <radialGradient id="appleGrad" cx="35%" cy="35%">
+          <stop offset="0%" stopColor="#fca5a5"/>
+          <stop offset="100%" stopColor="#dc2626"/>
+        </radialGradient>
+      </defs>
+      {/* Leaf */}
+      <path d="M45 22 Q55 10 65 16 Q58 26 45 22Z" fill="#16a34a"/>
+      <path d="M45 22 Q35 12 25 18 Q32 26 45 22Z" fill="#15803d"/>
+      {/* Stem */}
+      <rect x="43" y="18" width="4" height="10" rx="2" fill="#92400e"/>
+      {/* Shine */}
+      <ellipse cx="34" cy="38" rx="8" ry="6" fill="rgba(255,255,255,0.25)" transform="rotate(-20 34 38)"/>
+    </svg>
+  );
+  return null;
+};
+
+/* ─── ICONS ─────────────────────────────────────────────── */
+const StarIcon = ({ size=16, color='#fbbf24' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+  </svg>
+);
+const FlameIcon = ({ size=16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="#f97316">
+    <path d="M12 23c-4.97 0-9-4.03-9-9 0-5.45 4.5-9.93 7.24-12.48.83-.77 2.1-.16 2.1.97v1.92c2.47-1.41 4.66-4.02 4.66-4.02s.8 4.65-1.24 7.61c1.65-.08 3.24-.83 3.24-.83s-1 7.83-7 15.83z"/>
+  </svg>
+);
+
+/* ─── NAV ───────────────────────────────────────────────── */
+const Nav = () => (
+  <nav style={{
+    background:'#78350f', height:52,
+    padding:'0 20px', display:'flex', alignItems:'center', justifyContent:'space-between',
+    boxShadow:'0 3px 14px rgba(0,0,0,0.22)',
+  }}>
+    <button style={{ background:'rgba(255,255,255,0.12)', border:'1.5px solid rgba(255,255,255,0.2)', borderRadius:20, padding:'4px 12px', cursor:'pointer', display:'flex', alignItems:'center', gap:6, color:'#fef3c7', fontFamily:'Baloo 2', fontWeight:700, fontSize:12 }}>
+      ← Back
+    </button>
+    <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+      <svg width="22" height="22" viewBox="0 0 28 28">
+        <polygon points="14,2 17.5,10.5 27,10.5 19.5,16 22,25 14,20 6,25 8.5,16 1,10.5 10.5,10.5" fill="#f59e0b"/>
+      </svg>
+      <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:18, color:'#fef3c7' }}>Reading Mission</span>
+    </div>
+    <div style={{ display:'flex', alignItems:'center', gap:6, background:'rgba(255,255,255,0.12)', border:'1.5px solid rgba(251,191,36,0.35)', borderRadius:20, padding:'3px 12px' }}>
+      <StarIcon size={14} />
+      <span style={{ fontFamily:'Baloo 2', fontWeight:700, fontSize:13, color:'#fef3c7' }}>120 ⭐</span>
+    </div>
+  </nav>
+);
+
+/* ─── TIMER BAR ─────────────────────────────────────────── */
+const TimerBar = ({ timeLeft, total }) => {
+  const pct = timeLeft / total;
+  const color = pct > 0.5 ? '#22c55e' : pct > 0.25 ? '#f59e0b' : '#ef4444';
+  const urgent = pct <= 0.25;
+  return (
+    <div style={{ background:'#e5e7eb', borderRadius:8, height:10, overflow:'hidden', margin:'0 20px' }}>
+      <div style={{
+        height:'100%', borderRadius:8,
+        background:`linear-gradient(90deg, ${color}, ${color}cc)`,
+        width:`${pct*100}%`,
+        transition:'width 1s linear, background 0.5s',
+        boxShadow: urgent ? `0 0 8px ${color}` : 'none',
+      }}/>
+    </div>
+  );
+};
+
+/* ─── CONFETTI ──────────────────────────────────────────── */
+const Confetti = () => {
+  const colors = ['#f59e0b','#10b981','#3b82f6','#f43f5e','#a855f7','#fbbf24'];
+  return (
+    <div style={{ position:'fixed', inset:0, pointerEvents:'none', zIndex:200, overflow:'hidden' }}>
+      {Array.from({length:24}).map((_,i) => (
+        <div key={i} style={{
+          position:'absolute',
+          left:`${(i*17+5)%100}%`,
+          top:`${(i*13)%30}%`,
+          width: i%3===0?12:8,
+          height: i%3===0?12:8,
+          borderRadius: i%2===0 ? '50%' : '2px',
+          background: colors[i%colors.length],
+          animation:`confettiFall ${1.2+(i%4)*0.3}s ease-in ${(i%5)*0.1}s forwards`,
+        }}/>
+      ))}
+    </div>
+  );
+};
+
+/* ─── TASK CARD ─────────────────────────────────────────── */
+const TaskCard = ({ task, taskIdx, phase, selected, onSelect, onHint, showHint, timeLeft }) => {
+  const isCorrect = (i) => phase !== 'idle' && i === task.answer;
+  const isWrong   = (i) => phase === 'wrong' && i === selected;
+
+  const choiceStyle = (i) => ({
+    padding: task.type === 'true-false' ? '18px 24px' : '14px 18px',
+    borderRadius: 16,
+    border: isCorrect(i) ? '2.5px solid #10b981'
+          : isWrong(i)   ? '2.5px solid #ef4444'
+          : selected === i ? '2.5px solid #3b82f6'
+          : '2px solid #e5e7eb',
+    background: isCorrect(i) ? '#f0fdf4'
+              : isWrong(i)   ? '#fef2f2'
+              : selected === i ? '#eff6ff'
+              : '#fff',
+    cursor: phase === 'idle' ? 'pointer' : 'default',
+    fontFamily: 'Baloo 2',
+    fontWeight: 700,
+    fontSize: task.type === 'true-false' ? 20 : 15,
+    color: isCorrect(i) ? '#065f46' : isWrong(i) ? '#991b1b' : '#1e293b',
+    display: 'flex', alignItems: 'center', gap: 10,
+    transition: 'all 0.15s',
+    animation: isWrong(i) && phase === 'wrong' ? 'shake 0.4s ease' : 'none',
+    textAlign: 'left',
+    boxShadow: phase === 'idle' ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+    transform: phase === 'idle' ? undefined : undefined,
+  });
+
+  return (
+    <div style={{
+      background:'#fff', borderRadius:24,
+      boxShadow:'0 4px 24px rgba(0,0,0,0.09)',
+      padding:'24px 22px',
+      animation: 'slideUp 0.3s ease',
+      border:'2px solid #e5e7eb',
+    }}>
+
+      {/* Task type badge + hint */}
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:16 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <div style={{ background:'linear-gradient(135deg,#1e3a8a,#3b82f6)', borderRadius:10, padding:'3px 12px' }}>
+            <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:11, color:'#fff', letterSpacing:0.5 }}>{task.label.toUpperCase()}</span>
+          </div>
+          <div style={{ display:'flex', alignItems:'center', gap:4, background:'#fef3c7', borderRadius:10, padding:'3px 10px' }}>
+            <FlameIcon size={11}/>
+            <span style={{ fontFamily:'Nunito', fontWeight:700, fontSize:11, color:'#92400e' }}>{timeLeft}s</span>
+          </div>
+        </div>
+        <button onClick={onHint} style={{
+          background: showHint ? '#fef3c7' : '#f8fafc',
+          border: showHint ? '1.5px solid #fbbf24' : '1.5px solid #e2e8f0',
+          borderRadius:12, padding:'4px 12px', cursor:'pointer',
+          fontFamily:'Baloo 2', fontWeight:700, fontSize:12, color: showHint ? '#92400e' : '#64748b',
+          display:'flex', alignItems:'center', gap:5,
+        }}>
+          💡 Hint (اردو)
+        </button>
+      </div>
+
+      {/* Urdu hint */}
+      {showHint && (
+        <div style={{
+          background:'#fffbeb', border:'1.5px solid #fde68a', borderRadius:14,
+          padding:'10px 14px', marginBottom:16,
+          fontFamily:'Nunito', fontSize:13, fontWeight:600, color:'#92400e',
+          animation:'slideUp 0.2s ease',
+          direction:'rtl', textAlign:'right',
+        }}>
+          🔍 {task.hint}
+        </div>
+      )}
+
+      {/* Instruction */}
+      <p style={{ fontFamily:'Baloo 2', fontWeight:700, fontSize:16, color:'#1e293b', marginBottom:18, lineHeight:1.3 }}>
+        {task.instruction}
+      </p>
+
+      {/* Picture */}
+      {task.type === 'picture-match' && (
+        <div style={{
+          background:'linear-gradient(135deg,#f0f9ff,#e0f2fe)',
+          border:'2px solid #bae6fd', borderRadius:20,
+          display:'flex', justifyContent:'center', alignItems:'center',
+          padding:'20px', marginBottom:18, minHeight:130,
+        }}>
+          <PictureIllustration name={task.picture} />
+        </div>
+      )}
+
+      {/* Passage (True/False) */}
+      {task.type === 'true-false' && task.passage && (
+        <div style={{
+          background:'#f8fafc', border:'2px solid #e2e8f0', borderRadius:16,
+          padding:'14px 18px', marginBottom:14,
+          fontFamily:'Nunito', fontWeight:600, fontSize:14, color:'#334155', lineHeight:1.6,
+        }}>
+          📖 {task.passage}
+        </div>
+      )}
+
+      {/* Statement (True/False) */}
+      {task.type === 'true-false' && (
+        <div style={{
+          background:'#eff6ff', border:'2px solid #bfdbfe', borderRadius:14,
+          padding:'12px 16px', marginBottom:18,
+          fontFamily:'Baloo 2', fontWeight:700, fontSize:15, color:'#1e40af',
+          display:'flex', alignItems:'center', gap:8,
+        }}>
+          <span>❓</span> {task.statement}
+        </div>
+      )}
+
+      {/* Sentence with blank */}
+      {task.type === 'fill-blank' && (
+        <div style={{
+          background:'#f0fdf4', border:'2px solid #bbf7d0', borderRadius:16,
+          padding:'14px 20px', marginBottom:18,
+          fontFamily:'Baloo 2', fontWeight:700, fontSize:17, color:'#14532d',
+          lineHeight:1.5, textAlign:'center',
+        }}>
+          {task.sentence.replace('___', '______')}
+        </div>
+      )}
+
+      {/* Answer choices */}
+      <div style={{
+        display:'grid',
+        gridTemplateColumns: task.type === 'true-false' ? '1fr 1fr' : '1fr 1fr',
+        gap:10,
+      }}>
+        {task.choices.map((c, i) => (
+          <div key={i} style={choiceStyle(i)}
+            onClick={() => phase === 'idle' && onSelect(i)}
+            onMouseEnter={e => { if(phase==='idle' && selected !== i) e.currentTarget.style.background='#f8fafc'; }}
+            onMouseLeave={e => { if(phase==='idle' && selected !== i) e.currentTarget.style.background='#fff'; }}
+          >
+            <div style={{
+              width:28, height:28, borderRadius:'50%', flexShrink:0,
+              background: isCorrect(i) ? '#10b981' : isWrong(i) ? '#ef4444' : '#f1f5f9',
+              display:'flex', alignItems:'center', justifyContent:'center',
+              fontFamily:'Baloo 2', fontWeight:800, fontSize:12,
+              color: isCorrect(i)||isWrong(i) ? '#fff' : '#64748b',
+            }}>
+              {isCorrect(i) ? '✓' : isWrong(i) ? '✗' : ['A','B','C','D'][i]}
+            </div>
+            <span>{c}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ─── FEEDBACK OVERLAY ──────────────────────────────────── */
+const FeedbackOverlay = ({ phase, onNext, starsEarned }) => {
+  if (phase === 'idle' || phase === 'wrong') return null;
+  const correct = phase === 'correct';
+  return (
+    <div style={{
+      position:'fixed', inset:0, zIndex:150,
+      background: correct ? 'rgba(5,150,105,0.15)' : 'rgba(239,68,68,0.1)',
+      display:'flex', alignItems:'flex-end', justifyContent:'center',
+      padding:'0 20px 40px', pointerEvents:'none',
+    }}>
+      {correct && <Confetti/>}
+      <div style={{
+        background: correct ? '#fff' : '#fff',
+        borderRadius:24, padding:'20px 28px',
+        display:'flex', alignItems:'center', gap:16,
+        boxShadow: correct ? '0 8px 32px rgba(5,150,105,0.25)' : '0 8px 32px rgba(239,68,68,0.2)',
+        border: correct ? '2px solid #10b981' : '2px solid #fca5a5',
+        maxWidth:500, width:'100%',
+        animation:'popIn 0.3s ease',
+        pointerEvents:'all',
+      }}>
+        <div style={{ fontSize:44, animation:'starBurst 0.4s ease', flexShrink:0 }}>
+          {correct ? '🎉' : '💪'}
+        </div>
+        <div style={{ flex:1 }}>
+          <p style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:18, color: correct ? '#065f46' : '#991b1b' }}>
+            {correct ? 'Correct!' : 'Good try!'}
+          </p>
+          <p style={{ fontFamily:'Nunito', fontWeight:600, fontSize:13, color:'#64748b', marginTop:2 }}>
+            {correct ? `You earned ${starsEarned} star${starsEarned!==1?'s':''}! Keep going!` : 'No worries — try again next time!'}
+          </p>
+        </div>
+        {correct && (
+          <div style={{ display:'flex', alignItems:'center', gap:4, background:'#fef3c7', border:'2px solid #fbbf24', borderRadius:14, padding:'6px 14px' }}>
+            <StarIcon size={18}/>
+            <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:16, color:'#78350f' }}>+{starsEarned}</span>
+          </div>
+        )}
+        <button onClick={onNext} style={{
+          background:'linear-gradient(135deg,#1e3a8a,#3b82f6)',
+          border:'none', borderRadius:16, padding:'10px 20px', cursor:'pointer',
+          fontFamily:'Baloo 2', fontWeight:800, fontSize:14, color:'#fff',
+          boxShadow:'0 4px 12px rgba(59,130,246,0.4)', flexShrink:0,
+        }}>
+          {correct ? 'Next →' : 'Continue →'}
+        </button>
+      </div>
+    </div>
+  );
+};
+
+/* ─── COMPLETE SCREEN ───────────────────────────────────── */
+const CompleteScreen = ({ correct, total, onRestart }) => {
+  const stars = correct * 3;
+  const pct = Math.round((correct/total)*100);
+  return (
+    <div style={{
+      minHeight:'calc(100vh - 52px)',
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+      padding:32, textAlign:'center',
+    }}>
+      <Confetti/>
+      <div style={{ fontSize:80, animation:'starBurst 0.5s ease', marginBottom:16 }}>🏆</div>
+      <h2 style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:32, color:'#78350f', marginBottom:8 }}>
+        Mission Complete!
+      </h2>
+      <p style={{ fontFamily:'Nunito', fontWeight:600, fontSize:16, color:'#a16207', marginBottom:28 }}>
+        You got {correct} out of {total} correct — {pct}%!
+      </p>
+
+      <div style={{ display:'flex', gap:16, marginBottom:32 }}>
+        <div style={{ background:'#fff', borderRadius:20, padding:'18px 28px', border:'2.5px solid #fde68a', boxShadow:'0 4px 16px rgba(245,158,11,0.15)', textAlign:'center' }}>
+          <div style={{ display:'flex', justifyContent:'center', marginBottom:6 }}><StarIcon size={28}/></div>
+          <div style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:28, color:'#78350f' }}>+{stars}</div>
+          <div style={{ fontFamily:'Nunito', fontWeight:600, fontSize:12, color:'#a16207' }}>Stars earned</div>
+        </div>
+        <div style={{ background:'#fff', borderRadius:20, padding:'18px 28px', border:'2.5px solid #bbf7d0', boxShadow:'0 4px 16px rgba(16,185,129,0.1)', textAlign:'center' }}>
+          <div style={{ fontSize:28, marginBottom:6 }}>✅</div>
+          <div style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:28, color:'#065f46' }}>{correct}/{total}</div>
+          <div style={{ fontFamily:'Nunito', fontWeight:600, fontSize:12, color:'#16a34a' }}>Correct answers</div>
+        </div>
+        <div style={{ background:'#fff', borderRadius:20, padding:'18px 28px', border:'2.5px solid #fecdd3', boxShadow:'0 4px 16px rgba(244,63,94,0.08)', textAlign:'center' }}>
+          <div style={{ fontSize:28, marginBottom:6 }}>🎯</div>
+          <div style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:28, color:'#9f1239' }}>{pct}%</div>
+          <div style={{ fontFamily:'Nunito', fontWeight:600, fontSize:12, color:'#e11d48' }}>Accuracy</div>
+        </div>
+      </div>
+
+      <div style={{ display:'flex', gap:12 }}>
+        <button onClick={onRestart} style={{
+          background:'linear-gradient(135deg,#1e3a8a,#3b82f6)',
+          border:'none', borderRadius:18, padding:'14px 32px', cursor:'pointer',
+          fontFamily:'Baloo 2', fontWeight:800, fontSize:16, color:'#fff',
+          boxShadow:'0 6px 0 #1e3a8a, 0 8px 20px rgba(59,130,246,0.35)',
+        }}>🔁 Play Again</button>
+        <button style={{
+          background:'linear-gradient(135deg,#78350f,#d97706)',
+          border:'none', borderRadius:18, padding:'14px 32px', cursor:'pointer',
+          fontFamily:'Baloo 2', fontWeight:800, fontSize:16, color:'#fff',
+          boxShadow:'0 6px 0 #78350f, 0 8px 20px rgba(217,119,6,0.3)',
+        }}>🏠 Back to Home</button>
+      </div>
+    </div>
+  );
+};
+
+/* ─── MAIN APP ──────────────────────────────────────────── */
+function App() {
+  const [taskIdx,   setTaskIdx]   = React.useState(0);
+  const [phase,     setPhase]     = React.useState('idle'); // idle | correct | wrong | complete
+  const [selected,  setSelected]  = React.useState(null);
+  const [showHint,  setShowHint]  = React.useState(false);
+  const [timeLeft,  setTimeLeft]  = React.useState(tasks[0].timer);
+  const [score,     setScore]     = React.useState(0);
+  const [done,      setDone]      = React.useState(false);
+
+  const task = tasks[taskIdx];
+
+  // Timer countdown
+  React.useEffect(() => {
+    if (phase !== 'idle' || done) return;
+    if (timeLeft <= 0) {
+      setPhase('wrong');
+      setTimeout(() => advance(false), 1800);
+      return;
+    }
+    const t = setTimeout(() => setTimeLeft(t => t - 1), 1000);
+    return () => clearTimeout(t);
+  }, [timeLeft, phase, done]);
+
+  const handleSelect = (i) => {
+    if (phase !== 'idle') return;
+    setSelected(i);
+    const correct = i === task.answer;
+    setPhase(correct ? 'correct' : 'wrong');
+    if (correct) setScore(s => s + 1);
+    if (!correct) setTimeout(() => advance(false), 1800);
+  };
+
+  const advance = (wasCorrect) => {
+    const next = taskIdx + 1;
+    if (next >= TOTAL) {
+      setDone(true);
+    } else {
+      setTaskIdx(next);
+      setPhase('idle');
+      setSelected(null);
+      setShowHint(false);
+      setTimeLeft(tasks[next].timer);
+    }
+  };
+
+  const restart = () => {
+    setTaskIdx(0); setPhase('idle'); setSelected(null);
+    setShowHint(false); setTimeLeft(tasks[0].timer);
+    setScore(0); setDone(false);
+  };
+
+  return (
+    <div style={{ background:'#f5f0e8', minHeight:'100vh' }}>
+      <Nav />
+
+      {done ? (
+        <CompleteScreen correct={score} total={TOTAL} onRestart={restart} />
+      ) : (
+        <>
+          {/* Mission progress header */}
+          <div style={{ padding:'14px 20px 10px', background:'#fffbf0', borderBottom:'2px solid #fde68a' }}>
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:8 }}>
+              <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:13, color:'#78350f' }}>
+                📖 Task {taskIdx + 1} of {TOTAL}
+              </span>
+              <div style={{ display:'flex', gap:6, alignItems:'center' }}>
+                {Array.from({length:TOTAL}).map((_,i) => (
+                  <div key={i} style={{
+                    width: i === taskIdx ? 24 : 10, height:10, borderRadius:6,
+                    background: i < taskIdx ? '#10b981' : i === taskIdx ? '#3b82f6' : '#e5e7eb',
+                    transition:'all 0.3s',
+                  }}/>
+                ))}
+              </div>
+              <span style={{ fontFamily:'Nunito', fontWeight:700, fontSize:12, color:'#a16207' }}>
+                {score} correct ⭐
+              </span>
+            </div>
+            <TimerBar timeLeft={timeLeft} total={task.timer} />
+          </div>
+
+          <div style={{ padding:'16px 20px 100px' }}>
+            <TaskCard
+              task={task}
+              taskIdx={taskIdx}
+              phase={phase}
+              selected={selected}
+              onSelect={handleSelect}
+              onHint={() => setShowHint(h => !h)}
+              showHint={showHint}
+              timeLeft={timeLeft}
+            />
+          </div>
+
+          <FeedbackOverlay
+            phase={phase}
+            starsEarned={3}
+            onNext={() => advance(true)}
+          />
+        </>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

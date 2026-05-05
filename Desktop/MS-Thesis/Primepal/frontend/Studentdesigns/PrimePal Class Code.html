@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrimePal — Enter Class Code</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; }
+body {
+  font-family: 'Baloo 2', sans-serif;
+  background: #f5f0e8;
+  min-height: 100vh;
+  display: flex; flex-direction: column;
+}
+#root { flex:1; display:flex; flex-direction:column; }
+
+@keyframes floatUp {
+  0%,100% { transform:translateY(0); }
+  50%      { transform:translateY(-7px); }
+}
+@keyframes popIn {
+  0%   { transform:scale(0.8); opacity:0; }
+  70%  { transform:scale(1.05); }
+  100% { transform:scale(1); opacity:1; }
+}
+@keyframes slideUp {
+  from { transform:translateY(24px); opacity:0; }
+  to   { transform:translateY(0);    opacity:1; }
+}
+@keyframes shake {
+  0%,100% { transform:translateX(0); }
+  20%     { transform:translateX(-10px); }
+  40%     { transform:translateX(10px); }
+  60%     { transform:translateX(-7px); }
+  80%     { transform:translateX(7px); }
+}
+@keyframes bounce {
+  0%,100% { transform:translateY(0); }
+  40%     { transform:translateY(-10px); }
+  60%     { transform:translateY(-5px); }
+}
+@keyframes rotateStar {
+  from { transform:rotate(0deg); }
+  to   { transform:rotate(360deg); }
+}
+@keyframes successPulse {
+  0%   { box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+  70%  { box-shadow: 0 0 0 14px rgba(16,185,129,0); }
+  100% { box-shadow: 0 0 0 0 rgba(16,185,129,0); }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+
+const CODE_LENGTH = 6;
+const VALID_CODE  = 'ENG101'; // demo valid code
+
+/* ─── DECORATIVE BACKGROUND ─────────────────────────────── */
+const BgDecor = () => (
+  <div style={{ position:'fixed', inset:0, pointerEvents:'none', overflow:'hidden', zIndex:0 }}>
+    {/* Large soft circles */}
+    <div style={{ position:'absolute', top:-120, left:-120, width:380, height:380, borderRadius:'50%', background:'radial-gradient(circle, rgba(251,191,36,0.18) 0%, transparent 70%)' }}/>
+    <div style={{ position:'absolute', bottom:-80, right:-100, width:320, height:320, borderRadius:'50%', background:'radial-gradient(circle, rgba(59,130,246,0.12) 0%, transparent 70%)' }}/>
+    <div style={{ position:'absolute', top:'40%', right:-60, width:240, height:240, borderRadius:'50%', background:'radial-gradient(circle, rgba(16,185,129,0.1) 0%, transparent 70%)' }}/>
+    {/* Small floating dots */}
+    {[
+      {top:'12%',  left:'8%',  size:14, color:'#fbbf24', delay:'0s'},
+      {top:'22%',  right:'12%',size:10, color:'#3b82f6', delay:'0.5s'},
+      {top:'65%',  left:'5%',  size:12, color:'#10b981', delay:'1s'},
+      {top:'75%',  right:'8%', size:16, color:'#f43f5e', delay:'0.3s'},
+      {top:'45%',  left:'92%', size:8,  color:'#a855f7', delay:'0.8s'},
+      {top:'88%',  left:'20%', size:11, color:'#fbbf24', delay:'1.2s'},
+      {top:'8%',   left:'55%', size:9,  color:'#f43f5e', delay:'0.2s'},
+    ].map((d,i) => (
+      <div key={i} style={{
+        position:'absolute', top:d.top,
+        left:d.left, right:d.right,
+        width:d.size, height:d.size, borderRadius:'50%',
+        background:d.color, opacity:0.35,
+        animation:`floatUp ${2.5+i*0.4}s ease-in-out ${d.delay} infinite`,
+      }}/>
+    ))}
+    {/* Subtle grid pattern */}
+    <div style={{
+      position:'absolute', inset:0,
+      backgroundImage:'radial-gradient(circle, rgba(120,53,15,0.06) 1px, transparent 1px)',
+      backgroundSize:'36px 36px',
+    }}/>
+  </div>
+);
+
+/* ─── MASCOT ─────────────────────────────────────────────── */
+const PrimePalMascot = ({ size=90 }) => (
+  <svg width={size} height={size} viewBox="0 0 90 90" fill="none">
+    {/* Star body */}
+    <polygon
+      points="45,6 54,32 82,32 60,50 68,76 45,58 22,76 30,50 8,32 36,32"
+      fill="#fbbf24" stroke="#f59e0b" strokeWidth="2"
+    />
+    {/* Face */}
+    <circle cx="45" cy="42" r="16" fill="#fff9eb"/>
+    {/* Eyes */}
+    <ellipse cx="39" cy="40" rx="3" ry="3.5" fill="#1a0e08"/>
+    <ellipse cx="51" cy="40" rx="3" ry="3.5" fill="#1a0e08"/>
+    <ellipse cx="38.2" cy="39" rx="1.2" ry="1.2" fill="white"/>
+    <ellipse cx="50.2" cy="39" rx="1.2" ry="1.2" fill="white"/>
+    {/* Smile */}
+    <path d="M38 46 Q45 52 52 46" stroke="#92400e" strokeWidth="2" fill="none" strokeLinecap="round"/>
+    {/* Rosy cheeks */}
+    <ellipse cx="34" cy="44" rx="4" ry="2.5" fill="#fca5a5" opacity="0.5"/>
+    <ellipse cx="56" cy="44" rx="4" ry="2.5" fill="#fca5a5" opacity="0.5"/>
+    {/* Eyebrows */}
+    <path d="M36 36.5 Q39 34.5 42 36.5" stroke="#92400e" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+    <path d="M48 36.5 Q51 34.5 54 36.5" stroke="#92400e" strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+  </svg>
+);
+
+/* ─── CODE BOX ───────────────────────────────────────────── */
+const CodeBox = ({ char, focused, filled, error, success, idx }) => {
+  const isLetter = idx < 3;
+  return (
+    <div style={{
+      width:56, height:64,
+      borderRadius:16,
+      border: error   ? '3px solid #ef4444'
+            : success ? '3px solid #10b981'
+            : focused ? '3px solid #3b82f6'
+            : filled  ? '2.5px solid #fbbf24'
+            : '2.5px solid #e5e7eb',
+      background: error   ? '#fef2f2'
+                : success ? '#f0fdf4'
+                : focused ? '#eff6ff'
+                : filled  ? '#fffbf0'
+                : '#fff',
+      display:'flex', alignItems:'center', justifyContent:'center',
+      fontFamily:'Baloo 2', fontWeight:800, fontSize:28,
+      color: error   ? '#ef4444'
+           : success ? '#065f46'
+           : filled  ? '#78350f'
+           : '#94a3b8',
+      boxShadow: focused ? '0 0 0 4px rgba(59,130,246,0.15)'
+               : success ? '0 0 0 4px rgba(16,185,129,0.12)'
+               : error   ? '0 0 0 4px rgba(239,68,68,0.12)'
+               : filled  ? '0 3px 0 #fde68a'
+               : '0 3px 0 #e5e7eb',
+      transition:'all 0.15s',
+      animation: filled && !error ? 'popIn 0.2s ease' : 'none',
+      textTransform:'uppercase',
+      cursor:'default',
+      position:'relative',
+    }}>
+      {char || (focused ? <span style={{ opacity:0.3, fontSize:14, fontWeight:600 }}>{isLetter ? 'A' : '1'}</span> : '')}
+      {/* letter/number indicator dot */}
+      <div style={{
+        position:'absolute', bottom:6,
+        width:8, height:3, borderRadius:2,
+        background: isLetter ? '#3b82f6' : '#f59e0b',
+        opacity: 0.5,
+      }}/>
+    </div>
+  );
+};
+
+/* ─── MAIN APP ──────────────────────────────────────────── */
+function App() {
+  const [code,      setCode]      = React.useState('');
+  const [focusIdx,  setFocusIdx]  = React.useState(0);
+  const [error,     setError]     = React.useState('');
+  const [success,   setSuccess]   = React.useState(false);
+  const [shaking,   setShaking]   = React.useState(false);
+  const [loading,   setLoading]   = React.useState(false);
+  const inputRef = React.useRef(null);
+
+  const chars = code.split('').concat(Array(CODE_LENGTH).fill('')).slice(0, CODE_LENGTH);
+  const ready = code.length === CODE_LENGTH;
+
+  // Focus hidden input
+  const focusInput = () => inputRef.current?.focus();
+
+  const handleInput = (e) => {
+    if (success) return;
+    const raw = e.target.value.replace(/[^a-zA-Z0-9]/g,'').toUpperCase();
+    const trimmed = raw.slice(0, CODE_LENGTH);
+    setCode(trimmed);
+    setFocusIdx(Math.min(trimmed.length, CODE_LENGTH - 1));
+    if (error) setError('');
+  };
+
+  const handleKey = (e) => {
+    if (e.key === 'Backspace' && code.length > 0) {
+      setCode(c => c.slice(0, -1));
+      setFocusIdx(f => Math.max(0, f - 1));
+      setError('');
+    }
+    if (e.key === 'Enter' && ready) handleSubmit();
+  };
+
+  const handleSubmit = () => {
+    if (!ready || loading) return;
+    setLoading(true);
+    setTimeout(() => {
+      setLoading(false);
+      if (code === VALID_CODE) {
+        setSuccess(true);
+        setError('');
+      } else {
+        setError('Oops! That code doesn\'t match. Ask your teacher.');
+        setShaking(true);
+        setTimeout(() => setShaking(false), 500);
+      }
+    }, 900);
+  };
+
+  return (
+    <div style={{ minHeight:'100vh', display:'flex', flexDirection:'column', position:'relative' }}>
+      <BgDecor />
+
+      {/* Top bar */}
+      <div style={{
+        background:'#78350f', height:56, zIndex:10, position:'relative',
+        display:'flex', alignItems:'center', justifyContent:'space-between',
+        padding:'0 28px',
+        boxShadow:'0 3px 16px rgba(0,0,0,0.22)',
+      }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+          <svg width="26" height="26" viewBox="0 0 28 28" style={{ animation:'floatUp 3s ease-in-out infinite' }}>
+            <polygon points="14,2 17.5,10.5 27,10.5 19.5,16 22,25 14,20 6,25 8.5,16 1,10.5 10.5,10.5" fill="#f59e0b"/>
+            <polygon points="14,2 17.5,10.5 27,10.5 19.5,16 22,25 14,20 6,25 8.5,16 1,10.5 10.5,10.5" fill="none" stroke="#d97706" strokeWidth="0.8"/>
+          </svg>
+          <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:20, color:'#fef3c7' }}>PrimePal</span>
+        </div>
+        <span style={{ fontFamily:'Nunito', fontWeight:600, fontSize:13, color:'rgba(254,243,199,0.6)' }}>
+          English Learning Platform
+        </span>
+        <a href="#" style={{ fontFamily:'Baloo 2', fontWeight:700, fontSize:13, color:'#fde68a', textDecoration:'none' }}>
+          👩‍🏫 Teacher Login
+        </a>
+      </div>
+
+      {/* Main content */}
+      <div style={{
+        flex:1, display:'flex', alignItems:'center', justifyContent:'center',
+        padding:'32px 20px', position:'relative', zIndex:1,
+      }}>
+        <div style={{ width:'100%', maxWidth:480 }}>
+
+          {/* Card */}
+          <div style={{
+            background:'#fff',
+            borderRadius:28,
+            padding:'36px 36px 32px',
+            boxShadow:'0 8px 0 rgba(120,53,15,0.15), 0 16px 48px rgba(0,0,0,0.12)',
+            border:'2px solid rgba(251,191,36,0.3)',
+            animation:'slideUp 0.4s ease',
+            position:'relative', overflow:'hidden',
+          }}>
+            {/* Card top shimmer */}
+            <div style={{
+              position:'absolute', top:0, left:0, right:0, height:5,
+              background:'linear-gradient(90deg, #f59e0b, #fbbf24, #f59e0b)',
+              backgroundSize:'200% 100%',
+            }}/>
+
+            {/* Mascot + heading */}
+            <div style={{ textAlign:'center', marginBottom:28 }}>
+              <div style={{ display:'inline-block', animation:'floatUp 3.5s ease-in-out infinite', marginBottom:12 }}>
+                <PrimePalMascot size={88} />
+              </div>
+              <h1 style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:26, color:'#78350f', lineHeight:1.1, marginBottom:6 }}>
+                {success ? '🎉 You\'re in!' : 'Enter Your Class Code'}
+              </h1>
+              <p style={{ fontFamily:'Nunito', fontWeight:600, fontSize:14, color:'#a16207' }}>
+                {success
+                  ? 'Welcome! Choosing your character next…'
+                  : 'Get the code from your teacher.'}
+              </p>
+              {!success && (
+                <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'#fef3c7', borderRadius:12, padding:'4px 14px', marginTop:10, border:'1px solid #fde68a' }}>
+                  <span style={{ fontSize:14 }}>💡</span>
+                  <span style={{ fontFamily:'Nunito', fontWeight:600, fontSize:12, color:'#92400e' }}>
+                    Try <strong>ENG101</strong> to see it work!
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {!success ? (
+              <>
+                {/* Code input boxes */}
+                <div
+                  style={{ display:'flex', justifyContent:'center', gap:8, marginBottom:10, cursor:'text', animation: shaking ? 'shake 0.4s ease' : 'none' }}
+                  onClick={focusInput}
+                >
+                  {/* Letter boxes */}
+                  {[0,1,2].map(i => (
+                    <CodeBox key={i} idx={i} char={chars[i]} focused={focusIdx===i && !loading} filled={!!chars[i]} error={!!error} success={success}/>
+                  ))}
+                  {/* Divider */}
+                  <div style={{ display:'flex', alignItems:'center', padding:'0 2px' }}>
+                    <div style={{ width:10, height:3, borderRadius:2, background:'#e5e7eb' }}/>
+                  </div>
+                  {/* Number boxes */}
+                  {[3,4,5].map(i => (
+                    <CodeBox key={i} idx={i} char={chars[i]} focused={focusIdx===i && !loading} filled={!!chars[i]} error={!!error} success={success}/>
+                  ))}
+                </div>
+
+                {/* Legend */}
+                <div style={{ display:'flex', justifyContent:'center', gap:24, marginBottom:22 }}>
+                  <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                    <div style={{ width:10, height:4, borderRadius:2, background:'#3b82f6' }}/>
+                    <span style={{ fontFamily:'Nunito', fontSize:11, color:'#94a3b8', fontWeight:600 }}>3 letters</span>
+                  </div>
+                  <div style={{ display:'flex', alignItems:'center', gap:5 }}>
+                    <div style={{ width:10, height:4, borderRadius:2, background:'#f59e0b' }}/>
+                    <span style={{ fontFamily:'Nunito', fontSize:11, color:'#94a3b8', fontWeight:600 }}>3 numbers</span>
+                  </div>
+                </div>
+
+                {/* Error message */}
+                {error && (
+                  <div style={{
+                    background:'#fef2f2', border:'1.5px solid #fca5a5', borderRadius:14,
+                    padding:'10px 16px', marginBottom:16, textAlign:'center',
+                    fontFamily:'Nunito', fontWeight:700, fontSize:13, color:'#991b1b',
+                    animation:'slideUp 0.2s ease',
+                  }}>
+                    ❌ {error}
+                  </div>
+                )}
+
+                {/* Hidden input */}
+                <input
+                  ref={inputRef}
+                  value={code}
+                  onChange={handleInput}
+                  onKeyDown={handleKey}
+                  maxLength={CODE_LENGTH}
+                  autoFocus
+                  style={{ position:'absolute', opacity:0, pointerEvents:'none', width:1, height:1 }}
+                />
+
+                {/* Submit button */}
+                <button
+                  onClick={handleSubmit}
+                  disabled={!ready || loading}
+                  style={{
+                    width:'100%', padding:'16px 0',
+                    borderRadius:18, border:'none', cursor: ready ? 'pointer' : 'default',
+                    background: ready
+                      ? 'linear-gradient(135deg, #78350f 0%, #d97706 100%)'
+                      : '#e5e7eb',
+                    color: ready ? '#fff' : '#94a3b8',
+                    fontFamily:'Baloo 2', fontWeight:800, fontSize:18,
+                    boxShadow: ready ? '0 6px 0 #92400e, 0 10px 24px rgba(120,53,15,0.3)' : 'none',
+                    transition:'all 0.2s',
+                    transform: ready ? 'none' : 'none',
+                    display:'flex', alignItems:'center', justifyContent:'center', gap:10,
+                  }}
+                  onMouseEnter={e => ready && (e.currentTarget.style.transform='translateY(-2px)')}
+                  onMouseLeave={e => (e.currentTarget.style.transform='translateY(0)')}
+                  onMouseDown={e => ready && (e.currentTarget.style.transform='translateY(3px)')}
+                  onMouseUp={e => ready && (e.currentTarget.style.transform='translateY(-2px)')}
+                >
+                  {loading ? (
+                    <>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" style={{ animation:'rotateStar 0.8s linear infinite' }}>
+                        <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/>
+                      </svg>
+                      Checking…
+                    </>
+                  ) : (
+                    <>Let's Go! 🚀</>
+                  )}
+                </button>
+
+                {/* Teacher link */}
+                <p style={{ textAlign:'center', marginTop:18, fontFamily:'Nunito', fontWeight:600, fontSize:13, color:'#94a3b8' }}>
+                  Are you a teacher?{' '}
+                  <a href="#" style={{ color:'#d97706', fontWeight:700, textDecoration:'none' }}>Sign in here →</a>
+                </p>
+              </>
+            ) : (
+              /* Success state */
+              <div style={{ textAlign:'center', animation:'popIn 0.4s ease' }}>
+                <div style={{ display:'flex', justifyContent:'center', gap:10, marginBottom:24 }}>
+                  {chars.map((c,i) => (
+                    <CodeBox key={i} idx={i} char={c} filled success error={false} focused={false}/>
+                  ))}
+                </div>
+                <div style={{
+                  background:'#f0fdf4', border:'2px solid #86efac', borderRadius:18,
+                  padding:'16px 20px', marginBottom:24,
+                  animation:'successPulse 1.5s ease infinite',
+                }}>
+                  <p style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:15, color:'#065f46' }}>📚 Class 4B — Mrs. Ayesha's English</p>
+                  <p style={{ fontFamily:'Nunito', fontWeight:600, fontSize:12, color:'#16a34a', marginTop:4 }}>3 students online right now</p>
+                </div>
+                <button style={{
+                  width:'100%', padding:'16px 0',
+                  borderRadius:18, border:'none', cursor:'pointer',
+                  background:'linear-gradient(135deg,#065f46,#10b981)',
+                  color:'#fff', fontFamily:'Baloo 2', fontWeight:800, fontSize:18,
+                  boxShadow:'0 6px 0 #064e3b, 0 10px 24px rgba(5,150,105,0.3)',
+                  display:'flex', alignItems:'center', justifyContent:'center', gap:10,
+                }}>
+                  Choose Your Character →
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Bottom tagline */}
+          <p style={{ textAlign:'center', marginTop:20, fontFamily:'Nunito', fontWeight:600, fontSize:12, color:'#a16207', opacity:0.7 }}>
+            🔒 Safe, ad-free learning for every student
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

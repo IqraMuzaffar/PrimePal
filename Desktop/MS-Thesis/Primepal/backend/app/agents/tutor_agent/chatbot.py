@@ -15,14 +15,9 @@ The grade_level filter is the hard guardrail: it is resolved from the
 student's JWT (classroom_id → classrooms.grade_level) in the endpoint
 before this module is called, and is injected into every vector query.
 """
-import os
-os.environ["USE_TF"] = "0"
-os.environ["USE_TORCH"] = "1"
-
 from typing import AsyncGenerator
 
-from langchain_openai import ChatOpenAI
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
 from pydantic import BaseModel
 
@@ -125,7 +120,10 @@ async def retrieve_grade_filtered_chunks(
     Returns an empty list (not an exception) when no curriculum data has
     been ingested yet for this grade.
     """
-    embeddings_model = HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
+    embeddings_model = OpenAIEmbeddings(
+        model=settings.EMBEDDING_MODEL,
+        openai_api_key=settings.OPENAI_API_KEY,
+    )
     query_vector = await embeddings_model.aembed_query(query)
 
     response = supabase_admin_client.rpc(

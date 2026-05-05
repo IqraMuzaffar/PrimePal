@@ -117,7 +117,14 @@
       "Bash(grep -r \"DailyChest\\\\|dailyChest\\\\|daily_chest\" /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal --include=*.md)",
       "Bash(npx next:*)",
       "Bash(rd:*)",
-      "Bash(find /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal -name *.sql)"
+      "Bash(find /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal -name *.sql)",
+      "Bash(grep -r \"TODO\\\\|FIXME\\\\|XXX\\\\|PERF\" frontend/app/student backend/app/api --include=*.py --include=*.tsx --include=*.ts)",
+      "Bash(find frontend/lib/hooks -type f -name *.ts -o -name *.tsx)",
+      "Bash(grep -n \"TODO\\\\|FIXME\\\\|SLOW\\\\|HACK\\\\|BUG\\\\|N+1\\\\|slow\" backend/app/api/v1/endpoints/*.py)",
+      "Bash(for f:*)",
+      "Bash(do python:*)",
+      "Bash(done)",
+      "Bash(find /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal -path */backend/* -name *chat* -type f)"
     ]
   }
 }
