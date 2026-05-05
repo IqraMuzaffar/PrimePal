@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import Link from "next/link";
 import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Zap, Activity, BookOpenCheck, Headphones, MessageSquare, FileText } from "lucide-react";
 import FilterBar, { useFilterParams } from "@/components/teacher/FilterBar";
-import { useTeacherClassrooms, useTeacherDashboardStats, useTeacherSkillAccuracy } from "@/lib/hooks/teacher-queries";
+import { useTeacherClassrooms, useTeacherDashboardStats, useTeacherSkillAccuracy, type TeacherClassroom } from "@/lib/hooks/teacher-queries";
 
 function skillColor(pct: number): string {
   if (pct >= 70) return "text-emerald-600 bg-emerald-50 border-emerald-200";
@@ -34,6 +34,34 @@ function DashboardContent() {
     : availableSections;
 
   const loading = classroomsLoading || statsLoading || skillLoading;
+
+  // NEW: Calculate match score for classroom sorting
+  const getMatchScore = (classroom: TeacherClassroom) => {
+    let score = 0;
+    if (gradeLevel) {
+      if (classroom.grade_level === gradeLevel) {
+        score += 100;
+        if (section && classroom.section === section) {
+          score += 10;
+        }
+      }
+    } else {
+      score = 50; // Default score when no filter
+    }
+    return score;
+  };
+
+  // NEW: Get opacity class for classroom card
+  const getClassroomOpacity = (classroom: TeacherClassroom) => {
+    if (!gradeLevel) return "opacity-100";
+
+    const matchesGrade = classroom.grade_level === gradeLevel;
+    const matchesSection = !section || classroom.section === section;
+
+    if (matchesGrade && matchesSection) return "opacity-100";
+    if (matchesGrade) return "opacity-60";
+    return "opacity-30";
+  };
 
   return (
     <div className="bg-gray-50 min-h-full">
@@ -182,11 +210,14 @@ function DashboardContent() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {classrooms.map((c) => (
+              {classrooms
+                .slice()
+                .sort((a, b) => getMatchScore(b) - getMatchScore(a))
+                .map((c) => (
                 <Link
                   key={c.id}
                   href={`/teacher/classroom/${c.id}`}
-                  className="group bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md hover:border-indigo-300 transition-all"
+                  className={`group bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md hover:border-indigo-300 transition-all ${getClassroomOpacity(c)}`}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <span className={`text-xs font-bold px-2 py-1 rounded-full ${
