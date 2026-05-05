@@ -13,11 +13,15 @@ function skillColor(pct: number): string {
 }
 
 function DashboardContent() {
-  const { gradeLevel } = useFilterParams();
+  const { gradeLevel, pillar, section } = useFilterParams();
 
   const { data: classrooms = [], isLoading: classroomsLoading } = useTeacherClassrooms();
-  const { data: stats, isLoading: statsLoading } = useTeacherDashboardStats({ gradeLevel });
-  const { data: skillAccuracy, isLoading: skillLoading } = useTeacherSkillAccuracy(gradeLevel);
+  const { data: stats, isLoading: statsLoading } = useTeacherDashboardStats({ gradeLevel, pillar, section });
+  const { data: skillAccuracy, isLoading: skillLoading } = useTeacherSkillAccuracy(gradeLevel, section);
+
+  // Extract unique sections from classrooms for the filter dropdown
+  const availableSections = Array.from(new Set(classrooms.map(c => c.section).filter(Boolean))) as string[];
+  availableSections.sort();
 
   const loading = classroomsLoading || statsLoading || skillLoading;
 
@@ -32,7 +36,7 @@ function DashboardContent() {
 
         {/* Filter Bar */}
         <div className="mb-6">
-          <FilterBar showSearch={false} showPillar={false} />
+          <FilterBar showSearch={false} showPillar={true} showSection={true} sections={availableSections} />
         </div>
 
         {/* Stats Grid */}

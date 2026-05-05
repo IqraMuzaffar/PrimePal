@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles, Loader2, Clock, Users, BookOpen, ChevronDown, ChevronUp } from 'lucide-react';
+import { Sparkles, Loader2, Clock, Users, BookOpen, ChevronDown, ChevronUp, Download } from 'lucide-react';
 import { useGenerateDailyPlan } from '@/lib/hooks/teacher-queries';
 
 import type { TeacherDailyPlan } from '@/lib/hooks/teacher-queries';
@@ -26,6 +26,120 @@ function pillarDot(pillar: string): string {
   if (p === 'listening') return 'bg-amber-500';
   if (p === 'speaking') return 'bg-green-500';
   return 'bg-gray-500';
+}
+
+/* ── PDF Export ────────────────────────────────────────────────────────── */
+
+async function exportPlanPDF(plan: TeacherDailyPlan, gradeLevel: number) {
+  try {
+    const jsPDFModule = await import('jspdf');
+    const autoTableModule = await import('jspdf-autotable');
+    const jsPDF = jsPDFModule.jsPDF || jsPDFModule.default;
+    const autoTable = autoTableModule.default || autoTableModule;
+    if (!jsPDF || !autoTable) return;
+
+    const doc = new jsPDF();
+    const date = new Date().toLocaleDateString('en-PK');
+
+    // Header
+    doc.setFontSize(18);
+    doc.setTextColor(67, 56, 202);
+    doc.text('PrimePal — Daily Teaching Plan', 14, 18);
+
+    doc.setFontSize(11);
+    doc.setTextColor(80, 80, 80);
+    doc.text(`Grade: ${gradeLevel}  |  Date: ${date}`, 14, 28);
+    doc.text(`Generated: ${new Date(plan.generated_at).toLocaleString()}`, 14, 35);
+
+    // Summary
+    doc.setFontSize(13);
+    doc.setTextColor(30, 30, 30);
+    doc.text('Summary', 14, 46);
+    doc.setFontSize(10);
+    doc.setTextColor(60, 60, 60);
+    const summaryLines = doc.splitTextToSize(plan.summary, 180);
+    doc.text(summaryLines, 14, 53);
+    let y = 53 + summaryLines.length * 5 + 6;
+
+    // Focus Areas
+    if (plan.focus_areas.length > 0) {
+      doc.setFontSize(13);
+      doc.setTextColor(30, 30, 30);
+      doc.text('Focus Areas', 14, y);
+      y += 4;
+      autoTable(doc, {
+        startY: y,
+        head: [['Pillar', 'Topic', 'Reason']],
+        body: plan.focus_areas.map(a => [a.pillar, a.topic, a.reason]),
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { fontSize: 9 },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Suggested Activities
+    if (plan.suggested_activities.length > 0) {
+      if (y > 240) { doc.addPage(); y = 18; }
+      doc.setFontSize(13);
+      doc.setTextColor(30, 30, 30);
+      doc.text('Suggested Activities', 14, y);
+      y += 4;
+      autoTable(doc, {
+        startY: y,
+        head: [['Activity', 'Pillar', 'Time', 'Description']],
+        body: plan.suggested_activities.map(a => [
+          a.title, a.target_pillar, `${a.estimated_minutes} min`, a.description,
+        ]),
+        headStyles: { fillColor: [99, 102, 241] },
+        styles: { fontSize: 9 },
+        columnStyles: { 3: { cellWidth: 70 } },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // Student Groups
+    if (plan.student_groups.length > 0) {
+      if (y > 240) { doc.addPage(); y = 18; }
+      doc.setFontSize(13);
+      doc.setTextColor(30, 30, 30);
+      doc.text('Student Groups', 14, y);
+      y += 4;
+      autoTable(doc, {
+        startY: y,
+        head: [['Group', 'Students', 'Recommendation']],
+        body: plan.student_groups.map(g => [
+          g.group_name, g.student_names.join(', '), g.recommendation,
+        ]),
+        headStyles: { fillColor: [79, 70, 229] },
+        styles: { fontSize: 9 },
+        columnStyles: { 1: { cellWidth: 55 }, 2: { cellWidth: 65 } },
+      });
+      y = (doc as any).lastAutoTable.finalY + 8;
+    }
+
+    // SNC References
+    if (plan.snc_references.length > 0) {
+      if (y > 250) { doc.addPage(); y = 18; }
+      doc.setFontSize(13);
+      doc.setTextColor(30, 30, 30);
+      doc.text('SNC Curriculum References', 14, y);
+      y += 6;
+      doc.setFontSize(9);
+      doc.setTextColor(60, 60, 60);
+      for (const ref of plan.snc_references) {
+        if (y > 275) { doc.addPage(); y = 18; }
+        const refLines = doc.splitTextToSize(`• ${ref}`, 180);
+        doc.text(refLines, 14, y);
+        y += refLines.length * 4 + 2;
+      }
+    }
+
+    const fileName = `teaching-plan-grade${gradeLevel}-${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+  } catch (error) {
+    console.error('Error exporting PDF:', error);
+    alert('Failed to export PDF. Please try again.');
+  }
 }
 
 /* ── Component ─────────────────────────────────────────────────────────── */
@@ -281,10 +395,19 @@ export default function TeacherAssistantPage() {
             </div>
           )}
 
-          {/* Timestamp */}
-          <p className="text-xs text-gray-400 text-center pt-2">
-            Generated at {new Date(plan.generated_at).toLocaleString()}
-          </p>
+          {/* Timestamp + Download */}
+          <div className="flex items-center justify-between pt-2">
+            <p className="text-xs text-gray-400">
+              Generated at {new Date(plan.generated_at).toLocaleString()}
+            </p>
+            <button
+              onClick={() => exportPlanPDF(plan, selectedGrade!)}
+              className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-all shadow-md shadow-indigo-200"
+            >
+              <Download size={14} />
+              Download PDF
+            </button>
+          </div>
         </div>
       )}
     </div>

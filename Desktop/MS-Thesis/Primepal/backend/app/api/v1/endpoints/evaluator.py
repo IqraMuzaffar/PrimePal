@@ -329,6 +329,7 @@ async def get_dashboard_stats(
     teacher: dict = Depends(get_current_teacher),
     grade_level: int | None = Query(None, description="Filter by grade level"),
     pillar: str | None = Query(None, description="Filter interactions by pillar (reading/writing/listening/speaking)"),
+    section: str | None = Query(None, description="Filter by classroom section (A, B, C, etc.)"),
 ):
     """
     Returns aggregate statistics for the teacher's dashboard:
@@ -350,6 +351,8 @@ async def get_dashboard_stats(
     cls_query = supabase.table("classrooms").select("id")
     if grade_level is not None:
         cls_query = cls_query.eq("grade_level", grade_level)
+    if section:
+        cls_query = cls_query.eq("section", section)
     cls_res = cls_query.execute()
     classrooms = cls_res.data or []
 
@@ -436,13 +439,15 @@ class SkillAccuracyResponse(BaseModel):
 async def get_skill_accuracy(
     teacher: dict = Depends(get_current_teacher),
     grade_level: int | None = Query(None, description="Filter by grade level"),
+    section: str | None = Query(None, description="Filter by classroom section (A, B, C, etc.)"),
 ):
     """
     Returns accuracy percentage per skill pillar (reading, writing, listening,
     speaking) and the count of students active today (with any interaction today).
 
-    Optional filter:
+    Optional filters:
     - grade_level: Narrow to classrooms of a specific grade
+    - section: Narrow to classrooms of a specific section
     """
     from datetime import datetime, timedelta, timezone
     from collections import defaultdict
@@ -453,6 +458,8 @@ async def get_skill_accuracy(
     cls_query = supabase.table("classrooms").select("id")
     if grade_level is not None:
         cls_query = cls_query.eq("grade_level", grade_level)
+    if section:
+        cls_query = cls_query.eq("section", section)
     cls_res = cls_query.execute()
     classrooms = cls_res.data or []
 

@@ -101,8 +101,8 @@ export const teacherQueryKeys = {
     ["teacher", "missionReport", classroomId] as const,
   dashboardStats: (params: string) =>
     ["teacher", "dashboardStats", params] as const,
-  skillAccuracy: (grade?: number) =>
-    ["teacher", "skillAccuracy", grade ?? "all"] as const,
+  skillAccuracy: (grade?: number, section?: string) =>
+    ["teacher", "skillAccuracy", grade ?? "all", section ?? "all"] as const,
   students: (params: string) => ["teacher", "students", params] as const,
   syllabus: (classroomId: string) =>
     ["teacher", "syllabus", classroomId] as const,
@@ -154,10 +154,12 @@ export function useClassroomMissionReport(classroomId: string | undefined) {
 export function useTeacherDashboardStats(params: {
   gradeLevel?: number;
   pillar?: string;
+  section?: string;
 }) {
   const qs = new URLSearchParams();
   if (params.gradeLevel) qs.set("grade_level", String(params.gradeLevel));
   if (params.pillar) qs.set("pillar", params.pillar);
+  if (params.section) qs.set("section", params.section);
   const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return useQuery({
     queryKey: teacherQueryKeys.dashboardStats(suffix),
@@ -167,13 +169,15 @@ export function useTeacherDashboardStats(params: {
   });
 }
 
-export function useTeacherSkillAccuracy(gradeLevel?: number) {
+export function useTeacherSkillAccuracy(gradeLevel?: number, section?: string) {
+  const qs = new URLSearchParams();
+  if (gradeLevel) qs.set("grade_level", String(gradeLevel));
+  if (section) qs.set("section", section);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
   return useQuery({
-    queryKey: teacherQueryKeys.skillAccuracy(gradeLevel),
+    queryKey: teacherQueryKeys.skillAccuracy(gradeLevel, section),
     queryFn: () =>
-      teacherFetch<SkillAccuracy>(
-        `/evaluator/skill-accuracy${gradeLevel ? `?grade_level=${gradeLevel}` : ""}`
-      ),
+      teacherFetch<SkillAccuracy>(`/evaluator/skill-accuracy${suffix}`),
     staleTime: 2 * 60 * 1000,
   });
 }
