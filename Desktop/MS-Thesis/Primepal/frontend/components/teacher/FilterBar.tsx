@@ -11,6 +11,10 @@ interface FilterBarProps {
   searchPlaceholder?: string;
   /** Show the pillar/skill dropdown (default true) */
   showPillar?: boolean;
+  /** Show the section dropdown (default false) */
+  showSection?: boolean;
+  /** Available sections to display */
+  sections?: string[];
   /** Available grade levels (defaults to 1-5) */
   grades?: number[];
 }
@@ -29,6 +33,8 @@ export default function FilterBar({
   showSearch = true,
   searchPlaceholder = "Search by name or roll number...",
   showPillar = true,
+  showSection = false,
+  sections = [],
   grades = DEFAULT_GRADES,
 }: FilterBarProps) {
   const router = useRouter();
@@ -37,6 +43,7 @@ export default function FilterBar({
 
   const gradeLevel = searchParams.get("grade") || "";
   const pillar = searchParams.get("pillar") || "";
+  const section = searchParams.get("section") || "";
   const search = searchParams.get("search") || "";
 
   const updateParams = useCallback(
@@ -85,6 +92,20 @@ export default function FilterBar({
             </option>
           ))}
         </select>
+        {showSection && sections.length > 0 && (
+          <select
+            value={section}
+            onChange={(e) => updateParams({ section: e.target.value })}
+            className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+          >
+            <option value="">All Sections</option>
+            {sections.map((s) => (
+              <option key={s} value={s}>
+                Section {s}
+              </option>
+            ))}
+          </select>
+        )}
         {showPillar && (
           <select
             value={pillar}
@@ -112,6 +133,7 @@ export function useFilterParams() {
   return {
     gradeLevel: searchParams.get("grade") ? Number(searchParams.get("grade")) : undefined,
     pillar: searchParams.get("pillar") || undefined,
+    section: searchParams.get("section") || undefined,
     search: searchParams.get("search") || undefined,
   };
 }

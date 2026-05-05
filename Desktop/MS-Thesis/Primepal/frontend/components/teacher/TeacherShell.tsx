@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { BookOpen, LayoutDashboard, School, LogOut, Settings, X, Menu, GraduationCap, Zap, BookMarked, Sparkles } from "lucide-react";
+import { BookOpen, LayoutDashboard, School, LogOut, Settings, X, Menu, GraduationCap, Zap, BookMarked, Sparkles, FileBarChart } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 const NAV_LINKS = [
@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: "/teacher/missions",   label: "Missions",        icon: Zap },
   { href: "/teacher/curriculum", label: "Curriculum Hub",  icon: BookOpen },
   { href: "/teacher/topics",     label: "Topics",          icon: BookMarked },
+  { href: "/teacher/reports",   label: "Reports",         icon: FileBarChart },
   { href: "/teacher/assistant", label: "AI Assistant",    icon: Sparkles },
 ];
 
