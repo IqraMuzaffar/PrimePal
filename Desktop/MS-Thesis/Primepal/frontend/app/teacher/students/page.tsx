@@ -234,19 +234,9 @@ function StudentsContent() {
                   >
                     {/* Name + roll */}
                     <div className="flex items-center gap-3">
-                      {s.avatar_url ? (
-                        <Image
-                          src={s.avatar_url}
-                          alt={s.student_name}
-                          width={36}
-                          height={36}
-                          className="rounded-full bg-gray-100 shrink-0"
-                        />
-                      ) : (
-                        <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm shrink-0">
-                          {s.student_name[0]}
-                        </div>
-                      )}
+                      <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm shrink-0">
+                        {s.student_name[0]}
+                      </div>
                       <div>
                         <p className="font-semibold text-gray-900 text-sm">{s.student_name}</p>
                         <p className="text-xs text-gray-400">{s.roll_number ? `#${s.roll_number}` : "No roll no."}</p>

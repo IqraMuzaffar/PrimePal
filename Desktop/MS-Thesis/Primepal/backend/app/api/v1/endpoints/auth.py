@@ -194,49 +194,21 @@ async def student_login(request: StudentLoginRequest) -> TokenResponse:
 @router.patch(
     "/student/profile",
     response_model=UpdateProfileResponse,
-    summary="Update student avatar style and theme color",
+    summary="Update student profile (avatar customization removed)",
 )
 async def update_student_profile(
     body: UpdateProfileRequest,
     student: dict = Depends(get_current_student),
 ) -> UpdateProfileResponse:
     """
-    Updates the authenticated student's avatar_style and/or theme_color.
-    Both fields are optional — send only what changed.
+    Avatar customization feature has been removed for performance optimization.
+    This endpoint is kept for backward compatibility but does nothing.
+    Returns default values.
     """
-    student_id: str = student["sub"]
-    supabase = get_supabase_admin()
-
-    updates: dict = {}
-    if body.avatar_style is not None:
-        updates["avatar_style"] = body.avatar_style
-    if body.theme_color is not None:
-        updates["theme_color"] = body.theme_color
-
-    if not updates:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Provide at least one field to update (avatar_style or theme_color)",
-        )
-
-    supabase.table("students").update(updates).eq("id", student_id).execute()
-
-    result = (
-        supabase.table("students")
-        .select("avatar_style, theme_color")
-        .eq("id", student_id)
-        .maybe_single()
-        .execute()
-    )
-    if not result.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found",
-        )
-
+    # Feature disabled - return default values
     return UpdateProfileResponse(
-        avatar_style=result.data["avatar_style"],
-        theme_color=result.data["theme_color"],
+        avatar_style="adventurer",
+        theme_color="#6366f1"
     )
 
 
