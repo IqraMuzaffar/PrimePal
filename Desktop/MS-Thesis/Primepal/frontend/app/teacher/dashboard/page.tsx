@@ -146,7 +146,7 @@ function DashboardContent() {
             {/* NEW: Skill cards with data-driven approach */}
             <div className={
               pillar
-                ? "grid grid-cols-1 md:grid-cols-3 gap-4"  // 1 large + 3 small
+                ? "grid grid-cols-1 md:grid-cols-5 gap-4"  // 1 large (2 cols) + 3 small (1 col each) = 5
                 : "grid grid-cols-2 md:grid-cols-4 gap-4"  // 4 equal
             }>
               {[
