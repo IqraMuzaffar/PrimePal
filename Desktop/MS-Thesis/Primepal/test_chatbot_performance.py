@@ -77,8 +77,7 @@ async def measure_chatbot_performance():
     )
     llm_time = time.time() - start
     print(f"✓ Generated response:")
-    print(f"  Bilingual: {response.bilingual_reply[:150]}...")
-    print(f"  English: {response.english_reply[:150]}...")
+    print(f"  Reply: {response.reply[:150]}...")
     print(f"⏱  Time: {llm_time:.2f}s")
     print()
 

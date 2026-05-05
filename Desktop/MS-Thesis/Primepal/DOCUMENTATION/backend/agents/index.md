@@ -57,11 +57,9 @@ Chunks shorter than `MIN_CHUNK_LENGTH` (50 chars) after cleaning are discarded.
 
 ### `embedder.py` -- Vector Storage
 
-#### `_get_embeddings_model() -> HuggingFaceEmbeddings`
+#### `_get_embeddings_model() -> OpenAIEmbeddings`
 
-Returns a `HuggingFaceEmbeddings` instance using `settings.EMBEDDING_MODEL` (default: `all-MiniLM-L6-v2`, 384 dimensions, runs locally -- no API cost).
-
-Environment variables `USE_TF=0` and `USE_TORCH=1` are set at module load to prevent transformers from importing TensorFlow.
+Returns an `OpenAIEmbeddings` instance using `settings.EMBEDDING_MODEL` (default: `text-embedding-3-small`, 1536 dimensions, via OpenAI API).
 
 #### `embed_and_store_chunks(chunks: list[dict], supabase_admin_client) -> int`
 
@@ -85,21 +83,26 @@ Generates vector embeddings for text chunks and bulk-inserts them into the `snc_
 
 Handles the bilingual chatbot (RAG) and mission generation (daily + pillar-based).
 
-### `chatbot.py` -- Guardrailed Bilingual AI Chatbot
+### `chatbot.py` -- Guardrailed Adaptive AI Chatbot
 
 Full pipeline per request:
 1. **Translate** student's message to English (gpt-4o-mini) -- handles Roman Urdu/Minglish
-2. **Embed** the translated query with all-MiniLM-L6-v2 (local)
+2. **Embed** the translated query with OpenAI text-embedding-3-small (1536-dim, API-based)
 3. **Retrieve** SNC chunks via `match_snc_documents` RPC, filtered by grade level
-4. **Generate** bilingual response via `settings.CHAT_MODEL` (gpt-4o-mini by default) with structured output
+4. **Generate** adaptive response via `settings.CHAT_MODEL` (gpt-4o-mini by default) with structured output
 
 #### Pydantic Schema: `TutorResponse`
 
 ```python
 class TutorResponse(BaseModel):
-    bilingual_reply: str  # Minglish code-switching response (shown by default)
-    english_reply: str    # Pure English version (shown when toggle is pressed)
+    reply: str  # Adaptive reply (bilingual or English depending on student input)
 ```
+
+The reply language adapts to the student's input:
+- Student writes in English → pure English reply
+- Student writes in Roman Urdu / Minglish → bilingual Minglish reply
+
+Response formatting: **bold** vocabulary terms, emoji starters, bulleted example lists, 2-4 sentences.
 
 #### `translate_to_english(query: str) -> str`
 
@@ -114,7 +117,7 @@ Translates Roman Urdu / Minglish to standard English using gpt-4o-mini.
 
 #### `retrieve_grade_filtered_chunks(query: str, grade_level: int, supabase_admin_client, match_count: int = 5) -> list[str]`
 
-Embeds the query and retrieves the top matching SNC chunks filtered by grade level.
+Embeds the query using OpenAI `text-embedding-3-small` and retrieves the top matching SNC chunks filtered by grade level.
 
 **Uses:** `match_snc_documents` Postgres RPC (migration 005) which applies the grade filter BEFORE vector math -- other grades are never scanned.
 
@@ -127,16 +130,23 @@ Sends the student's original + translated message and retrieved SNC context to t
 **LLM:** `settings.CHAT_MODEL` (gpt-4o-mini), temperature=0.3, max_retries=3, structured output via `TutorResponse`
 
 **System prompt key rules:**
-- `bilingual_reply`: Friendly Minglish (English + Roman Urdu), defines grammar terms in Urdu, Grade-appropriate vocabulary, 2-3 sentences
-- `english_reply`: Same content in pure simple English
+- Language adapts to student input (Minglish if they wrote in Urdu, English if they wrote in English)
+- **Bold** vocabulary terms, emoji starters, short bulleted lists
+- Grade-appropriate vocabulary, 2-4 sentences
 - Grounded ONLY in the SNC curriculum context provided
 - Handles empty context gracefully with fallback text
 
-#### `stream_guardrailed_response(query: str, context_chunks: list[str], grade_level: int) -> AsyncGenerator[str, None]`
+#### `stream_guardrailed_response(original_message: str, translated_message: str, context_chunks: list[str], grade_level: int) -> AsyncGenerator[str, None]`
 
-Streaming version of the tutor response. Yields tokens as they arrive from the LLM. Uses the translated query as both original and translated message.
+Streaming version of the tutor response. Yields tokens as they arrive from the LLM. Receives both original and translated messages for proper language detection.
 
 **LLM:** Same model, temperature=0.3, `streaming=True`
+
+#### `translate_to_urdu(text: str) -> str`
+
+Translates a tutor reply into Urdu script (نستعلیق) on demand using gpt-4o-mini. Keeps English vocabulary terms with Urdu definitions in parentheses. Preserves emoji.
+
+**LLM:** `gpt-4o-mini`, temperature=0, max_retries=3
 
 ### `mission_generator.py` -- Gamified Mission Generation
 

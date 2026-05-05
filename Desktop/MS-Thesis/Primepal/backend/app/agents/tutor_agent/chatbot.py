@@ -3,13 +3,15 @@ Agent B — Guardrailed Tutor: Retrieval-Augmented Chat (Feature 5 + Feature 7)
 
 Pipeline per request:
   1. Translate the student's message to English (gpt-4o-mini) — Feature 7.
-  2. Embed the translated query with all-MiniLM-L6-v2 (local, free).
+  2. Embed the translated query with OpenAI text-embedding-3-small.
   3. Query snc_knowledge_base via the match_snc_documents RPC, filtered by
      the student's classroom grade_level — chunks from other grades are never
      considered.
   4. Pass the retrieved SNC context + both the original and translated messages
-     to gpt-4o with a bilingual system prompt (Feature 7).
-  5. Return a TutorResponse with bilingual_reply and english_reply.
+     to the chat model with an adaptive system prompt.
+  5. Return a single reply that adapts its language to match the student's input:
+     - Student writes in English → pure English reply
+     - Student writes in Roman Urdu / Minglish → bilingual Minglish reply
 
 The grade_level filter is the hard guardrail: it is resolved from the
 student's JWT (classroom_id → classrooms.grade_level) in the endpoint
@@ -25,11 +27,10 @@ from app.core.config import settings
 
 
 # ---------------------------------------------------------------------------
-# Pydantic schema for structured bilingual output
+# Pydantic schema for structured output
 # ---------------------------------------------------------------------------
 class TutorResponse(BaseModel):
-    bilingual_reply: str  # Minglish code-switching response (shown by default)
-    english_reply: str    # Pure English version (shown when toggle is pressed)
+    reply: str  # Adaptive reply (bilingual or English depending on student input)
 
 
 # ---------------------------------------------------------------------------
@@ -49,34 +50,54 @@ _TRANSLATE_PROMPT = ChatPromptTemplate.from_messages([
 
 
 # ---------------------------------------------------------------------------
-# Prompt — bilingual tutor (gpt-4o, structured output)
+# Prompt — Urdu script translation (gpt-4o-mini, cheap + fast)
 # ---------------------------------------------------------------------------
-_BILINGUAL_SYSTEM_PROMPT = """\
+_URDU_TRANSLATE_PROMPT = ChatPromptTemplate.from_messages([
+    ("system",
+     "You are a translator. Convert the following English/Minglish educational text "
+     "into simple Urdu script (نستعلیق). Keep it age-appropriate for primary school children.\n"
+     "Rules:\n"
+     "1. Translate the full message into Urdu script.\n"
+     "2. Keep English vocabulary terms in English but add Urdu definition in parentheses.\n"
+     "3. Preserve any emoji.\n"
+     "4. Return ONLY the Urdu translation. No explanation."),
+    ("user", "{text}"),
+])
+
+
+# ---------------------------------------------------------------------------
+# Prompt — adaptive tutor (auto-detects student language)
+# ---------------------------------------------------------------------------
+_TUTOR_SYSTEM_PROMPT = """\
 You are PrimePal, a warm AI English tutor for Pakistani primary school students (Grade {grade_level}).
 
-The student's ORIGINAL message (may be Roman Urdu or Minglish): {original_message}
+The student's ORIGINAL message: {original_message}
 The student's message in ENGLISH: {translated_message}
 
-RULES FOR bilingual_reply:
-1. Respond in friendly Minglish (mix of simple English + Roman Urdu).
-2. When you introduce an English grammar/vocabulary term, define it briefly in Roman Urdu.
-   Example: "Noun — aisa lafz jo naam batata hai — is a naming word, like 'cat' or 'book'!"
-3. Only use Grade {grade_level} vocabulary.
-4. Keep it short: 2–3 sentences. Be warm and encouraging.
-5. Base your answer ONLY on the SNC curriculum context below.
+LANGUAGE ADAPTATION:
+- If the student wrote in Roman Urdu or Minglish, reply in friendly Minglish \
+(mix of simple English + Roman Urdu). When you introduce an English grammar/vocabulary \
+term, define it briefly in Roman Urdu.
+  Example: "🌟 **Noun** — aisa lafz jo naam batata hai — is a naming word, like **cat** or **book**!"
+- If the student wrote in English, reply in pure, simple English only.
 
-RULES FOR english_reply:
-1. Write the SAME answer in pure, simple English only (no Roman Urdu, no Minglish).
-2. Same content, same Grade {grade_level} vocabulary, same length.
-3. This is shown when the student toggles to "English mode".
+FORMATTING RULES:
+- Use **bold** for new vocabulary or grammar terms.
+- Use a fun emoji at the start of your reply (🌟, 🎉, 📚, 🐱, etc.).
+- If listing examples, use a short bulleted list with emoji bullets.
+- Keep it short: 2–4 sentences max. Be warm, cheerful, and encouraging.
+
+CONTENT RULES:
+1. Only use Grade {grade_level} vocabulary.
+2. Base your answer ONLY on the SNC curriculum context below.
 
 SNC CURRICULUM CONTEXT (Grade {grade_level}):
 {context}
 """
 
-_BILINGUAL_PROMPT = ChatPromptTemplate.from_messages(
+_TUTOR_PROMPT = ChatPromptTemplate.from_messages(
     [
-        ("system", _BILINGUAL_SYSTEM_PROMPT),
+        ("system", _TUTOR_SYSTEM_PROMPT),
         ("user", "{translated_message}"),
     ]
 )
@@ -141,6 +162,15 @@ async def retrieve_grade_filtered_chunks(
 # ---------------------------------------------------------------------------
 # Generation
 # ---------------------------------------------------------------------------
+def _build_context(context_chunks: list[str], grade_level: int) -> str:
+    if context_chunks:
+        return "\n\n---\n\n".join(context_chunks)
+    return (
+        "No curriculum content has been loaded for this grade yet. "
+        f"Rely only on basic Grade {grade_level} English knowledge."
+    )
+
+
 async def get_guardrailed_response(
     original_message: str,
     translated_message: str,
@@ -149,61 +179,34 @@ async def get_guardrailed_response(
 ) -> TutorResponse:
     """
     Send the student's original + translated message and retrieved SNC context
-    to the LLM and return a TutorResponse with bilingual_reply and english_reply.
-
-    Args:
-        original_message:   The student's raw input text (may be Roman Urdu/Minglish).
-        translated_message: English translation of the student's message (used for
-                            context retrieval and prompt grounding).
-        grade_level:        Used in the system prompt to enforce vocabulary limits.
-        context_chunks:     SNC passages retrieved by retrieve_grade_filtered_chunks.
-                            An empty list is valid — the prompt handles it gracefully.
+    to the LLM and return a TutorResponse with an adaptive reply.
     """
     llm = ChatOpenAI(
         model=settings.CHAT_MODEL,
         temperature=0.3,
         openai_api_key=settings.OPENAI_API_KEY,
-        max_retries=3,  # auto-retry on rate limit (429) errors
+        max_retries=3,
     ).with_structured_output(TutorResponse)
 
-    if context_chunks:
-        context = "\n\n---\n\n".join(context_chunks)
-    else:
-        context = (
-            "No curriculum content has been loaded for this grade yet. "
-            f"Rely only on basic Grade {grade_level} English knowledge."
-        )
-
-    chain = _BILINGUAL_PROMPT | llm
+    chain = _TUTOR_PROMPT | llm
     result = await chain.ainvoke(
         {
             "grade_level": grade_level,
             "original_message": original_message,
             "translated_message": translated_message,
-            "context": context,
+            "context": _build_context(context_chunks, grade_level),
         }
     )
     return result
 
 
 async def stream_guardrailed_response(
-    query: str,
+    original_message: str,
+    translated_message: str,
     context_chunks: list[str],
     grade_level: int,
 ) -> AsyncGenerator[str, None]:
-    """Stream bilingual tutor response token by token.
-
-    Uses the translated query as both original_message and translated_message
-    since the caller has already translated the student's input.
-    """
-    if context_chunks:
-        context_text = "\n\n---\n\n".join(context_chunks)
-    else:
-        context_text = (
-            "No curriculum content has been loaded for this grade yet. "
-            f"Rely only on basic Grade {grade_level} English knowledge."
-        )
-
+    """Stream adaptive tutor response token by token."""
     llm = ChatOpenAI(
         model=settings.CHAT_MODEL,
         temperature=0.3,
@@ -212,13 +215,29 @@ async def stream_guardrailed_response(
         streaming=True,
     )
 
-    chain = _BILINGUAL_PROMPT | llm
+    chain = _TUTOR_PROMPT | llm
 
     async for chunk in chain.astream({
         "grade_level": grade_level,
-        "original_message": query,
-        "translated_message": query,
-        "context": context_text,
+        "original_message": original_message,
+        "translated_message": translated_message,
+        "context": _build_context(context_chunks, grade_level),
     }):
         if hasattr(chunk, "content") and chunk.content:
             yield chunk.content
+
+
+# ---------------------------------------------------------------------------
+# Urdu script translation
+# ---------------------------------------------------------------------------
+async def translate_to_urdu(text: str) -> str:
+    """Translate a tutor reply into Urdu script using gpt-4o-mini."""
+    llm = ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0,
+        openai_api_key=settings.OPENAI_API_KEY,
+        max_retries=3,
+    )
+    chain = _URDU_TRANSLATE_PROMPT | llm
+    result = await chain.ainvoke({"text": text})
+    return result.content.strip()

@@ -1,5 +1,5 @@
 """
-Feature 5 + Feature 7: The Guardrailed Bilingual Tutor — /api/v1/chat
+Feature 5 + Feature 7: The Guardrailed Adaptive Tutor — /api/v1/chat
 
 Flow:
   POST /api/v1/chat
@@ -7,8 +7,8 @@ Flow:
     ↓  Resolve classroom → grade_level  (the guardrail key)
     ↓  Translate student message to English via gpt-4o-mini  (Feature 7)
     ↓  Embed translated query → vector search snc_knowledge_base filtered by grade_level
-    ↓  LLM (gpt-4o) + SNC context + bilingual system prompt → TutorResponse
-    ↓  Return bilingual_reply + english_reply
+    ↓  LLM + SNC context + adaptive system prompt → TutorResponse
+    ↓  Return a single adaptive reply (bilingual or English based on student input)
 
 The grade_level filter is resolved server-side from the student's JWT and
 classroom record — the frontend never sends or controls the grade.
@@ -24,6 +24,7 @@ from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
 from app.agents.tutor_agent.chatbot import (
     translate_to_english,
+    translate_to_urdu,
     retrieve_grade_filtered_chunks,
     get_guardrailed_response,
     stream_guardrailed_response,
@@ -38,32 +39,36 @@ class ChatRequest(BaseModel):
 
 
 class ChatResponse(BaseModel):
-    reply: str            # bilingual Minglish reply (shown by default)
-    english_reply: str    # pure English reply (shown when student toggles)
+    reply: str            # adaptive reply (bilingual or English based on student input)
     grade_level: int
     context_used: bool    # True when SNC chunks were found for this grade
     translated_query: str  # the English translation of the student's query
 
 
-@router.post("", response_model=ChatResponse, summary="Guardrailed bilingual student chat")
+class UrduRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=2000)
+
+
+class UrduResponse(BaseModel):
+    urdu: str
+
+
+@router.post("", response_model=ChatResponse, summary="Guardrailed adaptive student chat")
 async def chat(
     body: ChatRequest,
     background_tasks: BackgroundTasks,
     student: dict = Depends(get_current_student),
 ):
     """
-    Send a student message and receive a grade-appropriate, SNC-grounded bilingual reply.
+    Send a student message and receive a grade-appropriate, SNC-grounded reply.
 
-    Authentication: student JWT (Bearer token from localStorage 'primepal_student_token').
-    The grade_level is resolved from the classroom record — the client cannot override it.
-
-    Returns both a Minglish code-switching reply (bilingual default) and a pure
-    English reply that the frontend can display when the student toggles language mode.
+    The reply language adapts to the student's input:
+    - Student writes in English → pure English reply
+    - Student writes in Roman Urdu / Minglish → bilingual Minglish reply
     """
     classroom_id: str = student["classroom_id"]
     supabase = get_supabase_admin()
 
-    # Resolve grade_level + translate query in parallel
     classroom_resp, translated_query = await asyncio.gather(
         asyncio.to_thread(
             lambda: supabase.table("classrooms")
@@ -82,14 +87,12 @@ async def chat(
         )
     grade_level: int = classroom_resp.data["grade_level"]
 
-    # Retrieve grade-filtered SNC context via pgvector RPC
     context_chunks = await retrieve_grade_filtered_chunks(
         query=translated_query,
         grade_level=grade_level,
         supabase_admin_client=supabase,
     )
 
-    # Generate guardrailed bilingual LLM response
     tutor_response = await get_guardrailed_response(
         original_message=body.message,
         translated_message=translated_query,
@@ -110,23 +113,21 @@ async def chat(
     )
 
     return ChatResponse(
-        reply=tutor_response.bilingual_reply,
-        english_reply=tutor_response.english_reply,
+        reply=tutor_response.reply,
         grade_level=grade_level,
         context_used=len(context_chunks) > 0,
         translated_query=translated_query,
     )
 
 
-@router.post("/stream", summary="Streaming guardrailed bilingual student chat (SSE)")
+@router.post("/stream", summary="Streaming guardrailed adaptive student chat (SSE)")
 async def chat_stream(
     body: ChatRequest,
     student: dict = Depends(get_current_student),
 ):
     """
-    Stream a grade-appropriate, SNC-grounded bilingual reply token by token.
+    Stream a grade-appropriate, SNC-grounded reply token by token.
 
-    Authentication: student JWT (Bearer token from localStorage 'primepal_student_token').
     Returns a text/event-stream response with SSE events:
       - {"type": "status", "content": "Thinking..."}
       - {"type": "token", "content": "<token>"}  (repeated)
@@ -164,15 +165,16 @@ async def chat_stream(
 
         accumulated_response: list[str] = []
         async for token in stream_guardrailed_response(
-            translated_query, context_chunks, grade_level
+            original_message=body.message,
+            translated_message=translated_query,
+            context_chunks=context_chunks,
+            grade_level=grade_level,
         ):
             accumulated_response.append(token)
             yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
         yield f"data: {json.dumps({'type': 'done'})}\n\n"
 
-        # Log the interaction in a thread to avoid blocking the event loop
-        # (log_interaction is synchronous and does a network call)
         await asyncio.to_thread(
             log_interaction,
             student_id=student["sub"],
@@ -186,3 +188,13 @@ async def chat_stream(
         )
 
     return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post("/urdu", response_model=UrduResponse, summary="Translate reply to Urdu script")
+async def chat_urdu(
+    body: UrduRequest,
+    student: dict = Depends(get_current_student),
+):
+    """Translate a tutor reply into Urdu script (نستعلیق) on demand."""
+    urdu_text = await translate_to_urdu(body.text)
+    return UrduResponse(urdu=urdu_text)
