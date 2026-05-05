@@ -23,6 +23,16 @@ function DashboardContent() {
   const availableSections = Array.from(new Set(classrooms.map(c => c.section).filter(Boolean))) as string[];
   availableSections.sort();
 
+  // Compute filtered sections based on grade selection
+  const filteredSections = gradeLevel
+    ? Array.from(new Set(
+        classrooms
+          .filter(c => c.grade_level === gradeLevel)
+          .map(c => c.section)
+          .filter(Boolean)
+      )).sort()
+    : availableSections;
+
   const loading = classroomsLoading || statsLoading || skillLoading;
 
   return (
@@ -36,7 +46,7 @@ function DashboardContent() {
 
         {/* Filter Bar */}
         <div className="mb-6">
-          <FilterBar showSearch={false} showPillar={true} showSection={true} sections={availableSections} />
+          <FilterBar showSearch={false} showPillar={true} showSection={true} sections={filteredSections} />
         </div>
 
         {/* Stats Grid */}
