@@ -712,9 +712,9 @@ async def _generate_personalized_missions(
 
 @router.get("/pillar", response_model=PillarMissionsResponse, summary="Get missions for specific pillar")
 async def get_pillar_missions(
+    background_tasks: BackgroundTasks,
     pillar: str = Query(..., description="Pillar type: reading, writing, listening, speaking"),
     is_frustrated: bool = Query(False, description="If True, generate 'Confidence Builder' questions to recover affective state"),
-    background_tasks: BackgroundTasks = BackgroundTasks(),
     student: dict = Depends(get_current_student),
 ):
     """

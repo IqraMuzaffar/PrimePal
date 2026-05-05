@@ -324,6 +324,8 @@ class TestGenericCacheFallback:
             {"id": "t2", "name": "Colors", "topic_name": "Colors"},
         ]
 
+        mock_personalize = AsyncMock()
+
         try:
             with (
                 patch(
@@ -346,6 +348,10 @@ class TestGenericCacheFallback:
                     "app.api.v1.endpoints.missions.get_student_performance_profile",
                     new=AsyncMock(return_value=None),
                 ),
+                patch(
+                    "app.api.v1.endpoints.missions._generate_personalized_missions",
+                    new=mock_personalize,
+                ),
             ):
                 async with AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://test"
@@ -358,5 +364,7 @@ class TestGenericCacheFallback:
                 data = resp.json()
                 assert data["pillar"] == "reading"
                 assert len(data["questions"]) == 10
+                # Verify background personalization task was scheduled
+                mock_personalize.assert_called_once()
         finally:
             app.dependency_overrides.pop(get_current_student, None)
