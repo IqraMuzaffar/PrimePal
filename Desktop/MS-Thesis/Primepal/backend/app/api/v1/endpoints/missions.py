@@ -112,6 +112,7 @@ class CompleteResponse(BaseModel):
 class StudentProfileResponse(BaseModel):
     student_id: str
     student_name: str
+    roll_number: str | None
     avatar_url: str | None
     points: int
     missions_completed: int
@@ -609,7 +610,7 @@ async def get_student_profile(
     try:
         student_resp = (
             supabase.table("students")
-            .select("student_name, avatar_url, avatar_style, theme_color, points")
+            .select("student_name, roll_number, avatar_url, avatar_style, theme_color, points")
             .eq("id", student_id)
             .maybe_single()
             .execute()
@@ -643,6 +644,7 @@ async def get_student_profile(
     response = StudentProfileResponse(
         student_id=student_id,
         student_name=data["student_name"],
+        roll_number=data.get("roll_number"),
         avatar_url=data.get("avatar_url"),
         points=data.get("points") or 0,
         missions_completed=missions_done,

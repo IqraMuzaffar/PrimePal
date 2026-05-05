@@ -5,6 +5,7 @@ import type { MissionQuestion } from "@/types/missions";
 export interface StudentProfile {
   student_id: string;
   student_name: string;
+  roll_number?: string | null;
   avatar_url?: string | null;
   points: number;
   missions_completed: number;
