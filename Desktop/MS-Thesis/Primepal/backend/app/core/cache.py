@@ -91,3 +91,27 @@ async def cache_delete_pattern(pattern: str) -> int:
 def make_cache_key(*parts: str) -> str:
     """Build a cache key from multiple parts."""
     return ":".join(parts)
+
+
+async def should_invalidate(student_id: str, ttl: int = 60) -> bool:
+    """
+    Debounce cache invalidation: returns True only if this student's caches
+    haven't been invalidated in the last `ttl` seconds. Prevents rapid
+    re-invalidation during a mission session (e.g., answering 10 questions).
+    """
+    debounce_key = f"invalidation_lock:{student_id}"
+    if await cache_get(debounce_key):
+        return False  # Already invalidated recently
+    await cache_set(debounce_key, True, ttl=ttl)
+    return True
+
+
+async def debounced_invalidate(student_id: str, invalidators: list) -> None:
+    """
+    Run cache invalidation functions only if not recently invalidated.
+    Each invalidator is an async callable that takes student_id.
+    """
+    if not await should_invalidate(student_id):
+        return
+    for fn in invalidators:
+        await fn(student_id)

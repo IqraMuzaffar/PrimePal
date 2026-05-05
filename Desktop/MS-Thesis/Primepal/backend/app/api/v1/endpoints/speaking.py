@@ -20,7 +20,7 @@ from pydantic import BaseModel
 from app.core.config import settings
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
-from app.core.cache import cache_get, cache_set, make_cache_key
+from app.core.cache import cache_get, cache_set, make_cache_key, debounced_invalidate
 from app.api.v1.endpoints.rewards import invalidate_rewards_cache
 from app.api.v1.endpoints.student_scores import invalidate_scores_cache
 from app.utils.pronunciation import compare_phrases, calculate_pronunciation_score
@@ -382,8 +382,11 @@ Keep the feedback encouraging, short (1-2 sentences), and suitable for a young c
 
     await update_streak(student_id)
 
-    background_tasks.add_task(invalidate_rewards_cache, student_id)
-    background_tasks.add_task(invalidate_scores_cache, student_id)
+    background_tasks.add_task(
+        debounced_invalidate,
+        student_id,
+        [invalidate_rewards_cache, invalidate_scores_cache],
+    )
 
     return EvaluateFeedback(
         score=score,
@@ -606,8 +609,11 @@ If < 70, gently point out which word(s) to practice. Make it suitable for young 
 
     await update_streak(student_id)
 
-    background_tasks.add_task(invalidate_rewards_cache, student_id)
-    background_tasks.add_task(invalidate_scores_cache, student_id)
+    background_tasks.add_task(
+        debounced_invalidate,
+        student_id,
+        [invalidate_rewards_cache, invalidate_scores_cache],
+    )
 
     return EvaluatePronunciationFeedback(
         score=2 if overall_correct else (1 if pronunciation_score >= 50 else 0),
