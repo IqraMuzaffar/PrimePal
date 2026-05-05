@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   useStudentProfile,
@@ -26,10 +25,6 @@ const QUOTES = [
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function dicebearUrl(style: string, seed: string) {
-  return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
-}
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
@@ -127,9 +122,6 @@ export default function HomePage() {
     ?? (typeof window !== "undefined" ? localStorage.getItem("primepal_student_name") : null)
     ?? "Champion";
 
-  // Resolve avatar URL: prefer profile value, fall back to generated dicebear
-  const resolvedAvatarUrl = profile?.avatar_url || dicebearUrl("adventurer", name);
-
   return (
     <div className="max-w-md mx-auto space-y-6 pb-10">
 
@@ -156,6 +148,9 @@ export default function HomePage() {
             <h1 className="text-white text-2xl font-extrabold leading-tight drop-shadow">
               Hi {name}! 🌟
             </h1>
+            {profile?.roll_number && (
+              <p className="text-white/60 text-xs mt-0.5">Roll No: {profile.roll_number}</p>
+            )}
             <p className="text-white/80 text-sm mt-1">Ready to level up?</p>
           </div>
           <div className="flex items-center gap-2">
@@ -166,11 +161,7 @@ export default function HomePage() {
               </div>
             )}
             <div className="flex flex-col items-center bg-white/20 rounded-2xl px-4 py-3 border-2 border-white/30">
-              {resolvedAvatarUrl ? (
-                <Image src={resolvedAvatarUrl} alt={name} width={48} height={48} className="rounded-full border-2 border-white/60 mb-1" />
-              ) : (
-                <span className="text-3xl leading-none mb-1">⭐</span>
-              )}
+              <span className="text-4xl leading-none mb-1">⭐</span>
               <span className="text-white font-extrabold text-2xl leading-tight">{points}</span>
               <span className="text-white/70 text-xs font-semibold">Stars</span>
             </div>
@@ -258,20 +249,6 @@ export default function HomePage() {
               <span className="text-4xl">🐝</span>
               <span className="text-base">Spelling Bee</span>
               <span className="text-xs text-amber-200 font-semibold">Can you spell it?</span>
-            </button>
-          </motion.div>
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <button
-              onClick={() => {
-                router.push("/student/leaderboard");
-              }}
-              className="w-full flex flex-col items-center gap-2 p-5 rounded-2xl bg-yellow-500 border-b-4 border-yellow-700
-                         shadow-[0_4px_0_#a16207] hover:brightness-110
-                         text-white font-extrabold text-center transition-all duration-100"
-            >
-              <span className="text-4xl">🏆</span>
-              <span className="text-base">Leaderboard</span>
-              <span className="text-xs text-yellow-100 font-semibold">See who&apos;s #1!</span>
             </button>
           </motion.div>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="col-span-2">

@@ -251,19 +251,9 @@ export default function AnalyticsOverview({ data }: Props) {
                   {idx === 0 ? "\u{1F947}" : idx === 1 ? "\u{1F948}" : idx === 2 ? "\u{1F949}" : `#${idx + 1}`}
                 </div>
 
-                {student.avatarUrl ? (
-                  <Image
-                    src={student.avatarUrl}
-                    alt={student.name}
-                    width={40}
-                    height={40}
-                    className="rounded-full bg-gray-100"
-                  />
-                ) : (
-                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
-                    {student.name.charAt(0).toUpperCase()}
-                  </div>
-                )}
+                <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
+                  {student.name.charAt(0).toUpperCase()}
+                </div>
 
                 <div className="flex-1">
                   <p className="text-sm font-medium text-gray-900">{student.name}</p>

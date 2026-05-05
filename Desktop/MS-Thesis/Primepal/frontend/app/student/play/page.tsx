@@ -4,18 +4,17 @@ import { useState, FormEvent } from "react";
 import { Loader2, Gamepad2 } from "lucide-react";
 import { motion } from "framer-motion";
 import { apiFetch } from "@/lib/api";
-import AvatarSelect from "./avatar-select";
 import PinEntry from "./pin-entry";
 
 interface Avatar {
   id: string;
   student_name: string;
   avatar_url: string;
-  avatar_style: string;
-  theme_color: string;
+  avatar_style?: string;
+  theme_color?: string;
 }
 
-type Step = "enter-code" | "pick-avatar" | "enter-pin";
+type Step = "enter-code" | "select-student" | "enter-pin";
 
 export default function StudentPlayPage() {
   const [step, setStep] = useState<Step>("enter-code");
@@ -37,7 +36,7 @@ export default function StudentPlayPage() {
         setError("No students in this class yet. Ask your teacher to add you! 👋");
       } else {
         setAvatars(data);
-        setStep("pick-avatar");
+        setStep("select-student");
       }
     } catch (err: unknown) {
       const errorMsg = err instanceof Error ? err.message : "Something went wrong. Try again!";
@@ -65,9 +64,9 @@ export default function StudentPlayPage() {
     setError(null);
   }
 
-  function handleBackToAvatars() {
+  function handleBackToStudents() {
     setSelectedAvatar(null);
-    setStep("pick-avatar");
+    setStep("select-student");
   }
 
   return (
@@ -134,19 +133,44 @@ export default function StudentPlayPage() {
           </div>
         )}
 
-        {step === "pick-avatar" && (
-          <AvatarSelect
-            avatars={avatars}
-            onBack={handleBackToCode}
-            onAvatarSelect={handleAvatarSelect}
-          />
+        {step === "select-student" && (
+          <div>
+            <div className="text-center mb-6">
+              <h2 className="text-2xl font-extrabold text-slate-800 mb-2">
+                Who are you?
+              </h2>
+              <p className="text-slate-500 text-sm">
+                Select your name from the list
+              </p>
+            </div>
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {avatars.map((avatar) => (
+                <button
+                  key={avatar.id}
+                  onClick={() => handleAvatarSelect(avatar)}
+                  className="w-full flex items-center gap-3 p-4 rounded-xl border-2 border-slate-200 bg-white hover:border-indigo-500 hover:bg-indigo-50 transition-all"
+                >
+                  <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold shrink-0">
+                    {avatar.student_name.charAt(0).toUpperCase()}
+                  </div>
+                  <span className="text-lg font-bold text-slate-800">{avatar.student_name}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={handleBackToCode}
+              className="mt-6 w-full py-3 text-slate-600 hover:text-slate-800 font-semibold transition-colors"
+            >
+              ← Back to Class Code
+            </button>
+          </div>
         )}
 
         {step === "enter-pin" && selectedAvatar && (
           <PinEntry
             avatar={selectedAvatar}
             classCode={classCode.trim().toUpperCase()}
-            onBack={handleBackToAvatars}
+            onBack={handleBackToStudents}
           />
         )}
       </div>

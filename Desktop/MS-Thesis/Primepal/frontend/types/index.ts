@@ -17,11 +17,11 @@ export interface Classroom {
   created_at: string;
 }
 
-// Updated: student_name + avatar_url matching DB columns
+// Updated: student_name, avatar_url removed from display
 export interface Student {
   id: string;
   student_name: string;
-  avatar_url: string;
+  avatar_url?: string | null;
   secret_pin: string;
   roll_number?: string | null;
   email?: string | null;

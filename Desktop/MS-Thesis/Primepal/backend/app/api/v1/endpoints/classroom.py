@@ -290,7 +290,7 @@ async def bulk_add_students(
         {
             "classroom_id": classroom_id,
             "student_name": name,
-            "avatar_url": f"https://api.dicebear.com/8.x/adventurer/svg?seed={name}",
+            "avatar_url": None,
             "avatar_style": "adventurer",
             "theme_color": "#6366f1",
         }
@@ -327,7 +327,7 @@ async def bulk_add_students_v2(
             "student_name": s.student_name.strip(),
             "roll_number": s.roll_number.strip() if s.roll_number else None,
             "email": s.email.strip() if s.email else None,
-            "avatar_url": f"https://api.dicebear.com/8.x/adventurer/svg?seed={s.student_name}",
+            "avatar_url": None,
             "avatar_style": "adventurer",
             "theme_color": "#6366f1",
         }
