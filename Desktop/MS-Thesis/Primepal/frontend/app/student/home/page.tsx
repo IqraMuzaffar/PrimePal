@@ -148,6 +148,9 @@ export default function HomePage() {
             <h1 className="text-white text-2xl font-extrabold leading-tight drop-shadow">
               Hi {name}! 🌟
             </h1>
+            {profile?.roll_number && (
+              <p className="text-white/60 text-xs mt-0.5">Roll No: {profile.roll_number}</p>
+            )}
             <p className="text-white/80 text-sm mt-1">Ready to level up?</p>
           </div>
           <div className="flex items-center gap-2">
