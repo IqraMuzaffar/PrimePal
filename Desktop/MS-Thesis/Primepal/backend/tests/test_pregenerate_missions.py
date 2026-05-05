@@ -86,7 +86,7 @@ class TestPregeneratePillarMissions:
 
         with (
             patch("app.utils.pregenerate_missions.get_supabase_admin", return_value=mock_supabase),
-            patch("app.utils.pregenerate_missions.get_active_topics", return_value=MOCK_ACTIVE_TOPICS),
+            patch("app.utils.pregenerate_missions.get_active_topics", new_callable=AsyncMock, return_value=MOCK_ACTIVE_TOPICS),
             patch("app.utils.pregenerate_missions.generate_pillar_missions", new=mock_generator),
             patch("app.utils.pregenerate_missions.cache_get", new=AsyncMock(return_value=None)),
             patch("app.utils.pregenerate_missions.cache_set", new=AsyncMock(return_value=True)),
@@ -112,7 +112,7 @@ class TestPregeneratePillarMissions:
 
         with (
             patch("app.utils.pregenerate_missions.get_supabase_admin", return_value=mock_supabase),
-            patch("app.utils.pregenerate_missions.get_active_topics", return_value=MOCK_ACTIVE_TOPICS),
+            patch("app.utils.pregenerate_missions.get_active_topics", new_callable=AsyncMock, return_value=MOCK_ACTIVE_TOPICS),
             patch("app.utils.pregenerate_missions.generate_pillar_missions", new=mock_generator),
             patch("app.utils.pregenerate_missions.cache_get", new=AsyncMock(side_effect=selective_cache_get)),
             patch("app.utils.pregenerate_missions.cache_set", new=AsyncMock(return_value=True)),
@@ -132,7 +132,7 @@ class TestPregeneratePillarMissions:
 
         with (
             patch("app.utils.pregenerate_missions.get_supabase_admin", return_value=mock_supabase),
-            patch("app.utils.pregenerate_missions.get_active_topics", return_value=[]),
+            patch("app.utils.pregenerate_missions.get_active_topics", new_callable=AsyncMock, return_value=[]),
             patch("app.utils.pregenerate_missions.generate_pillar_missions", new=mock_generator),
             patch("app.utils.pregenerate_missions.cache_get", new=AsyncMock(return_value=None)),
             patch("app.utils.pregenerate_missions.cache_set", new=AsyncMock(return_value=True)),
@@ -157,7 +157,7 @@ class TestPregeneratePillarMissions:
 
         with (
             patch("app.utils.pregenerate_missions.get_supabase_admin", return_value=mock_supabase),
-            patch("app.utils.pregenerate_missions.get_active_topics", return_value=MOCK_ACTIVE_TOPICS),
+            patch("app.utils.pregenerate_missions.get_active_topics", new_callable=AsyncMock, return_value=MOCK_ACTIVE_TOPICS),
             patch("app.utils.pregenerate_missions.generate_pillar_missions", new=mock_generator),
             patch("app.utils.pregenerate_missions.cache_get", new=AsyncMock(return_value=None)),
             patch("app.utils.pregenerate_missions.cache_set", new=mock_cache_set),

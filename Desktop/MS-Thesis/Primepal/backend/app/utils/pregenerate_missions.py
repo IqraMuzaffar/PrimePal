@@ -55,9 +55,7 @@ async def pregenerate_pillar_missions(classroom_id: str) -> None:
     grade_level = classroom.data["grade_level"]
 
     # Step 2: Resolve active topics
-    active_topics = get_active_topics(classroom_id, grade_level, supabase)
-    if asyncio.iscoroutine(active_topics):
-        active_topics = await active_topics
+    active_topics = await get_active_topics(classroom_id, grade_level, supabase)
 
     if not active_topics:
         logger.info("pregenerate: no active topics for classroom %s — skipping", classroom_id)
@@ -85,7 +83,7 @@ async def pregenerate_pillar_missions(classroom_id: str) -> None:
             continue
 
         # Sleep 1s between LLM calls (skip first)
-        if idx > 0 and pillar not in skipped and generated:
+        if idx > 0 and generated:
             await asyncio.sleep(1)
 
         try:
