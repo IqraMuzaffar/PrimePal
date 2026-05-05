@@ -29,7 +29,7 @@ function DashboardContent() {
         classrooms
           .filter(c => c.grade_level === gradeLevel)
           .map(c => c.section)
-          .filter(Boolean)
+          .filter((s): s is string => Boolean(s))  // Type predicate
       )).sort()
     : availableSections;
 
@@ -217,7 +217,7 @@ function DashboardContent() {
                 <Link
                   key={c.id}
                   href={`/teacher/classroom/${c.id}`}
-                  className={`group bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md hover:border-indigo-300 transition-all ${getClassroomOpacity(c)}`}
+                  className={`group bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md hover:border-indigo-300 transition-all duration-200 ${getClassroomOpacity(c)}`}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <span className={`text-xs font-bold px-2 py-1 rounded-full ${
