@@ -100,6 +100,14 @@ function DashboardContent() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Total Interactions</p>
                   <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total_interactions}</p>
+
+                  {/* NEW: Skill filter badge */}
+                  {pillar && (
+                    <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full">
+                      {pillar.charAt(0).toUpperCase() + pillar.slice(1)} only
+                    </span>
+                  )}
+
                   <p className="text-xs text-gray-500 mt-2">Student missions &amp; chat</p>
                 </div>
                 <div className="p-3 bg-emerald-100 rounded-lg">
@@ -114,6 +122,14 @@ function DashboardContent() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Avg Accuracy</p>
                   <p className="text-3xl font-bold text-gray-900 mt-2">{Math.round(stats.avg_accuracy)}%</p>
+
+                  {/* NEW: Skill filter badge */}
+                  {pillar && (
+                    <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full">
+                      {pillar.charAt(0).toUpperCase() + pillar.slice(1)} only
+                    </span>
+                  )}
+
                   <p className="text-xs text-gray-500 mt-2">Across all students</p>
                 </div>
                 <div className="p-3 bg-rose-100 rounded-lg">
@@ -128,6 +144,14 @@ function DashboardContent() {
                 <div>
                   <p className="text-sm font-medium text-gray-600">Active This Week</p>
                   <p className="text-3xl font-bold text-gray-900 mt-2">{stats.active_this_week}</p>
+
+                  {/* NEW: Skill filter badge */}
+                  {pillar && (
+                    <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full">
+                      {pillar.charAt(0).toUpperCase() + pillar.slice(1)} only
+                    </span>
+                  )}
+
                   <p className="text-xs text-gray-500 mt-2">Students with recent activity</p>
                 </div>
                 <div className="p-3 bg-sky-100 rounded-lg">
