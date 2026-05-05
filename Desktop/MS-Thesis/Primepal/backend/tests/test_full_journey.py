@@ -273,19 +273,6 @@ class TestStudentLearningJourney:
 
             assert response_submit.status_code in [200, 400, 404]
 
-    async def test_05_student_checks_leaderboard(self, client):
-        """Step 6: Student views classroom leaderboard."""
-        with patch("app.api.v1.endpoints.leaderboard.get_supabase") as mock_get_sub:
-            mock_sub = _make_mock_supabase()
-            mock_get_sub.return_value = mock_sub
-
-            response = await client.get(
-                f"/api/v1/leaderboard/{CLASSROOM_ID}",
-                headers={"Authorization": "Bearer student-token"}
-            )
-
-            assert response.status_code in [200, 400, 404]
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 # JOURNEY 3: TEACHER ANALYTICS

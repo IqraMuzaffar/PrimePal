@@ -18,9 +18,6 @@ const PREFETCH_MAP: Record<string, { queryKey: readonly string[]; url: string; s
   "/student/achievements": [
     { queryKey: queryKeys.achievements, url: "/achievements/me", staleTime: 5 * 60 * 1000 },
   ],
-  "/student/leaderboard": [
-    { queryKey: queryKeys.studentLeaderboard, url: "/missions/leaderboard", staleTime: 60 * 1000 },
-  ],
   "/student/home": [
     { queryKey: queryKeys.dailySummary, url: "/rewards/daily-summary", staleTime: 5 * 60 * 1000 },
   ],
@@ -32,7 +29,6 @@ const NAV_LINKS = [
   { href: "/student/missions",     label: "Missions",    icon: "🎯" },
   { href: "/student/scores",       label: "My Scores",   icon: "📊" },
   { href: "/student/achievements", label: "Badges",      icon: "🏅" },
-  { href: "/student/leaderboard",  label: "Leaderboard", icon: "🏆" },
 ];
 
 function StudentLayoutContent({ children }: { children: React.ReactNode }) {
