@@ -17,6 +17,7 @@ The pillar endpoint (Feature 3) generates missions weighted by student weaknesse
 the teacher-configured current_week_topic.
 """
 import asyncio
+import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -26,7 +27,7 @@ from pydantic import BaseModel
 from app.api.v1.endpoints.classroom import get_active_topics
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
-from app.core.cache import cache_get, cache_set, make_cache_key
+from app.core.cache import cache_get, cache_set, make_cache_key, debounced_invalidate
 from app.agents.tutor_agent.chatbot import retrieve_grade_filtered_chunks
 from app.agents.evaluator_agent.interaction_logger import log_interaction
 from app.core.config import settings
@@ -228,7 +229,7 @@ async def get_daily_missions(
     # ------------------------------------------------------------------
     active_topic_objs = await get_active_topics(classroom_id, grade_level, supabase)
     active_topic_names = [t["topic_name"] for t in active_topic_objs]
-    topics_hash = str(hash(tuple(sorted(active_topic_names))))
+    topics_hash = hashlib.md5(",".join(sorted(active_topic_names)).encode()).hexdigest()[:12]
 
     # ------------------------------------------------------------------
     # Step 0: Check cache (only if not frustrated — frustrated students need fresh questions)
@@ -421,9 +422,11 @@ async def complete_mission(
     streak_data = await update_streak(student_id)
 
     # Invalidate caches so next page load shows fresh data
-    background_tasks.add_task(invalidate_performance_cache, student_id)
-    background_tasks.add_task(invalidate_rewards_cache, student_id)
-    background_tasks.add_task(invalidate_scores_cache, student_id)
+    background_tasks.add_task(
+        debounced_invalidate,
+        student_id,
+        [invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
+    )
 
     # Check and unlock any newly earned achievements
     from app.api.v1.endpoints.achievements import check_and_unlock_achievements
@@ -567,9 +570,11 @@ async def submit_batch(
         await update_streak(student_id)
 
         # Invalidate caches
-        background_tasks.add_task(invalidate_performance_cache, student_id)
-        background_tasks.add_task(invalidate_rewards_cache, student_id)
-        background_tasks.add_task(invalidate_scores_cache, student_id)
+        background_tasks.add_task(
+            debounced_invalidate,
+            student_id,
+            [invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
+        )
 
     return BatchSubmitResponse(
         processed=processed,
@@ -742,7 +747,7 @@ async def get_pillar_missions(
     # Fetch active topics (depends on grade_level from fetch_classroom_grade)
     active_topic_objs = await get_active_topics(classroom_id, grade_level, supabase)
     active_topic_names = [t["topic_name"] for t in active_topic_objs]
-    topics_hash = str(hash(tuple(sorted(active_topic_names))))
+    topics_hash = hashlib.md5(",".join(sorted(active_topic_names)).encode()).hexdigest()[:12]
 
     # ------------------------------------------------------------------
     # Step 0: Check cache (only if not frustrated — frustrated students need fresh questions)
@@ -971,8 +976,11 @@ async def submit_speaking_answer(
     await update_streak(student_id)
 
     # Invalidate caches
-    background_tasks.add_task(invalidate_rewards_cache, student_id)
-    background_tasks.add_task(invalidate_scores_cache, student_id)
+    background_tasks.add_task(
+        debounced_invalidate,
+        student_id,
+        [invalidate_rewards_cache, invalidate_scores_cache],
+    )
 
     return SpeakingSubmissionResponse(
         is_correct=is_correct,
