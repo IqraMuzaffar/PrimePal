@@ -18,6 +18,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.agents.tutor_agent.mission_generator import MissionQuestion, QuestionOption
+from app.utils.pregenerate_missions import pregenerate_pillar_missions
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -91,7 +92,6 @@ class TestPregeneratePillarMissions:
             patch("app.utils.pregenerate_missions.cache_get", new=AsyncMock(return_value=None)),
             patch("app.utils.pregenerate_missions.cache_set", new=AsyncMock(return_value=True)),
         ):
-            from app.utils.pregenerate_missions import pregenerate_pillar_missions
             await pregenerate_pillar_missions(CLASSROOM_ID)
 
         assert mock_generator.call_count == 4
@@ -117,7 +117,6 @@ class TestPregeneratePillarMissions:
             patch("app.utils.pregenerate_missions.cache_get", new=AsyncMock(side_effect=selective_cache_get)),
             patch("app.utils.pregenerate_missions.cache_set", new=AsyncMock(return_value=True)),
         ):
-            from app.utils.pregenerate_missions import pregenerate_pillar_missions
             await pregenerate_pillar_missions(CLASSROOM_ID)
 
         assert mock_generator.call_count == 2
@@ -137,7 +136,6 @@ class TestPregeneratePillarMissions:
             patch("app.utils.pregenerate_missions.cache_get", new=AsyncMock(return_value=None)),
             patch("app.utils.pregenerate_missions.cache_set", new=AsyncMock(return_value=True)),
         ):
-            from app.utils.pregenerate_missions import pregenerate_pillar_missions
             await pregenerate_pillar_missions(CLASSROOM_ID)
 
         mock_generator.assert_not_called()
@@ -162,7 +160,6 @@ class TestPregeneratePillarMissions:
             patch("app.utils.pregenerate_missions.cache_get", new=AsyncMock(return_value=None)),
             patch("app.utils.pregenerate_missions.cache_set", new=mock_cache_set),
         ):
-            from app.utils.pregenerate_missions import pregenerate_pillar_missions
             await pregenerate_pillar_missions(CLASSROOM_ID)
 
         # Generator called for all 4 pillars

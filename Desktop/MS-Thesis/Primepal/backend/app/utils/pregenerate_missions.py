@@ -11,13 +11,13 @@ import logging
 
 from app.agents.tutor_agent.mission_generator import generate_pillar_missions
 from app.api.v1.endpoints.classroom import get_active_topics
-from app.api.v1.endpoints.missions import _strip_answer
 from app.core.cache import cache_get, cache_set
 from app.core.supabase_client import get_supabase_admin
 
 logger = logging.getLogger(__name__)
 
 PILLARS = ["reading", "writing", "listening", "speaking"]
+_INTER_CALL_DELAY_S = 1
 
 
 def _build_generic_cache_key(
@@ -72,6 +72,7 @@ async def pregenerate_pillar_missions(classroom_id: str) -> None:
     generated = []
     skipped = []
     failed = []
+    attempts = 0
 
     for idx, pillar in enumerate(PILLARS):
         cache_key = _build_generic_cache_key(classroom_id, pillar, topics_hash)
@@ -82,9 +83,10 @@ async def pregenerate_pillar_missions(classroom_id: str) -> None:
             skipped.append(pillar)
             continue
 
-        # Sleep 1s between LLM calls (skip first)
-        if idx > 0 and generated:
-            await asyncio.sleep(1)
+        # Sleep between LLM call attempts (skip first)
+        if attempts > 0:
+            await asyncio.sleep(_INTER_CALL_DELAY_S)
+        attempts += 1
 
         try:
             missions = await generate_pillar_missions(
@@ -98,7 +100,12 @@ async def pregenerate_pillar_missions(classroom_id: str) -> None:
             )
 
             # Build response dict matching PillarMissionsResponse shape
-            questions_out = [_strip_answer(q).model_dump() for q in missions]
+            questions_out = []
+            for q in missions:
+                q_out = {k: v for k, v in q.items() if k != "is_weakness_focused"}
+                if "type" in q_out and "task_type" not in q_out:
+                    q_out["task_type"] = q_out.pop("type")
+                questions_out.append(q_out)
             weakness_count = sum(
                 1 for q in missions if q.get("is_weakness_focused")
             )
