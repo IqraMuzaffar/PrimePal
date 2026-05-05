@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ChevronDown, ChevronLeft, ChevronRight, Eye, Flame } from "lucide-react";
 import SearchBar from "@/components/teacher/SearchBar";

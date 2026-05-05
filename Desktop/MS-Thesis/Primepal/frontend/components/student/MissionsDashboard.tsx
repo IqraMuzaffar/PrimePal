@@ -15,13 +15,6 @@ interface PerformanceProfile {
   difficulty_recommendation: string;
 }
 
-const PILLAR_COLORS: Record<string, string> = {
-  reading: 'bg-red-500',
-  writing: 'bg-blue-500',
-  listening: 'bg-yellow-500',
-  speaking: 'bg-green-500',
-};
-
 const PILLAR_LABELS: Record<string, string> = {
   reading: 'Reading',
   writing: 'Writing',
@@ -29,10 +22,17 @@ const PILLAR_LABELS: Record<string, string> = {
   speaking: 'Speaking',
 };
 
+const PILLAR_EMOJIS: Record<string, string> = {
+  reading: '📖',
+  writing: '✏️',
+  listening: '🎧',
+  speaking: '🎤',
+};
+
 const DIFFICULTY_BADGES: Record<string, { label: string; color: string }> = {
-  easy: { label: 'Easy', color: 'bg-green-100 text-green-700' },
-  medium: { label: 'Medium', color: 'bg-yellow-100 text-yellow-700' },
-  hard: { label: 'Hard', color: 'bg-red-100 text-red-700' },
+  easy: { label: 'Easy', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  medium: { label: 'Medium', color: 'bg-amber-100 text-amber-700 border-amber-200' },
+  hard: { label: 'Hard', color: 'bg-rose-100 text-rose-700 border-rose-200' },
 };
 
 export default function MissionsDashboard() {
@@ -66,30 +66,10 @@ export default function MissionsDashboard() {
     icon: React.ReactNode;
     bgColor: string;
   }> = [
-    {
-      id: 'reading',
-      name: 'Reading',
-      icon: <BookOpen size={48} />,
-      bgColor: 'bg-red-600',
-    },
-    {
-      id: 'writing',
-      name: 'Writing',
-      icon: <Edit3 size={48} />,
-      bgColor: 'bg-blue-600',
-    },
-    {
-      id: 'listening',
-      name: 'Listening',
-      icon: <Headphones size={48} />,
-      bgColor: 'bg-yellow-500',
-    },
-    {
-      id: 'speaking',
-      name: 'Speaking',
-      icon: <Mic size={48} />,
-      bgColor: 'bg-green-600',
-    },
+    { id: 'reading', name: 'Reading', icon: <BookOpen size={48} />, bgColor: 'bg-blue-600' },
+    { id: 'writing', name: 'Writing', icon: <Edit3 size={48} />, bgColor: 'bg-emerald-600' },
+    { id: 'listening', name: 'Listening', icon: <Headphones size={48} />, bgColor: 'bg-amber-500' },
+    { id: 'speaking', name: 'Speaking', icon: <Mic size={48} />, bgColor: 'bg-rose-600' },
   ];
 
   const diffBadge = performance
@@ -97,91 +77,95 @@ export default function MissionsDashboard() {
     : null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-4 lg:p-6">
-      <div className="max-w-6xl mx-auto">
-        <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-800 mb-2">Learning Missions</h1>
-        <p className="text-sm sm:text-base text-gray-600 mb-6 sm:mb-8">Choose a pillar to start practicing</p>
+    <div className="max-w-3xl mx-auto">
+      {/* Page header */}
+      <h1 className="font-baloo text-2xl sm:text-3xl font-extrabold text-amber-950 mb-1">Learning Missions</h1>
+      <p className="font-nunito text-sm text-amber-800/70 mb-5">Choose a pillar to start practicing</p>
 
-        {/* Performance Summary Section */}
-        {!perfLoading && performance && performance.overall_accuracy > 0 && (
-          <div className="mb-6 sm:mb-8 bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-800">Your Performance</h2>
+      {/* Progress banner */}
+      {!perfLoading && performance && performance.overall_accuracy > 0 && (
+        <div className="mb-6 rounded-[20px] bg-gradient-to-r from-amber-100 via-amber-200 to-amber-300 border-2 border-amber-400 p-5 shadow-[0_6px_24px_rgba(245,158,11,0.2)]">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <p className="font-nunito font-semibold text-xs text-amber-800/70 mb-1">Your Performance</p>
+              <h2 className="font-baloo font-extrabold text-xl text-amber-950 leading-none">
+                {Math.round(performance.overall_accuracy)}% <span className="font-medium text-base opacity-70">accuracy</span>
+              </h2>
+            </div>
+            <div className="text-center">
               {diffBadge && (
-                <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${diffBadge.color}`}>
+                <span className={`text-xs font-baloo font-bold px-3 py-1 rounded-full border ${diffBadge.color}`}>
                   Level: {diffBadge.label}
                 </span>
               )}
             </div>
-
-            {/* Overall accuracy */}
-            <div className="mb-4">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-sm text-gray-600">Overall Accuracy</span>
-                <span className="text-sm font-semibold text-gray-800">{performance.overall_accuracy}%</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-2.5">
-                <div
-                  className="bg-indigo-500 h-2.5 rounded-full transition-all duration-500"
-                  style={{ width: `${Math.min(performance.overall_accuracy, 100)}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Per-pillar accuracy bars */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-              {(['reading', 'writing', 'listening', 'speaking'] as const).map((p) => {
-                const acc = performance.pillar_accuracy[p] ?? 0;
-                const isWeak = performance.weak_topics.some((t) => t.topic === p);
-                const isStrong = performance.strong_topics.some((t) => t.topic === p);
-                return (
-                  <div key={p} className="text-center">
-                    <div className="flex items-center justify-center gap-1 mb-1">
-                      <span className="text-xs font-medium text-gray-700">{PILLAR_LABELS[p]}</span>
-                      {isWeak && <span className="text-xs" title="Needs practice">*</span>}
-                      {isStrong && <span className="text-xs" title="Strong area">!</span>}
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-full h-2">
-                      <div
-                        className={`${PILLAR_COLORS[p]} h-2 rounded-full transition-all duration-500`}
-                        style={{ width: `${Math.min(acc, 100)}%` }}
-                      />
-                    </div>
-                    <span className="text-xs text-gray-500 mt-0.5 block">{acc}%</span>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Weak/strong indicators */}
-            {(performance.weak_topics.length > 0 || performance.strong_topics.length > 0) && (
-              <div className="mt-4 flex flex-wrap gap-2">
-                {performance.weak_topics.map((t) => (
-                  <span key={t.topic} className="text-xs px-2 py-1 rounded-full bg-orange-50 text-orange-600 border border-orange-200">
-                    Practice more: {PILLAR_LABELS[t.topic] || t.topic}
-                  </span>
-                ))}
-                {performance.strong_topics.map((t) => (
-                  <span key={t.topic} className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200">
-                    Strong: {PILLAR_LABELS[t.topic] || t.topic}
-                  </span>
-                ))}
-              </div>
-            )}
           </div>
-        )}
 
-        {/* 2x2 Grid (responsive: 1 col mobile, 2x2 tablet+) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 lg:gap-8">
-          {pillars.map((pillar) => (
-            <PillarCard
-              key={pillar.id}
-              pillar={pillar.id}
-              bgColor={pillar.bgColor}
-              icon={pillar.icon}
-            />
-          ))}
+          {/* Pillar chips */}
+          <div className="flex gap-2 flex-wrap">
+            {(['reading', 'writing', 'listening', 'speaking'] as const).map((p) => {
+              const acc = performance.pillar_accuracy[p] ?? 0;
+              const hasActivity = acc > 0;
+              return (
+                <div
+                  key={p}
+                  className={`flex items-center gap-1.5 rounded-xl px-2.5 py-1 border text-xs font-nunito font-bold transition-all ${
+                    hasActivity
+                      ? 'bg-white border-amber-300 text-amber-950'
+                      : 'bg-white/40 border-white/30 text-amber-800/50 opacity-60'
+                  }`}
+                >
+                  <span className="text-sm">{PILLAR_EMOJIS[p]}</span>
+                  <span>{PILLAR_LABELS[p]}</span>
+                  {hasActivity && <span className="text-amber-600">{acc}%</span>}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Weak/strong indicators */}
+          {(performance.weak_topics.length > 0 || performance.strong_topics.length > 0) && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {performance.weak_topics.map((t) => (
+                <span key={t.topic} className="text-xs px-2 py-1 rounded-full bg-orange-50 text-orange-700 border border-orange-200 font-nunito font-bold">
+                  Practice more: {PILLAR_LABELS[t.topic] || t.topic}
+                </span>
+              ))}
+              {performance.strong_topics.map((t) => (
+                <span key={t.topic} className="text-xs px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-nunito font-bold">
+                  Strong: {PILLAR_LABELS[t.topic] || t.topic}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
+      )}
+
+      {/* Section label */}
+      <div className="flex items-center gap-2.5 mb-4">
+        <span className="font-baloo font-extrabold text-xs text-amber-700 uppercase tracking-widest">Choose a Pillar</span>
+        <div className="flex-1 h-[1.5px] bg-gradient-to-r from-amber-300 to-transparent" />
+        <span className="font-nunito font-semibold text-xs text-amber-700/60">Tap any card</span>
+      </div>
+
+      {/* 2x2 Pillar grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        {pillars.map((pillar) => (
+          <PillarCard
+            key={pillar.id}
+            pillar={pillar.id}
+            bgColor={pillar.bgColor}
+            icon={pillar.icon}
+          />
+        ))}
+      </div>
+
+      {/* Hint footer */}
+      <div className="mt-5 bg-gradient-to-r from-amber-100 to-amber-50 rounded-2xl p-3.5 flex items-center gap-2.5 border border-amber-200">
+        <span className="text-xl">💡</span>
+        <span className="font-baloo font-bold text-sm text-amber-800">
+          Complete all 4 pillars every day to keep your streak alive!
+        </span>
       </div>
     </div>
   );

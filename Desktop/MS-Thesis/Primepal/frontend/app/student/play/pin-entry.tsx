@@ -9,7 +9,8 @@ interface Avatar {
   id: string;
   student_name: string;
   avatar_url: string;
-  theme_color: string;
+  avatar_style?: string;
+  theme_color?: string;
 }
 
 interface TokenResponse {
@@ -32,7 +33,6 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
   const [inputValue, setInputValue] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Keep input focused so physical keyboard always works
   useEffect(() => {
     inputRef.current?.focus();
   }, [digits]);
@@ -55,7 +55,6 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
 
-      // Check specific error types and show friendly messages
       let friendlyMsg: string;
       if (msg === "Incorrect PIN" || msg.toLowerCase().includes("pin")) {
         friendlyMsg = "Oops! That PIN isn't right. Try again! 🔐";
@@ -98,7 +97,7 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
   }
 
   function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const value = e.target.value.replace(/\D/g, ""); // Only digits
+    const value = e.target.value.replace(/\D/g, "");
     if (value.length <= 4) {
       setInputValue(value);
       setDigits(value.split(""));
@@ -114,42 +113,31 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
   ];
 
   return (
-    <div className="w-full flex flex-col items-center gap-6">
-      {/* Student name */}
+    <div className="w-full flex flex-col items-center gap-5">
+      {/* Student info */}
       <div className="flex flex-col items-center gap-2">
-        <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center border-4 border-indigo-200">
+        <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center border-4 border-amber-300">
           <span className="text-4xl">🎓</span>
         </div>
-        <p className="text-base font-bold text-slate-800">{avatar.student_name}</p>
-        <p className="text-sm text-slate-500">Enter your Secret PIN</p>
+        <p className="text-base font-baloo font-bold text-amber-950">{avatar.student_name}</p>
+        <p className="text-sm font-nunito font-semibold text-amber-700">Enter your Secret PIN</p>
       </div>
 
-      {/* PIN input — works with both physical keyboard and on-screen keypad */}
-      <style>{`
-        @keyframes pin-shake {
-          0%, 100% { transform: translateX(0); }
-          20% { transform: translateX(-8px); }
-          40% { transform: translateX(8px); }
-          60% { transform: translateX(-6px); }
-          80% { transform: translateX(6px); }
-        }
-        .pin-shake { animation: pin-shake 0.4s ease-in-out; }
-      `}</style>
-
+      {/* PIN display */}
       {loading ? (
-        <Loader2 size={28} className="animate-spin text-indigo-500" />
+        <Loader2 size={28} className="animate-spin text-amber-500" />
       ) : (
         <div
-          className={`flex gap-3 ${shake ? "pin-shake" : ""}`}
+          className={`flex gap-3 ${shake ? "animate-shake" : ""}`}
           onClick={() => inputRef.current?.focus()}
         >
           {[0, 1, 2, 3].map((i) => (
             <div
               key={i}
-              className={`w-12 h-14 rounded-xl border-2 flex items-center justify-center text-2xl font-extrabold transition-all duration-150 ${
+              className={`w-14 h-16 rounded-2xl border-[3px] flex items-center justify-center text-2xl font-baloo font-extrabold transition-all duration-150 ${
                 i < digits.length
-                  ? "border-indigo-600 bg-indigo-50 text-indigo-700"
-                  : "border-slate-300 bg-white text-transparent"
+                  ? "border-amber-500 bg-amber-50 text-amber-800 shadow-[0_3px_0_#fde68a]"
+                  : "border-amber-200 bg-white text-transparent shadow-[0_3px_0_#e5e7eb]"
               }`}
             >
               {digits[i] ? "●" : ""}
@@ -176,15 +164,15 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
         </div>
       )}
 
-      {/* Error message */}
+      {/* Error */}
       {error && (
-        <p className="text-center text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-2xl px-4 py-2 w-full">
+        <div className="text-center text-sm font-nunito font-bold text-red-800 bg-red-50 border-2 border-red-200 rounded-2xl px-4 py-2 w-full animate-slideUp">
           {error}
-        </p>
+        </div>
       )}
 
-      {/* Numeric keypad */}
-      <div className="grid grid-cols-3 gap-3 w-full">
+      {/* Keypad */}
+      <div className="grid grid-cols-3 gap-2.5 w-full">
         {keypadKeys.flat().map((key) => {
           if (key === "back") {
             return (
@@ -192,8 +180,8 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
                 key="back"
                 onClick={onBack}
                 disabled={loading}
-                className="h-14 rounded-2xl bg-slate-100 text-slate-500 font-semibold text-sm
-                           shadow-[0_4px_0_#cbd5e1] hover:brightness-95
+                className="h-14 rounded-2xl bg-amber-100 text-amber-700 font-baloo font-bold text-sm
+                           shadow-[0_4px_0_#fde68a] hover:brightness-95
                            active:translate-y-[4px] active:shadow-none
                            disabled:opacity-50 disabled:cursor-not-allowed
                            transition-all duration-75"
@@ -209,8 +197,8 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
                 key="backspace"
                 onClick={backspace}
                 disabled={loading}
-                className="h-14 rounded-2xl bg-slate-100 text-slate-600 font-semibold
-                           shadow-[0_4px_0_#cbd5e1] hover:brightness-95
+                className="h-14 rounded-2xl bg-amber-100 text-amber-700 font-semibold
+                           shadow-[0_4px_0_#fde68a] hover:brightness-95
                            active:translate-y-[4px] active:shadow-none
                            disabled:opacity-50 disabled:cursor-not-allowed
                            transition-all duration-75 flex items-center justify-center"
@@ -225,8 +213,8 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
               key={key}
               onClick={() => pressDigit(key)}
               disabled={loading || digits.length >= 4}
-              className="h-14 rounded-2xl bg-indigo-600 text-white font-extrabold text-xl
-                         shadow-[0_4px_0_#3730a3] hover:brightness-110
+              className="h-14 rounded-2xl bg-gradient-to-b from-amber-800 to-amber-950 text-white font-baloo font-extrabold text-xl
+                         shadow-[0_4px_0_#78350f] hover:brightness-110
                          active:translate-y-[4px] active:shadow-none
                          disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0
                          transition-all duration-75"
@@ -237,13 +225,14 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
         })}
       </div>
 
-      {/* Let's Go Button — Enabled only when 4 digits entered */}
+      {/* Submit */}
       <button
         onClick={() => submitPin(digits.join(""))}
         disabled={digits.length !== 4 || loading}
-        className="w-full h-14 rounded-2xl bg-green-500 text-white font-extrabold text-lg
-                   shadow-[0_4px_0_#15803d] hover:brightness-110
-                   active:translate-y-[4px] active:shadow-none
+        className="w-full h-14 rounded-2xl bg-gradient-to-r from-emerald-700 to-emerald-500 text-white font-baloo font-extrabold text-lg
+                   shadow-[0_6px_0_#064e3b,0_10px_24px_rgba(5,150,105,0.3)]
+                   hover:brightness-110
+                   active:translate-y-[4px] active:shadow-[0_2px_0_#064e3b]
                    disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0 disabled:brightness-100
                    transition-all duration-75"
         aria-label="Enter classroom"

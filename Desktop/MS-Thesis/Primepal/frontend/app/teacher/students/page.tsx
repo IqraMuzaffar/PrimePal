@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, Suspense } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { GraduationCap, FileText, ChevronRight, AlertCircle, RefreshCw, UserPlus, Pencil, Trash2, Lock } from "lucide-react";
 import { motion } from "framer-motion";
