@@ -39,6 +39,7 @@ from app.agents.tutor_agent.mission_generator import (
     generate_pillar_missions,
 )
 from app.utils.performance_profile import get_student_performance_profile, invalidate_performance_cache
+from app.utils.pregenerate_missions import _build_generic_cache_key
 from app.api.v1.endpoints.rewards import invalidate_rewards_cache
 from app.api.v1.endpoints.student_scores import invalidate_scores_cache
 
@@ -660,8 +661,59 @@ async def get_student_profile(
 # GET /pillar (Feature 3: Pillar-based Missions)
 # ---------------------------------------------------------------------------
 
+async def _generate_personalized_missions(
+    student_id: str,
+    classroom_id: str,
+    pillar: str,
+    grade_level: int,
+    active_topic_names: list[str],
+    student_weaknesses: list[str],
+    performance_profile: dict | None,
+    cache_key: str,
+) -> None:
+    """Background task: generate personalized pillar missions and cache them."""
+    try:
+        missions = await generate_pillar_missions(
+            pillar=pillar,
+            grade_level=grade_level,
+            active_topics=active_topic_names,
+            student_id=student_id,
+            student_weaknesses=student_weaknesses,
+            is_frustrated=False,
+            performance_profile=performance_profile,
+        )
+        if not missions:
+            return
+
+        weakness_focus_count = sum(
+            1 for q in missions if q.get("is_weakness_focused", False)
+        )
+
+        mission_questions = []
+        for q in missions:
+            if isinstance(q, dict):
+                q_filtered = {k: v for k, v in q.items() if k != "is_weakness_focused"}
+                if "type" in q_filtered and "task_type" not in q_filtered:
+                    q_filtered["task_type"] = q_filtered.pop("type")
+                mission_questions.append(MissionQuestion(**q_filtered))
+            else:
+                mission_questions.append(q)
+
+        response = PillarMissionsResponse(
+            pillar=pillar,
+            active_topics_summary=", ".join(active_topic_names) if active_topic_names else None,
+            questions=[_strip_answer(q) for q in mission_questions],
+            weakness_focus_questions=weakness_focus_count,
+        )
+        await cache_set(cache_key, response.model_dump(), ttl=3600)
+        logger.info("Background personalization cached for student %s pillar %s", student_id, pillar)
+    except Exception as exc:
+        logger.error("Background personalization failed for student %s pillar %s: %s", student_id, pillar, exc)
+
+
 @router.get("/pillar", response_model=PillarMissionsResponse, summary="Get missions for specific pillar")
 async def get_pillar_missions(
+    background_tasks: BackgroundTasks,
     pillar: str = Query(..., description="Pillar type: reading, writing, listening, speaking"),
     is_frustrated: bool = Query(False, description="If True, generate 'Confidence Builder' questions to recover affective state"),
     student: dict = Depends(get_current_student),
@@ -755,10 +807,24 @@ async def get_pillar_missions(
     # ------------------------------------------------------------------
     cache_key = make_cache_key("pillar_missions", student_id, pillar, str(is_frustrated), topics_hash)
     if not is_frustrated:
+        # Check student-specific cache first
         cached = await cache_get(cache_key)
         if cached:
-            logger.info(f"Cache hit for pillar missions: {cache_key}")
+            logger.info(f"Cache hit for pillar missions (student): {cache_key}")
             return PillarMissionsResponse(**cached)
+
+        # Fallback: check generic classroom-level cache (pre-generated)
+        generic_key = _build_generic_cache_key(classroom_id, pillar, topics_hash)
+        generic_cached = await cache_get(generic_key)
+        if generic_cached:
+            logger.info(f"Cache hit for pillar missions (generic): {generic_key}")
+            background_tasks.add_task(
+                _generate_personalized_missions,
+                student_id, classroom_id, pillar, grade_level,
+                active_topic_names, student_weaknesses, performance_profile,
+                cache_key,
+            )
+            return PillarMissionsResponse(**generic_cached)
 
     # ------------------------------------------------------------------
     # Step 4: Generate pillar missions via mission generator

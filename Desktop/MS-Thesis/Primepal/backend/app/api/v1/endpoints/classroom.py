@@ -17,7 +17,7 @@ Feature 15: SNC Pacing Calendar
 """
 from typing import List, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.core.security import get_current_teacher
@@ -509,6 +509,7 @@ async def get_classroom_active_topics(
 async def update_classroom_active_topics(
     classroom_id: str,
     body: ActiveTopicsUpdate,
+    background_tasks: BackgroundTasks,
     teacher: dict = Depends(get_current_teacher),
 ):
     """
@@ -518,7 +519,11 @@ async def update_classroom_active_topics(
     Any authenticated teacher can update topic selections.
     """
     supabase = get_supabase_admin()
-    return await save_active_topics(classroom_id, body.topic_ids, supabase)
+    result = await save_active_topics(classroom_id, body.topic_ids, supabase)
+
+    from app.utils.pregenerate_missions import pregenerate_pillar_missions
+    background_tasks.add_task(pregenerate_pillar_missions, classroom_id)
+    return result
 
 
 @router.get("/{classroom_id}/topics-by-skill", response_model=TopicsBySkillResponse)
