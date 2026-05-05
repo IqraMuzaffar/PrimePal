@@ -63,6 +63,8 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
     localStorage.removeItem("primepal_student_token");
     localStorage.removeItem("primepal_student_name");
     localStorage.removeItem("primepal_student_avatar");
+    sessionStorage.removeItem("primepal_chat_messages");
+    sessionStorage.removeItem("primepal_chat_nextid");
     queryClient.clear();
     router.push("/student/play");
   }

@@ -11,6 +11,9 @@ interface Message {
   urduText?: string;
 }
 
+const CHAT_STORAGE_KEY = "primepal_chat_messages";
+const CHAT_NEXTID_KEY = "primepal_chat_nextid";
+
 export default function ChatPage() {
   const [studentName, setStudentName] = useState<string>("there");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -22,10 +25,29 @@ export default function ChatPage() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const nextId = useRef(1);
 
+  // Restore chat history from sessionStorage on mount
   useEffect(() => {
     const name = localStorage.getItem("primepal_student_name");
     const displayName = name && name.trim() ? name.trim() : "there";
     setStudentName(displayName);
+
+    const saved = sessionStorage.getItem(CHAT_STORAGE_KEY);
+    const savedNextId = sessionStorage.getItem(CHAT_NEXTID_KEY);
+
+    if (saved) {
+      try {
+        const parsed: Message[] = JSON.parse(saved);
+        if (parsed.length > 0) {
+          setMessages(parsed);
+          nextId.current = savedNextId ? parseInt(savedNextId, 10) : parsed[parsed.length - 1].id + 1;
+          return;
+        }
+      } catch {
+        // Corrupted data — fall through to default
+      }
+    }
+
+    // No saved history — show welcome message
     setMessages([
       {
         id: nextId.current++,
@@ -34,6 +56,14 @@ export default function ChatPage() {
       },
     ]);
   }, []);
+
+  // Persist messages to sessionStorage whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+      sessionStorage.setItem(CHAT_NEXTID_KEY, String(nextId.current));
+    }
+  }, [messages]);
 
   useEffect(() => {
     if (phase === "streaming") {
