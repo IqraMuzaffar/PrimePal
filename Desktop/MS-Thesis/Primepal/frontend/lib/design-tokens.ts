@@ -43,6 +43,7 @@ export const designTokens = {
   },
 
   typography: {
+    // Using Geist (already in project) to mimic DM Sans/Space Grotesk from designs
     heading: 'var(--font-geist-sans)',
     body: 'var(--font-geist-sans)',
 
@@ -67,6 +68,17 @@ export const designTokens = {
   },
 
   spacing: {
+    // Atomic spacing
+    xs: '4px',
+    sm: '8px',
+    md: '12px',
+    base: '16px',
+    lg: '20px',
+    xl: '24px',
+    '2xl': '32px',
+    '3xl': '40px',
+
+    // Compound padding (legacy from designs)
     card: '18px 20px',
     section: '22px 26px',
   },
@@ -81,14 +93,14 @@ export const designTokens = {
       base: '0.18s',
       slow: '0.22s cubic-bezier(.4,0,.2,1)',
     },
+  },
 
-    borderRadius: {
-      sm: '8px',
-      base: '10px',
-      md: '12px',
-      lg: '14px',
-      xl: '16px',
-    },
+  borderRadius: {
+    sm: '8px',
+    base: '10px',
+    md: '12px',
+    lg: '14px',
+    xl: '16px',
   },
 } as const;
 
