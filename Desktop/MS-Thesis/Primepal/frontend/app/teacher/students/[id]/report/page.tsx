@@ -342,20 +342,10 @@ export default function StudentReportPage() {
         {/* Student identity card */}
         <div className="bg-white rounded-3xl shadow-md p-8 mb-8">
           <div className="flex items-center gap-6">
-            <div className="w-24 h-24 rounded-full overflow-hidden bg-slate-100 flex-shrink-0">
-              {report.avatar_url ? (
-                <Image
-                  src={report.avatar_url}
-                  alt={report.student_name}
-                  width={96}
-                  height={96}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-indigo-600 bg-indigo-100">
-                  {report.student_name[0]}
-                </div>
-              )}
+            <div className="w-24 h-24 rounded-full overflow-hidden bg-indigo-100 flex-shrink-0">
+              <div className="w-full h-full flex items-center justify-center text-3xl font-bold text-indigo-600">
+                {report.student_name[0]}
+              </div>
             </div>
             <div className="flex-1">
               <h2 className="text-2xl font-extrabold text-slate-800">{report.student_name}</h2>

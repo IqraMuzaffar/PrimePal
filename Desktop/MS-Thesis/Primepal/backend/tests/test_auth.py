@@ -297,51 +297,51 @@ class TestPatchStudentProfile:
         return create_student_token(student_id="stu-1", classroom_id="cls-1")
 
     def test_update_avatar_style_and_color(self, client):
+        """Avatar customization disabled - endpoint returns default values."""
         import asyncio
-        mock_sb = MagicMock()
-        mock_sb.table.return_value.update.return_value.eq.return_value.execute.return_value = MagicMock()
-        mock_result = MagicMock()
-        mock_result.data = {"avatar_style": "bottts", "theme_color": "#8b5cf6"}
-        (mock_sb.table.return_value.select.return_value
-         .eq.return_value.maybe_single.return_value.execute.return_value) = mock_result
-
-        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
-            response = asyncio.get_event_loop().run_until_complete(
-                client.patch(
-                    "/api/v1/auth/student/profile",
-                    json={"avatar_style": "bottts", "theme_color": "#8b5cf6"},
-                    headers={"Authorization": f"Bearer {self._token()}"},
-                )
+        response = asyncio.get_event_loop().run_until_complete(
+            client.patch(
+                "/api/v1/auth/student/profile",
+                json={"avatar_style": "bottts", "theme_color": "#8b5cf6"},
+                headers={"Authorization": f"Bearer {self._token()}"},
             )
+        )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["avatar_style"] == "bottts"
-        assert data["theme_color"] == "#8b5cf6"
+        # Feature disabled - returns default values regardless of input
+        assert data["avatar_style"] == "adventurer"
+        assert data["theme_color"] == "#6366f1"
 
     def test_rejects_invalid_style(self, client):
+        """Feature disabled - no longer validates style, returns default."""
         import asyncio
-        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=MagicMock()):
-            response = asyncio.get_event_loop().run_until_complete(
-                client.patch(
-                    "/api/v1/auth/student/profile",
-                    json={"avatar_style": "hacker-style"},
-                    headers={"Authorization": f"Bearer {self._token()}"},
-                )
+        response = asyncio.get_event_loop().run_until_complete(
+            client.patch(
+                "/api/v1/auth/student/profile",
+                json={"avatar_style": "hacker-style"},
+                headers={"Authorization": f"Bearer {self._token()}"},
             )
-        assert response.status_code == 422
+        )
+        # Feature disabled - accepts any input but returns defaults
+        assert response.status_code == 200
+        data = response.json()
+        assert data["avatar_style"] == "adventurer"
 
     def test_rejects_invalid_hex_color(self, client):
+        """Feature disabled - no longer validates color, returns default."""
         import asyncio
-        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=MagicMock()):
-            response = asyncio.get_event_loop().run_until_complete(
-                client.patch(
-                    "/api/v1/auth/student/profile",
-                    json={"theme_color": "red"},
-                    headers={"Authorization": f"Bearer {self._token()}"},
-                )
+        response = asyncio.get_event_loop().run_until_complete(
+            client.patch(
+                "/api/v1/auth/student/profile",
+                json={"theme_color": "red"},
+                headers={"Authorization": f"Bearer {self._token()}"},
             )
-        assert response.status_code == 422
+        )
+        # Feature disabled - accepts any input but returns defaults
+        assert response.status_code == 200
+        data = response.json()
+        assert data["theme_color"] == "#6366f1"
 
     def test_requires_auth(self, client):
         import asyncio

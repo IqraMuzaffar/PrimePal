@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
 import { useStudentLeaderboard } from "@/lib/hooks/queries";
 
@@ -96,21 +95,11 @@ export default function LeaderboardPage() {
                           : "from-orange-200 to-orange-300"
                       }`}
                     >
-                      {/* Avatar */}
+                      {/* Initial */}
                       <div className="mb-2">
-                        {entry.avatar_url ? (
-                          <Image
-                            src={entry.avatar_url}
-                            alt={entry.student_name}
-                            width={40}
-                            height={40}
-                            className="rounded-full border-2 border-white"
-                          />
-                        ) : (
-                          <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm border-2 border-white">
-                            {entry.student_name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
+                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm border-2 border-white">
+                          {entry.student_name.charAt(0).toUpperCase()}
+                        </div>
                       </div>
 
                       {/* Rank */}
@@ -160,21 +149,11 @@ export default function LeaderboardPage() {
                       </span>
                     </div>
 
-                    {/* Avatar */}
+                    {/* Initial */}
                     <div>
-                      {entry.avatar_url ? (
-                        <Image
-                          src={entry.avatar_url}
-                          alt={entry.student_name}
-                          width={40}
-                          height={40}
-                          className="rounded-full border-2 border-gray-200"
-                        />
-                      ) : (
-                        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm border-2 border-gray-200">
-                          {entry.student_name.charAt(0).toUpperCase()}
-                        </div>
-                      )}
+                      <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm border-2 border-gray-200">
+                        {entry.student_name.charAt(0).toUpperCase()}
+                      </div>
                     </div>
 
                     {/* Name */}

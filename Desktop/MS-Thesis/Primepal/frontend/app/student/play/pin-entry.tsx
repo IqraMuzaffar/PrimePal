@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { Loader2, Delete } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 
@@ -52,7 +51,6 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
       });
       localStorage.setItem("primepal_student_token", data.access_token);
       localStorage.setItem("primepal_student_name", avatar.student_name);
-      localStorage.setItem("primepal_student_avatar", avatar.avatar_url);
       router.push("/student/home");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
@@ -117,19 +115,10 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
 
   return (
     <div className="w-full flex flex-col items-center gap-6">
-      {/* Avatar + name */}
+      {/* Student name */}
       <div className="flex flex-col items-center gap-2">
-        <div
-          className="w-20 h-20 rounded-full ring-4 ring-offset-2 overflow-hidden bg-slate-50"
-          style={{ "--tw-ring-color": avatar.theme_color } as React.CSSProperties}
-        >
-          <Image
-            src={avatar.avatar_url}
-            alt={avatar.student_name}
-            width={80}
-            height={80}
-            className="w-full h-full object-cover"
-          />
+        <div className="w-20 h-20 rounded-full bg-indigo-100 flex items-center justify-center border-4 border-indigo-200">
+          <span className="text-4xl">🎓</span>
         </div>
         <p className="text-base font-bold text-slate-800">{avatar.student_name}</p>
         <p className="text-sm text-slate-500">Enter your Secret PIN</p>

@@ -252,19 +252,9 @@ export default function AnalyticsByStudent({
                   <tr key={student.student_id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
-                        {student.avatar_url ? (
-                          <Image
-                            src={student.avatar_url}
-                            alt={student.student_name}
-                            width={32}
-                            height={32}
-                            className="rounded-full bg-gray-100"
-                          />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
-                            {student.student_name.charAt(0).toUpperCase()}
-                          </div>
-                        )}
+                        <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                          {student.student_name.charAt(0).toUpperCase()}
+                        </div>
                         <div>
                           <span className="text-gray-900 font-medium">{student.student_name}</span>
                           {(student.current_streak ?? 0) > 0 && (

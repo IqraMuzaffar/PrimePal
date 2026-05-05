@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import Image from "next/image";
 import { useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useStudentProfile, useStreak, queryKeys } from "@/lib/hooks/queries";
@@ -122,19 +121,6 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
 
             {!loading && profile && (
               <>
-                {profile.avatar_url ? (
-                  <Image
-                    src={profile.avatar_url}
-                    alt={profile.student_name}
-                    width={32}
-                    height={32}
-                    className="rounded-full border-2 border-indigo-200 shadow-sm"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full border-2 border-indigo-200 bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">
-                    {profile.student_name.charAt(0).toUpperCase()}
-                  </div>
-                )}
                 <StreakCounter
                   currentStreak={streak?.current_streak ?? 0}
                   longestStreak={streak?.longest_streak ?? 0}

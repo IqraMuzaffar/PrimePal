@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Image from "next/image";
 import { motion } from "framer-motion";
 import {
   useStudentProfile,
@@ -26,10 +25,6 @@ const QUOTES = [
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
-
-function dicebearUrl(style: string, seed: string) {
-  return `https://api.dicebear.com/7.x/${style}/svg?seed=${encodeURIComponent(seed)}`;
-}
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
@@ -127,9 +122,6 @@ export default function HomePage() {
     ?? (typeof window !== "undefined" ? localStorage.getItem("primepal_student_name") : null)
     ?? "Champion";
 
-  // Resolve avatar URL: prefer profile value, fall back to generated dicebear
-  const resolvedAvatarUrl = profile?.avatar_url || dicebearUrl("adventurer", name);
-
   return (
     <div className="max-w-md mx-auto space-y-6 pb-10">
 
@@ -166,11 +158,7 @@ export default function HomePage() {
               </div>
             )}
             <div className="flex flex-col items-center bg-white/20 rounded-2xl px-4 py-3 border-2 border-white/30">
-              {resolvedAvatarUrl ? (
-                <Image src={resolvedAvatarUrl} alt={name} width={48} height={48} className="rounded-full border-2 border-white/60 mb-1" />
-              ) : (
-                <span className="text-3xl leading-none mb-1">⭐</span>
-              )}
+              <span className="text-4xl leading-none mb-1">⭐</span>
               <span className="text-white font-extrabold text-2xl leading-tight">{points}</span>
               <span className="text-white/70 text-xs font-semibold">Stars</span>
             </div>
