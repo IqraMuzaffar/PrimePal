@@ -730,3 +730,137 @@ class TestFeature7Translation:
 
         mock_chain.ainvoke.assert_called_once_with({"query": "Noun kya hota hai?"})
         assert result == "What is a noun?"
+
+
+# ── Conversation History Tests ───────────────────────────────────────────────
+
+class TestConversationHistory:
+    """Tests for conversation history support in chat endpoints."""
+
+    pytestmark = pytest.mark.asyncio
+
+    @pytest.fixture(autouse=True)
+    def _override_student_auth(self):
+        from app.core.security import get_current_student
+        from app.main import app
+
+        app.dependency_overrides[get_current_student] = lambda: MOCK_STUDENT_GRADE_3
+        yield
+        app.dependency_overrides.clear()
+
+    async def test_history_passed_to_guardrailed_response(self, client: AsyncClient):
+        """When history is provided, it must be forwarded to get_guardrailed_response."""
+        llm_mock = AsyncMock(return_value=_make_tutor_response_mock())
+
+        with (
+            patch(
+                "app.api.v1.endpoints.chat.get_supabase_admin",
+                return_value=_make_classroom_supabase_mock(grade_level=3),
+            ),
+            patch(
+                "app.api.v1.endpoints.chat.translate_to_english",
+                new=AsyncMock(return_value="Give me more examples"),
+            ),
+            patch(
+                "app.api.v1.endpoints.chat.retrieve_grade_filtered_chunks",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.api.v1.endpoints.chat.get_guardrailed_response",
+                new=llm_mock,
+            ),
+        ):
+            resp = await client.post(
+                "/api/v1/chat",
+                json={
+                    "message": "Give me more examples",
+                    "history": [
+                        {"role": "student", "content": "What is a noun?"},
+                        {"role": "tutor", "content": "A noun is a naming word!"},
+                    ],
+                },
+                headers={"Authorization": "Bearer fake-student-token"},
+            )
+
+        assert resp.status_code == 200
+        llm_mock.assert_called_once()
+        _, kwargs = llm_mock.call_args
+        assert "history" in kwargs
+        assert len(kwargs["history"]) == 2
+
+    async def test_empty_history_is_valid(self, client: AsyncClient):
+        """Request with empty history array must work (backwards compatible)."""
+        with (
+            patch(
+                "app.api.v1.endpoints.chat.get_supabase_admin",
+                return_value=_make_classroom_supabase_mock(grade_level=3),
+            ),
+            patch(
+                "app.api.v1.endpoints.chat.translate_to_english",
+                new=AsyncMock(return_value="Hello"),
+            ),
+            patch(
+                "app.api.v1.endpoints.chat.retrieve_grade_filtered_chunks",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.api.v1.endpoints.chat.get_guardrailed_response",
+                new=AsyncMock(return_value=_make_tutor_response_mock()),
+            ),
+        ):
+            resp = await client.post(
+                "/api/v1/chat",
+                json={"message": "Hello", "history": []},
+                headers={"Authorization": "Bearer fake-student-token"},
+            )
+
+        assert resp.status_code == 200
+
+    async def test_no_history_field_is_backwards_compatible(self, client: AsyncClient):
+        """Request without history field must still work (old clients)."""
+        with (
+            patch(
+                "app.api.v1.endpoints.chat.get_supabase_admin",
+                return_value=_make_classroom_supabase_mock(grade_level=3),
+            ),
+            patch(
+                "app.api.v1.endpoints.chat.translate_to_english",
+                new=AsyncMock(return_value="Hello"),
+            ),
+            patch(
+                "app.api.v1.endpoints.chat.retrieve_grade_filtered_chunks",
+                new=AsyncMock(return_value=[]),
+            ),
+            patch(
+                "app.api.v1.endpoints.chat.get_guardrailed_response",
+                new=AsyncMock(return_value=_make_tutor_response_mock()),
+            ),
+        ):
+            resp = await client.post(
+                "/api/v1/chat",
+                json={"message": "Hello"},
+                headers={"Authorization": "Bearer fake-student-token"},
+            )
+
+        assert resp.status_code == 200
+
+    async def test_history_capped_at_10_messages(self, client: AsyncClient):
+        """History with more than 10 items must be rejected (422)."""
+        long_history = [
+            {"role": "student" if i % 2 == 0 else "tutor", "content": f"msg {i}"}
+            for i in range(12)
+        ]
+
+        with (
+            patch(
+                "app.api.v1.endpoints.chat.get_supabase_admin",
+                return_value=_make_classroom_supabase_mock(grade_level=3),
+            ),
+        ):
+            resp = await client.post(
+                "/api/v1/chat",
+                json={"message": "Hello", "history": long_history},
+                headers={"Authorization": "Bearer fake-student-token"},
+            )
+
+        assert resp.status_code == 422

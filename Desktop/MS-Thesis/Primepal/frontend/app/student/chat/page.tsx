@@ -11,21 +11,43 @@ interface Message {
   urduText?: string;
 }
 
+const CHAT_STORAGE_KEY = "primepal_chat_messages";
+const CHAT_NEXTID_KEY = "primepal_chat_nextid";
+
 export default function ChatPage() {
   const [studentName, setStudentName] = useState<string>("there");
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState<"idle" | "thinking" | "streaming">("idle");
   const [showUrdu, setShowUrdu] = useState<Set<number>>(new Set());
   const [loadingUrdu, setLoadingUrdu] = useState<Set<number>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const nextId = useRef(1);
 
+  // Restore chat history from sessionStorage on mount
   useEffect(() => {
     const name = localStorage.getItem("primepal_student_name");
     const displayName = name && name.trim() ? name.trim() : "there";
     setStudentName(displayName);
+
+    const saved = sessionStorage.getItem(CHAT_STORAGE_KEY);
+    const savedNextId = sessionStorage.getItem(CHAT_NEXTID_KEY);
+
+    if (saved) {
+      try {
+        const parsed: Message[] = JSON.parse(saved);
+        if (parsed.length > 0) {
+          setMessages(parsed);
+          nextId.current = savedNextId ? parseInt(savedNextId, 10) : parsed[parsed.length - 1].id + 1;
+          return;
+        }
+      } catch {
+        // Corrupted data — fall through to default
+      }
+    }
+
+    // No saved history — show welcome message
     setMessages([
       {
         id: nextId.current++,
@@ -35,9 +57,24 @@ export default function ChatPage() {
     ]);
   }, []);
 
+  // Persist messages to sessionStorage whenever they change
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+    if (messages.length > 0) {
+      sessionStorage.setItem(CHAT_STORAGE_KEY, JSON.stringify(messages));
+      sessionStorage.setItem(CHAT_NEXTID_KEY, String(nextId.current));
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    if (phase === "streaming") {
+      const frame = requestAnimationFrame(() => {
+        bottomRef.current?.scrollIntoView({ behavior: "auto" });
+      });
+      return () => cancelAnimationFrame(frame);
+    } else {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, phase]);
 
   function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setInput(e.target.value);
@@ -50,7 +87,7 @@ export default function ChatPage() {
 
   async function sendMessage() {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || phase !== "idle") return;
 
     const studentMsg: Message = { id: nextId.current++, role: "student", text };
     setMessages((prev) => [...prev, studentMsg]);
@@ -60,7 +97,7 @@ export default function ChatPage() {
       textareaRef.current.style.height = "auto";
     }
 
-    setLoading(true);
+    setPhase("thinking");
 
     const tutorMsgId = nextId.current++;
     setMessages((prev) => [
@@ -72,6 +109,13 @@ export default function ChatPage() {
       process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
     const token = localStorage.getItem("primepal_student_token");
 
+    // Build history from recent messages (last 10, excluding the just-added student msg)
+    const recentMessages = messages.slice(-10);
+    const history = recentMessages.map((m) => ({
+      role: m.role === "student" ? "student" : "tutor",
+      content: m.text,
+    }));
+
     try {
       const response = await fetch(`${BASE_URL}/chat/stream`, {
         method: "POST",
@@ -79,7 +123,7 @@ export default function ChatPage() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ message: text }),
+        body: JSON.stringify({ message: text, history }),
       });
 
       if (!response.ok || !response.body) throw new Error("Stream failed");
@@ -108,10 +152,19 @@ export default function ChatPage() {
           try {
             const data = JSON.parse(line.slice(6));
             if (data.type === "token") {
+              setPhase("streaming");
               setMessages((prev) =>
                 prev.map((msg) =>
                   msg.id === tutorMsgId
                     ? { ...msg, text: msg.text + data.content }
+                    : msg
+                )
+              );
+            } else if (data.type === "error") {
+              setMessages((prev) =>
+                prev.map((msg) =>
+                  msg.id === tutorMsgId
+                    ? { ...msg, text: data.content }
                     : msg
                 )
               );
@@ -130,7 +183,7 @@ export default function ChatPage() {
         )
       );
     } finally {
-      setLoading(false);
+      setPhase("idle");
     }
   }
 
@@ -275,13 +328,13 @@ export default function ChatPage() {
         ))}
 
         {/* Typing indicator */}
-        {loading && (
+        {phase === "thinking" && (
           <div className="flex flex-col items-start">
             <div className="flex items-center gap-1.5 mb-1 px-1">
               <div className="w-5 h-5 rounded-full bg-gradient-to-br from-yellow-400 to-orange-400 flex items-center justify-center text-white text-[10px] font-bold">
                 P
               </div>
-              <span className="text-xs text-gray-400">PrimePal</span>
+              <span className="text-xs text-gray-400">PrimePal is thinking...</span>
             </div>
             <div className="bg-white border-2 border-yellow-200 rounded-2xl rounded-tl-sm shadow-sm self-start">
               <div className="flex gap-1 items-center px-4 py-3">
@@ -304,7 +357,7 @@ export default function ChatPage() {
           value={input}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          disabled={loading}
+          disabled={phase !== "idle"}
           placeholder="Ask me anything in English or Roman Urdu!"
           className="flex-1 resize-none rounded-2xl border-2 border-yellow-300 px-4 py-2 text-base focus:outline-none focus:border-orange-400 disabled:opacity-50 transition-all leading-6"
           style={{ minHeight: "40px", maxHeight: "88px" }}
@@ -312,13 +365,13 @@ export default function ChatPage() {
         />
         <motion.button
           onClick={sendMessage}
-          disabled={loading || input.trim().length === 0}
-          whileHover={!loading && input.trim().length > 0 ? { scale: 1.05 } : undefined}
-          whileTap={!loading && input.trim().length > 0 ? { scale: 0.95 } : undefined}
+          disabled={phase !== "idle" || input.trim().length === 0}
+          whileHover={phase === "idle" && input.trim().length > 0 ? { scale: 1.05 } : undefined}
+          whileTap={phase === "idle" && input.trim().length > 0 ? { scale: 0.95 } : undefined}
           className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2 rounded-2xl disabled:opacity-50 transition-all whitespace-nowrap"
           aria-label="Send message"
         >
-          {loading ? (
+          {phase !== "idle" ? (
             <span className="flex items-center gap-1">
               <svg
                 className="animate-spin h-4 w-4 text-white"

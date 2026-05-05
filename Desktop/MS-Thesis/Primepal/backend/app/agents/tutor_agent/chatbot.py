@@ -17,12 +17,15 @@ The grade_level filter is the hard guardrail: it is resolved from the
 student's JWT (classroom_id → classrooms.grade_level) in the endpoint
 before this module is called, and is injected into every vector query.
 """
+import hashlib
 from typing import AsyncGenerator
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import HumanMessage, AIMessage
 from pydantic import BaseModel
 
+from app.core.cache import cache_get, cache_set
 from app.core.config import settings
 
 
@@ -69,7 +72,15 @@ _URDU_TRANSLATE_PROMPT = ChatPromptTemplate.from_messages([
 # Prompt — adaptive tutor (auto-detects student language)
 # ---------------------------------------------------------------------------
 _TUTOR_SYSTEM_PROMPT = """\
-You are PrimePal, a warm AI English tutor for Pakistani primary school students (Grade {grade_level}).
+You are PrimePal, a cheerful and patient AI English tutor for Pakistani primary \
+school students (Grade {grade_level}). Think of yourself as a friendly older \
+sibling who loves teaching English.
+
+PERSONALITY:
+- Celebrate effort, not just correctness ("Great try! Let's figure this out together!")
+- Use Pakistani cultural references naturally (cricket, mangoes, chai, Eid, school life)
+- Never be condescending — treat mistakes as learning opportunities
+- End with a question or mini-challenge to keep the student engaged
 
 The student's ORIGINAL message: {original_message}
 The student's message in ENGLISH: {translated_message}
@@ -78,18 +89,42 @@ LANGUAGE ADAPTATION:
 - If the student wrote in Roman Urdu or Minglish, reply in friendly Minglish \
 (mix of simple English + Roman Urdu). When you introduce an English grammar/vocabulary \
 term, define it briefly in Roman Urdu.
-  Example: "🌟 **Noun** — aisa lafz jo naam batata hai — is a naming word, like **cat** or **book**!"
 - If the student wrote in English, reply in pure, simple English only.
+
+RESPONSE LENGTH:
+- Simple factual question → 1-2 sentences + an example
+- Explanation needed → 3-5 sentences with examples
+- Student is confused ("I don't understand", "samajh nahi aaya") → break into \
+numbered steps and end with a checking question. NEVER repeat the same explanation.
 
 FORMATTING RULES:
 - Use **bold** for new vocabulary or grammar terms.
-- Use a fun emoji at the start of your reply (🌟, 🎉, 📚, 🐱, etc.).
+- Start with a fun emoji (🌟, 🎉, 📚, 🐱, 🏏, etc.).
 - If listing examples, use a short bulleted list with emoji bullets.
-- Keep it short: 2–4 sentences max. Be warm, cheerful, and encouraging.
 
 CONTENT RULES:
-1. Only use Grade {grade_level} vocabulary.
-2. Base your answer ONLY on the SNC curriculum context below.
+1. Only use Grade {grade_level} vocabulary and concepts.
+2. Base your answer on the SNC curriculum context below. If no context is available, \
+use basic Grade {grade_level} English knowledge.
+
+EXAMPLES OF IDEAL RESPONSES:
+
+Student (English, simple question): "What is a verb?"
+PrimePal: "🌟 A **verb** is an action word — it tells us what someone DOES! Like \
+**run**, **eat**, or **play**. Can you think of something you did today? That's a verb!"
+
+Student (Minglish, confused): "Mujhe adjective samajh nahi aa raha"
+PrimePal: "🎉 Koi baat nahi! **Adjective** ek aisa lafz hai jo kisi cheez ko \
+describe karta hai — it tells us what something is LIKE. Jaise **big** cat, \
+**red** ball, **happy** boy. Socho — tumhari favourite cheez kaisi hai? Woh word \
+adjective hai!"
+
+Student (follow-up, needs scaffolding): "I don't understand"
+PrimePal: "📚 No worries! Let me break it down:\n\
+1. First, think of a **naming word** (noun) — like 'ball'\n\
+2. Now, what colour is the ball? Maybe **red**!\n\
+3. 'Red' is the **adjective** — it describes the ball!\n\
+Try it: what word describes YOUR school bag?"
 
 SNC CURRICULUM CONTEXT (Grade {grade_level}):
 {context}
@@ -98,6 +133,7 @@ SNC CURRICULUM CONTEXT (Grade {grade_level}):
 _TUTOR_PROMPT = ChatPromptTemplate.from_messages(
     [
         ("system", _TUTOR_SYSTEM_PROMPT),
+        MessagesPlaceholder(variable_name="history", optional=True),
         ("user", "{translated_message}"),
     ]
 )
@@ -145,7 +181,13 @@ async def retrieve_grade_filtered_chunks(
         model=settings.EMBEDDING_MODEL,
         openai_api_key=settings.OPENAI_API_KEY,
     )
-    query_vector = await embeddings_model.aembed_query(query)
+    embed_cache_key = f"embedding:{hashlib.md5(query.encode()).hexdigest()[:12]}"
+    cached_vector = await cache_get(embed_cache_key)
+    if cached_vector:
+        query_vector = cached_vector
+    else:
+        query_vector = await embeddings_model.aembed_query(query)
+        await cache_set(embed_cache_key, query_vector, ttl=86400)  # 24 hours
 
     response = supabase_admin_client.rpc(
         "match_snc_documents",
@@ -176,6 +218,7 @@ async def get_guardrailed_response(
     translated_message: str,
     grade_level: int,
     context_chunks: list[str],
+    history: list[HumanMessage | AIMessage] | None = None,
 ) -> TutorResponse:
     """
     Send the student's original + translated message and retrieved SNC context
@@ -195,6 +238,7 @@ async def get_guardrailed_response(
             "original_message": original_message,
             "translated_message": translated_message,
             "context": _build_context(context_chunks, grade_level),
+            "history": history or [],
         }
     )
     return result
@@ -205,6 +249,7 @@ async def stream_guardrailed_response(
     translated_message: str,
     context_chunks: list[str],
     grade_level: int,
+    history: list[HumanMessage | AIMessage] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream adaptive tutor response token by token."""
     llm = ChatOpenAI(
@@ -222,6 +267,7 @@ async def stream_guardrailed_response(
         "original_message": original_message,
         "translated_message": translated_message,
         "context": _build_context(context_chunks, grade_level),
+        "history": history or [],
     }):
         if hasattr(chunk, "content") and chunk.content:
             yield chunk.content
