@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { studentFetch, getStudentClassroomId } from "../api-helpers";
+import { studentFetch } from "../api-helpers";
 import type { MissionQuestion } from "@/types/missions";
 
 export interface StudentProfile {

@@ -5,7 +5,7 @@ import QuestionTimer from './QuestionTimer';
 import TaskRouter from './tasks/TaskRouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MissionQuestion, getTimerSeconds } from '@/types/missions';
-import { Trophy, Star, ArrowRight } from 'lucide-react';
+import { Star, ArrowRight } from 'lucide-react';
 
 interface MissionGameplayProps {
   questions: MissionQuestion[];
@@ -21,17 +21,37 @@ export interface GameResult {
   points_value: number;
 }
 
+function Confetti() {
+  const colors = ['#f59e0b', '#10b981', '#3b82f6', '#f43f5e', '#a855f7', '#fbbf24'];
+  return (
+    <div className="fixed inset-0 pointer-events-none z-[200] overflow-hidden">
+      {Array.from({ length: 24 }).map((_, i) => (
+        <div
+          key={i}
+          className="absolute animate-confettiFall"
+          style={{
+            left: `${(i * 17 + 5) % 100}%`,
+            top: `${(i * 13) % 30}%`,
+            width: i % 3 === 0 ? 12 : 8,
+            height: i % 3 === 0 ? 12 : 8,
+            borderRadius: i % 2 === 0 ? '50%' : '2px',
+            background: colors[i % colors.length],
+            animationDelay: `${(i % 5) * 0.1}s`,
+            animationDuration: `${1.2 + (i % 4) * 0.3}s`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
 function ScorePopup({ points, isCorrect }: { points: number; isCorrect: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, scale: 0.3 }}
       animate={{ opacity: 1, scale: 1 }}
       exit={{ opacity: 0, scale: 0.3 }}
-      transition={{
-        type: "spring",
-        stiffness: 500,
-        damping: 20
-      }}
+      transition={{ type: "spring", stiffness: 500, damping: 20 }}
       className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none"
     >
       <motion.div
@@ -40,7 +60,7 @@ function ScorePopup({ points, isCorrect }: { points: number; isCorrect: boolean 
         transition={{ type: "tween", duration: 0.5 }}
         className={`${
           isCorrect
-            ? 'bg-gradient-to-br from-green-400 to-green-600'
+            ? 'bg-gradient-to-br from-emerald-400 to-emerald-600'
             : 'bg-gradient-to-br from-red-400 to-red-600'
         } text-white rounded-3xl p-8 shadow-2xl flex flex-col items-center gap-4`}
       >
@@ -50,13 +70,13 @@ function ScorePopup({ points, isCorrect }: { points: number; isCorrect: boolean 
           transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
           className="text-7xl"
         >
-          {isCorrect ? '⭐' : '❌'}
+          {isCorrect ? '🎉' : '💪'}
         </motion.div>
         <motion.div
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.3 }}
-          className="text-4xl font-black"
+          className="text-4xl font-baloo font-extrabold"
         >
           {isCorrect ? `+${points}` : '0'}
         </motion.div>
@@ -64,9 +84,9 @@ function ScorePopup({ points, isCorrect }: { points: number; isCorrect: boolean 
           initial={{ y: 10, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.4 }}
-          className="text-lg font-semibold"
+          className="text-lg font-baloo font-bold"
         >
-          {isCorrect ? 'Great Job! 🎉' : 'Try Again!'}
+          {isCorrect ? 'Correct! 🎉' : 'Good try!'}
         </motion.p>
       </motion.div>
     </motion.div>
@@ -90,45 +110,43 @@ function MissionSummary({ results, questions, onContinue }: {
   else if (pct >= 50) { message = 'Good effort!'; emoji = '👏'; }
 
   return (
-    <div className="h-[100dvh] bg-gradient-to-br from-slate-50 to-slate-100 flex items-center justify-center p-4">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="bg-white rounded-2xl p-8 shadow-xl max-w-md w-full text-center"
-      >
-        <div className="text-6xl mb-4">{emoji}</div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">{message}</h2>
-        <div className="flex items-center justify-center gap-2 mb-6">
-          <Trophy className="text-yellow-500" size={24} />
-          <span className="text-3xl font-black text-gray-800">{totalScore}</span>
-          <span className="text-lg text-gray-400">/ {maxScore}</span>
-        </div>
-        <p className="text-sm text-gray-500 mb-6">
-          {correctCount} of {results.length} correct
+    <div className="h-[100dvh] bg-cream flex items-center justify-center p-4">
+      <Confetti />
+      <div className="bg-white rounded-[28px] p-8 shadow-[0_8px_0_rgba(120,53,15,0.15),0_16px_48px_rgba(0,0,0,0.12)] border-2 border-amber-300 max-w-md w-full text-center animate-popIn">
+        <div className="text-7xl mb-4 animate-starBurst">{emoji}</div>
+        <h2 className="font-baloo text-3xl font-extrabold text-amber-950 mb-2">{message}</h2>
+        <p className="font-nunito font-semibold text-sm text-amber-700 mb-6">
+          You got {correctCount} out of {results.length} correct — {pct}%!
         </p>
 
-        <div className="grid grid-cols-5 gap-2 mb-6">
-          {results.map((r, i) => (
-            <div
-              key={i}
-              className={`w-10 h-10 rounded-lg flex items-center justify-center text-xs font-bold mx-auto ${
-                r.is_correct ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-500'
-              }`}
-            >
-              {r.is_correct ? `+${r.points_value}` : '0'}
-            </div>
-          ))}
+        <div className="flex gap-4 justify-center mb-6 flex-wrap">
+          <div className="bg-white rounded-[20px] p-4 border-2 border-amber-300 shadow-sm text-center min-w-[90px]">
+            <span className="text-3xl block mb-1">⭐</span>
+            <div className="font-baloo font-extrabold text-2xl text-amber-950">+{totalScore}</div>
+            <div className="font-nunito font-semibold text-xs text-amber-700">Stars earned</div>
+          </div>
+          <div className="bg-white rounded-[20px] p-4 border-2 border-emerald-300 shadow-sm text-center min-w-[90px]">
+            <span className="text-3xl block mb-1">✅</span>
+            <div className="font-baloo font-extrabold text-2xl text-emerald-800">{correctCount}/{results.length}</div>
+            <div className="font-nunito font-semibold text-xs text-emerald-600">Correct</div>
+          </div>
+          <div className="bg-white rounded-[20px] p-4 border-2 border-rose-300 shadow-sm text-center min-w-[90px]">
+            <span className="text-3xl block mb-1">🎯</span>
+            <div className="font-baloo font-extrabold text-2xl text-rose-800">{pct}%</div>
+            <div className="font-nunito font-semibold text-xs text-rose-600">Accuracy</div>
+          </div>
         </div>
 
-        <motion.button
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.95 }}
+        <button
           onClick={onContinue}
-          className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 flex items-center justify-center gap-2"
+          className="w-full py-3.5 bg-gradient-to-r from-amber-800 to-amber-600 text-white font-baloo font-extrabold text-lg rounded-[18px]
+                     shadow-[0_6px_0_#78350f,0_8px_20px_rgba(120,53,15,0.3)]
+                     hover:-translate-y-0.5 active:translate-y-[3px] active:shadow-[0_2px_0_#78350f]
+                     transition-all flex items-center justify-center gap-2"
         >
           Continue <ArrowRight size={18} />
-        </motion.button>
-      </motion.div>
+        </button>
+      </div>
     </div>
   );
 }
@@ -174,7 +192,6 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
     setShowFeedback(true);
     setLastScore({ points: isCorrect ? pointsValue : 0, isCorrect });
 
-    // Show feedback longer (2.5 seconds) so students can see the popup
     setTimeout(() => advance(newResults), 2500);
   }, [currentQuestion, taskType, results, advance]);
 
@@ -195,28 +212,37 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
   if (!currentQuestion) return null;
 
   return (
-    <div className="h-[100dvh] bg-gradient-to-br from-slate-50 to-slate-100 p-3 sm:p-6 flex flex-col overflow-hidden">
+    <div className="h-[100dvh] bg-cream p-3 sm:p-6 flex flex-col overflow-hidden">
       <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col">
-        {/* Progress + Score */}
-        <div className="mb-3 sm:mb-6 flex-shrink-0">
+        {/* Progress header */}
+        <div className="bg-amber-50 border-b-2 border-amber-200 rounded-t-2xl -mx-3 sm:-mx-6 px-4 sm:px-6 py-3 mb-3 flex-shrink-0">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-xs sm:text-sm font-semibold text-gray-700">
-              Question {currentIndex + 1} of {questions.length}
+            <span className="font-baloo font-extrabold text-sm text-amber-950">
+              📖 Task {currentIndex + 1} of {questions.length}
             </span>
-            <div className="flex items-center gap-1">
-              <Star className="text-yellow-500" size={14} />
-              <span className="text-xs sm:text-sm font-bold text-gray-800">{runningScore}</span>
+            <div className="flex items-center gap-1.5">
+              <Star className="text-amber-400" size={14} />
+              <span className="font-baloo font-bold text-sm text-amber-900">{runningScore} ⭐</span>
             </div>
           </div>
-          <div className="w-full bg-gray-300 rounded-full h-2">
-            <div
-              className="h-2 bg-blue-600 rounded-full transition-all duration-300"
-              style={{ width: `${((currentIndex + 1) / questions.length) * 100}%` }}
-            />
+          {/* Dot progress */}
+          <div className="flex gap-1.5 items-center">
+            {Array.from({ length: questions.length }).map((_, i) => (
+              <div
+                key={i}
+                className={`h-2.5 rounded-full transition-all duration-300 ${
+                  i < currentIndex
+                    ? 'bg-emerald-500 w-2.5'
+                    : i === currentIndex
+                    ? 'bg-blue-500 w-6'
+                    : 'bg-amber-200 w-2.5'
+                }`}
+              />
+            ))}
           </div>
         </div>
 
-        {/* Timer - hide during feedback, remount on question change */}
+        {/* Timer */}
         {!showFeedback && (
           <QuestionTimer
             key={`timer-${currentIndex}`}
@@ -226,13 +252,13 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
           />
         )}
 
-        {/* Task */}
+        {/* Task card */}
         <motion.div
           key={currentIndex}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
-          className="bg-white rounded-lg sm:rounded-2xl p-3 sm:p-8 shadow-lg mb-3 sm:mb-6 flex-shrink-0 relative"
+          className="bg-white rounded-[24px] p-4 sm:p-8 shadow-[0_4px_24px_rgba(0,0,0,0.09)] border-2 border-amber-200 mb-3 sm:mb-6 flex-shrink-0 relative"
         >
           <AnimatePresence>
             {lastScore && (
@@ -248,16 +274,14 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
           />
         </motion.div>
 
-        {/* Skip Button */}
+        {/* Skip */}
         {!showFeedback && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
+          <button
             onClick={() => handleAnswer('', false)}
-            className="mx-auto px-4 sm:px-6 py-2 bg-gray-400 text-white rounded-lg font-semibold text-xs sm:text-sm hover:bg-gray-500 transition flex-shrink-0"
+            className="mx-auto px-5 py-2 bg-amber-200 text-amber-800 rounded-xl font-baloo font-bold text-sm hover:bg-amber-300 transition flex-shrink-0"
           >
             Skip Question
-          </motion.button>
+          </button>
         )}
       </div>
     </div>
