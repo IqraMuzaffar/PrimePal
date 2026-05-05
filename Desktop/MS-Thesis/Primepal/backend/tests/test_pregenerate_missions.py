@@ -21,7 +21,7 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
 from app.agents.tutor_agent.mission_generator import MissionQuestion, QuestionOption
-from app.utils.pregenerate_missions import pregenerate_pillar_missions
+from app.utils.pregenerate_missions import pregenerate_pillar_missions, _build_generic_cache_key
 
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -230,3 +230,133 @@ class TestTopicUpdateTriggersPregen:
                 mock_pregen.assert_awaited_once_with(CLASSROOM_ID)
         finally:
             app.dependency_overrides.pop(get_current_teacher, None)
+
+
+# ── Generic Cache Fallback ────────────────────────────────────────────────────
+
+MOCK_STUDENT = {
+    "sub": "ssssssss-0000-0000-0000-000000000001",
+    "classroom_id": CLASSROOM_ID,
+    "name": "Test Student",
+}
+
+MOCK_GENERIC_RESPONSE = {
+    "pillar": "reading",
+    "active_topics_summary": "Animals, Colors",
+    "questions": [
+        {
+            "id": i + 1,
+            "task_type": "sentence_picture_match",
+            "pillar": "reading",
+            "question": f"Generic reading question {i + 1}",
+            "difficulty": "medium",
+            "points_value": 10,
+            "emoji_hint": "📖",
+            "options": [
+                {"id": "a", "text": "Option A", "emoji": None},
+                {"id": "b", "text": "Option B", "emoji": None},
+                {"id": "c", "text": "Option C", "emoji": None},
+                {"id": "d", "text": "Option D", "emoji": None},
+            ],
+            "correct_answer": "a",
+            "urdu_hint": "",
+        }
+        for i in range(10)
+    ],
+    "weakness_focus_questions": 0,
+}
+
+
+class TestGenericCacheFallback:
+    """Verify that pillar endpoint falls back to generic cache when student cache misses."""
+
+    @pytest.mark.asyncio
+    async def test_generic_cache_fallback_returns_pregenerated(self):
+        """When student-specific cache misses but generic cache hits, return generic response."""
+        from httpx import ASGITransport, AsyncClient
+        from app.main import app
+        from app.core.security import get_current_student
+        from app.core.cache import make_cache_key
+
+        app.dependency_overrides[get_current_student] = lambda: MOCK_STUDENT
+
+        # Build the keys we expect
+        active_topic_names = ["Animals", "Colors"]
+        import hashlib
+        topics_hash = hashlib.md5(",".join(sorted(active_topic_names)).encode()).hexdigest()[:12]
+        student_id = MOCK_STUDENT["sub"]
+        student_cache_key = make_cache_key("pillar_missions", student_id, "reading", "False", topics_hash)
+        generic_cache_key = _build_generic_cache_key(CLASSROOM_ID, "reading", topics_hash)
+
+        # cache_get: None for student key, mock data for generic key
+        async def mock_cache_get(key: str):
+            if key == generic_cache_key:
+                return MOCK_GENERIC_RESPONSE
+            return None
+
+        # Mock supabase admin for classroom grade + interactions queries
+        mock_supabase = MagicMock()
+        # classroom grade query
+        classroom_result = MagicMock()
+        classroom_result.data = {"grade_level": GRADE_LEVEL}
+        (
+            mock_supabase.table.return_value
+            .select.return_value
+            .eq.return_value
+            .maybe_single.return_value
+            .execute.return_value
+        ) = classroom_result
+        # interactions query (weaknesses) — chain: table().select().eq().eq().order().limit().execute()
+        interactions_result = MagicMock()
+        interactions_result.data = []
+        (
+            mock_supabase.table.return_value
+            .select.return_value
+            .eq.return_value
+            .eq.return_value
+            .order.return_value
+            .limit.return_value
+            .execute.return_value
+        ) = interactions_result
+
+        mock_active_topics = [
+            {"id": "t1", "name": "Animals", "topic_name": "Animals"},
+            {"id": "t2", "name": "Colors", "topic_name": "Colors"},
+        ]
+
+        try:
+            with (
+                patch(
+                    "app.api.v1.endpoints.missions.get_supabase_admin",
+                    return_value=mock_supabase,
+                ),
+                patch(
+                    "app.api.v1.endpoints.missions.cache_get",
+                    new=AsyncMock(side_effect=mock_cache_get),
+                ),
+                patch(
+                    "app.api.v1.endpoints.missions.cache_set",
+                    new=AsyncMock(return_value=True),
+                ),
+                patch(
+                    "app.api.v1.endpoints.missions.get_active_topics",
+                    new=AsyncMock(return_value=mock_active_topics),
+                ),
+                patch(
+                    "app.api.v1.endpoints.missions.get_student_performance_profile",
+                    new=AsyncMock(return_value=None),
+                ),
+            ):
+                async with AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    resp = await client.get(
+                        "/api/v1/missions/pillar?pillar=reading",
+                    )
+
+                assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
+                data = resp.json()
+                assert data["pillar"] == "reading"
+                assert len(data["questions"]) == 10
+        finally:
+            app.dependency_overrides.pop(get_current_student, None)
