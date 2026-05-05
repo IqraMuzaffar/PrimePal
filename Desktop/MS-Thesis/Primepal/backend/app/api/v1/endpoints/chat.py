@@ -184,18 +184,21 @@ async def chat_stream(
     async def event_stream():
         yield f"data: {json.dumps({'type': 'status', 'content': 'Thinking...'})}\n\n"
 
-        accumulated_response: list[str] = []
-        async for token in stream_guardrailed_response(
-            original_message=body.message,
-            translated_message=translated_query,
-            context_chunks=context_chunks,
-            grade_level=grade_level,
-            history=lc_history,
-        ):
-            accumulated_response.append(token)
-            yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+        try:
+            accumulated_response: list[str] = []
+            async for token in stream_guardrailed_response(
+                original_message=body.message,
+                translated_message=translated_query,
+                context_chunks=context_chunks,
+                grade_level=grade_level,
+                history=lc_history,
+            ):
+                accumulated_response.append(token)
+                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
 
-        yield f"data: {json.dumps({'type': 'done'})}\n\n"
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        except Exception:
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Oops! Something went wrong. Please try again!'})}\n\n"
 
         await asyncio.to_thread(
             log_interaction,
