@@ -39,6 +39,8 @@ from app.agents.tutor_agent.mission_generator import (
     generate_pillar_missions,
 )
 from app.utils.performance_profile import get_student_performance_profile, invalidate_performance_cache
+from app.api.v1.endpoints.rewards import invalidate_rewards_cache
+from app.api.v1.endpoints.student_scores import invalidate_scores_cache
 
 logger = logging.getLogger(__name__)
 
@@ -418,8 +420,10 @@ async def complete_mission(
     # Update daily streak (any completed mission counts as activity)
     streak_data = await update_streak(student_id)
 
-    # Invalidate performance profile cache so next mission generation uses fresh data
+    # Invalidate caches so next page load shows fresh data
     background_tasks.add_task(invalidate_performance_cache, student_id)
+    background_tasks.add_task(invalidate_rewards_cache, student_id)
+    background_tasks.add_task(invalidate_scores_cache, student_id)
 
     # Check and unlock any newly earned achievements
     from app.api.v1.endpoints.achievements import check_and_unlock_achievements
@@ -561,6 +565,11 @@ async def submit_batch(
 
         # Update daily streak after batch processing
         await update_streak(student_id)
+
+        # Invalidate caches
+        background_tasks.add_task(invalidate_performance_cache, student_id)
+        background_tasks.add_task(invalidate_rewards_cache, student_id)
+        background_tasks.add_task(invalidate_scores_cache, student_id)
 
     return BatchSubmitResponse(
         processed=processed,
@@ -960,6 +969,10 @@ async def submit_speaking_answer(
 
     # Update daily streak
     await update_streak(student_id)
+
+    # Invalidate caches
+    background_tasks.add_task(invalidate_rewards_cache, student_id)
+    background_tasks.add_task(invalidate_scores_cache, student_id)
 
     return SpeakingSubmissionResponse(
         is_correct=is_correct,

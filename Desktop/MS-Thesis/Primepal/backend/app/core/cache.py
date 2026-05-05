@@ -73,6 +73,21 @@ async def cache_delete(key: str) -> bool:
         return False
 
 
+async def cache_delete_pattern(pattern: str) -> int:
+    """Delete all keys matching a glob pattern. Returns count of deleted keys."""
+    if not _redis_client:
+        return 0
+    try:
+        deleted = 0
+        async for key in _redis_client.scan_iter(match=pattern, count=100):
+            await _redis_client.delete(key)
+            deleted += 1
+        return deleted
+    except Exception as e:
+        logger.warning(f"Cache pattern delete error for {pattern}: {e}")
+        return 0
+
+
 def make_cache_key(*parts: str) -> str:
     """Build a cache key from multiple parts."""
     return ":".join(parts)

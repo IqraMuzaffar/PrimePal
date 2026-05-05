@@ -18,6 +18,8 @@ from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
 from app.core.cache import cache_get, cache_set, make_cache_key
 from app.agents.evaluator_agent.interaction_logger import log_interaction
+from app.api.v1.endpoints.rewards import invalidate_rewards_cache
+from app.api.v1.endpoints.student_scores import invalidate_scores_cache
 from app.utils.streak import update_streak
 
 logger = logging.getLogger(__name__)
@@ -287,6 +289,9 @@ async def submit_answer(
     )
 
     await update_streak(student_id)
+
+    background_tasks.add_task(invalidate_rewards_cache, student_id)
+    background_tasks.add_task(invalidate_scores_cache, student_id)
 
     return AnswerResponse(
         points_awarded=points,

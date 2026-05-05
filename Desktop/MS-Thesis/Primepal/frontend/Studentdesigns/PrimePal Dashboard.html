@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrimePal — Student Home</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; }
+body {
+  background: #f5f0e8;
+  font-family: 'Baloo 2', sans-serif;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  min-height: 100vh;
+}
+#root { width: 100%; max-width: 860px; min-height: 100vh; }
+
+@keyframes floatUp {
+  0%,100% { transform: translateY(0px); }
+  50% { transform: translateY(-6px); }
+}
+@keyframes pulse {
+  0%,100% { opacity:1; transform:scale(1); }
+  50% { opacity:0.85; transform:scale(1.04); }
+}
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "studentName": "Fatima Khan",
+  "stars": 120,
+  "streak": 3,
+  "accentHue": "amber",
+  "cardStyle": "gradient",
+  "showBadges": true
+}/*EDITMODE-END*/;
+
+/* ─── CHARACTER SVG ─────────────────────────────────────── */
+const FatimaCharacter = ({ size = 110 }) => (
+  <svg width={size} height={size * 1.1} viewBox="0 0 80 88" fill="none" style={{ display:'block' }}>
+    {/* Shadow */}
+    <ellipse cx="40" cy="86" rx="18" ry="4" fill="rgba(0,0,0,0.08)" />
+    {/* Kameez body */}
+    <path d="M18 88 Q18 64 40 62 Q62 64 62 88Z" fill="#fde68a" />
+    <path d="M22 88 Q22 68 40 66 Q58 68 58 88Z" fill="#fef3c7" />
+    {/* Dupatta — left side drape */}
+    <path d="M18 66 Q8 72 10 84 Q20 78 24 70Z" fill="#f59e0b" opacity="0.9"/>
+    {/* Neck */}
+    <rect x="36" y="54" width="8" height="10" rx="4" fill="#e8a87c"/>
+    {/* Head */}
+    <ellipse cx="40" cy="42" rx="19" ry="20" fill="#e8a87c"/>
+    {/* Hair base — dark, covers top */}
+    <ellipse cx="40" cy="26" rx="18" ry="13" fill="#2c1810"/>
+    <path d="M22 30 Q22 22 40 20 Q58 22 58 30 Q58 24 40 23 Q22 24 22 30Z" fill="#2c1810"/>
+    {/* Hair parting + detail */}
+    <path d="M40 20 L40 32" stroke="#1a0e08" strokeWidth="1" opacity="0.5"/>
+    {/* Side hair over ears */}
+    <ellipse cx="22" cy="40" rx="4" ry="8" fill="#2c1810"/>
+    <ellipse cx="58" cy="40" rx="4" ry="8" fill="#2c1810"/>
+    {/* Braid right */}
+    <path d="M60 38 Q66 48 63 60" stroke="#2c1810" strokeWidth="5" strokeLinecap="round" fill="none"/>
+    <path d="M60 38 Q68 50 64 62" stroke="#3d2010" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+    {/* Dupatta on head */}
+    <path d="M22 30 Q30 16 40 18 Q50 16 58 30 Q54 24 40 24 Q26 24 22 30Z" fill="#f59e0b" opacity="0.7"/>
+    {/* Ears */}
+    <ellipse cx="21.5" cy="44" rx="3.5" ry="4" fill="#e8a87c"/>
+    <ellipse cx="58.5" cy="44" rx="3.5" ry="4" fill="#e8a87c"/>
+    {/* Gold earrings */}
+    <circle cx="21.5" cy="47" r="2.5" fill="#fbbf24" stroke="#f59e0b" strokeWidth="0.5"/>
+    <circle cx="58.5" cy="47" r="2.5" fill="#fbbf24" stroke="#f59e0b" strokeWidth="0.5"/>
+    {/* Eyes */}
+    <ellipse cx="33" cy="43" rx="3.2" ry="3.5" fill="#1a0e08"/>
+    <ellipse cx="47" cy="43" rx="3.2" ry="3.5" fill="#1a0e08"/>
+    {/* Eye whites */}
+    <ellipse cx="32.2" cy="42" rx="1.2" ry="1.3" fill="white"/>
+    <ellipse cx="46.2" cy="42" rx="1.2" ry="1.3" fill="white"/>
+    {/* Eyebrows */}
+    <path d="M29.5 38.5 Q32.5 36.5 35.5 38" stroke="#2c1810" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
+    <path d="M44.5 38 Q47.5 36.5 50.5 38.5" stroke="#2c1810" strokeWidth="1.8" fill="none" strokeLinecap="round"/>
+    {/* Nose */}
+    <ellipse cx="40" cy="49" rx="2" ry="1.2" fill="#d4956a" opacity="0.5"/>
+    {/* Smile */}
+    <path d="M34 54 Q40 60 46 54" stroke="#b5703a" strokeWidth="2" fill="none" strokeLinecap="round"/>
+    {/* Cheek blush */}
+    <ellipse cx="28" cy="50" rx="4" ry="2.5" fill="#f87171" opacity="0.2"/>
+    <ellipse cx="52" cy="50" rx="4" ry="2.5" fill="#f87171" opacity="0.2"/>
+    {/* Kameez collar detail */}
+    <path d="M36 66 Q40 70 44 66" stroke="#e5c055" strokeWidth="1.5" fill="none"/>
+  </svg>
+);
+
+/* ─── ICONS ─────────────────────────────────────────────── */
+const StarIcon = ({ size=18, color='#fbbf24' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+  </svg>
+);
+
+const FlameIcon = ({ size=18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="#f97316">
+    <path d="M12 23c-4.97 0-9-4.03-9-9 0-5.45 4.5-9.93 7.24-12.48.83-.77 2.1-.16 2.1.97v1.92c2.47-1.41 4.66-4.02 4.66-4.02s.8 4.65-1.24 7.61c1.65-.08 3.24-.83 3.24-.83s-1 7.83-7 15.83z"/>
+  </svg>
+);
+
+const VolumeIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="#92400e">
+    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+  </svg>
+);
+
+/* ─── NAV ───────────────────────────────────────────────── */
+const Nav = ({ streak }) => {
+  const [active, setActive] = React.useState('Home');
+  return (
+    <nav style={{
+      background: '#78350f',
+      borderBottom: 'none',
+      padding: '0 24px',
+      height: 56,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      position: 'sticky', top: 0, zIndex: 100,
+      boxShadow: '0 3px 16px rgba(0,0,0,0.25)',
+    }}>
+      {/* Logo */}
+      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <svg width="28" height="28" viewBox="0 0 28 28" style={{ animation:'floatUp 3s ease-in-out infinite' }}>
+          <polygon points="14,2 17.5,10.5 27,10.5 19.5,16 22,25 14,20 6,25 8.5,16 1,10.5 10.5,10.5" fill="#f59e0b"/>
+          <polygon points="14,2 17.5,10.5 27,10.5 19.5,16 22,25 14,20 6,25 8.5,16 1,10.5 10.5,10.5" fill="none" stroke="#d97706" strokeWidth="0.8"/>
+        </svg>
+        <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:20, color:'#fef3c7', letterSpacing:'-0.3px' }}>PrimePal</span>
+      </div>
+
+      {/* Nav items */}
+      <div style={{ display:'flex', gap:4, alignItems:'center' }}>
+        {['Home','Chat','Missions','Quests','Leaderboard'].map(n => (
+          <button key={n} onClick={()=>setActive(n)} style={{
+            padding:'5px 14px', borderRadius:24, border:'none', cursor:'pointer',
+            background: active===n ? '#fbbf24' : 'rgba(255,255,255,0.1)',
+            color: active===n ? '#78350f' : 'rgba(254,243,199,0.9)',
+            fontFamily:'Baloo 2', fontWeight:700, fontSize:13,
+            boxShadow: active===n ? '0 3px 10px rgba(251,191,36,0.4)' : 'none',
+            transition: 'all 0.15s',
+          }}>{n}</button>
+        ))}
+      </div>
+
+      {/* Right controls */}
+      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <button style={{ background:'none', border:'none', cursor:'pointer', opacity:0.7, display:'flex' }}>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#fef3c7">
+            <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/>
+          </svg>
+        </button>
+        <div style={{ display:'flex', alignItems:'center', gap:5, background:'rgba(255,255,255,0.12)', border:'1.5px solid rgba(251,191,36,0.4)', borderRadius:24, padding:'4px 12px' }}>
+          <FlameIcon size={15} />
+          <span style={{ fontFamily:'Baloo 2', fontWeight:700, fontSize:13, color:'#fef3c7' }}>{streak} day streak</span>
+        </div>
+        <div style={{
+          width:34, height:34, borderRadius:'50%',
+          background:'linear-gradient(135deg,#fbbf24,#f59e0b)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontFamily:'Baloo 2', fontWeight:800, fontSize:13, color:'#fff',
+          border:'2px solid #d97706', cursor:'pointer',
+          boxShadow:'0 2px 8px rgba(245,158,11,0.4)',
+        }}>F</div>
+      </div>
+    </nav>
+  );
+};
+
+/* ─── HERO ──────────────────────────────────────────────── */
+const Hero = ({ name, stars }) => (
+  <div style={{
+    margin: '20px 20px 0',
+    borderRadius: 24,
+    background: 'linear-gradient(120deg, #fef3c7 0%, #fde68a 45%, #fcd34d 100%)',
+    border: '2.5px solid #fbbf24',
+    padding: '22px 24px 0',
+    display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end',
+    overflow: 'hidden', position: 'relative', minHeight: 148,
+    boxShadow: '0 6px 24px rgba(245,158,11,0.2)',
+  }}>
+    {/* Decorative sun rings */}
+    <div style={{ position:'absolute', right:140, top:-50, width:160, height:160, borderRadius:'50%', border:'2px solid rgba(251,191,36,0.25)' }}/>
+    <div style={{ position:'absolute', right:118, top:-28, width:116, height:116, borderRadius:'50%', border:'2px solid rgba(251,191,36,0.2)' }}/>
+    <div style={{ position:'absolute', right:80, top:20, width:60, height:60, borderRadius:'50%', background:'rgba(251,191,36,0.18)' }}/>
+
+    <div style={{ position:'relative', zIndex:2 }}>
+      <p style={{ fontFamily:'Nunito', fontWeight:600, fontSize:13, color:'#92400e', opacity:0.75, marginBottom:3 }}>Welcome back!</p>
+      <h2 style={{ fontFamily:'Baloo 2', fontSize:28, fontWeight:800, color:'#78350f', lineHeight:1.05, marginBottom:14 }}>
+        Hi {name.split(' ')[0]}! 🌟
+      </h2>
+      <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
+        <div style={{
+          background:'#fff', borderRadius:14, padding:'6px 14px',
+          display:'flex', alignItems:'center', gap:6,
+          boxShadow:'0 2px 8px rgba(0,0,0,0.08)', border:'1.5px solid #fde68a',
+        }}>
+          <StarIcon size={16} />
+          <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:14, color:'#78350f' }}>{stars} Stars</span>
+        </div>
+        <div style={{
+          background:'#fff7ed', borderRadius:14, padding:'6px 14px',
+          display:'flex', alignItems:'center', gap:6,
+          border:'1.5px solid #fed7aa',
+        }}>
+          <span style={{ fontFamily:'Baloo 2', fontWeight:700, fontSize:13, color:'#c2410c' }}>🏅 Bronze Medal</span>
+        </div>
+        <button style={{
+          background:'linear-gradient(90deg,#f59e0b,#d97706)',
+          border:'none', borderRadius:14, padding:'6px 14px', cursor:'pointer',
+          fontFamily:'Baloo 2', fontWeight:700, fontSize:12, color:'#fff',
+          boxShadow:'0 2px 8px rgba(217,119,6,0.35)',
+        }}>✏️ Edit Character</button>
+      </div>
+    </div>
+
+    <div style={{ position:'relative', zIndex:2, animation:'floatUp 4s ease-in-out infinite', paddingBottom:0 }}>
+      <FatimaCharacter size={118} />
+    </div>
+  </div>
+);
+
+/* ─── ACTIVITY CARD ─────────────────────────────────────── */
+const ActivityCard = ({ grad, shadow, icon, title, sub, wide, badge }) => (
+  <div
+    style={{
+      background: grad,
+      borderRadius: 20,
+      padding: wide ? '18px 22px' : '20px 18px',
+      cursor: 'pointer',
+      gridColumn: wide ? 'span 2' : 'span 1',
+      display: 'flex',
+      flexDirection: wide ? 'row' : 'column',
+      alignItems: wide ? 'center' : 'flex-start',
+      gap: wide ? 16 : 10,
+      boxShadow: `0 6px 0 ${shadow}, 0 8px 24px ${shadow}55`,
+      transition: 'transform 0.14s, box-shadow 0.14s',
+      position: 'relative', overflow:'hidden',
+      border: '1.5px solid rgba(255,255,255,0.3)',
+    }}
+    onMouseEnter={e => {
+      e.currentTarget.style.transform = 'translateY(-3px)';
+      e.currentTarget.style.boxShadow = `0 9px 0 ${shadow}, 0 12px 30px ${shadow}66`;
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.transform = 'translateY(0)';
+      e.currentTarget.style.boxShadow = `0 6px 0 ${shadow}, 0 8px 24px ${shadow}55`;
+    }}
+  >
+    {/* Shine overlay */}
+    <div style={{
+      position:'absolute', top:0, left:0, right:0, height:'40%',
+      background:'linear-gradient(180deg, rgba(255,255,255,0.18) 0%, transparent 100%)',
+      borderRadius:'20px 20px 0 0', pointerEvents:'none',
+    }}/>
+
+    {badge && (
+      <div style={{
+        position:'absolute', top:10, right:10,
+        background:'#ef4444', borderRadius:10, padding:'2px 8px',
+        fontFamily:'Baloo 2', fontWeight:700, fontSize:10, color:'#fff',
+        animation:'pulse 2s ease-in-out infinite',
+      }}>{badge}</div>
+    )}
+
+    <div style={{ fontSize: wide ? 32 : 28, lineHeight:1, filter:'drop-shadow(0 2px 4px rgba(0,0,0,0.2))' }}>{icon}</div>
+    <div>
+      <div style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize: wide ? 17 : 15, color:'#fff', textShadow:'0 1px 3px rgba(0,0,0,0.15)' }}>{title}</div>
+      <div style={{ fontFamily:'Nunito', fontWeight:600, fontSize:11.5, color:'rgba(255,255,255,0.78)', marginTop:2 }}>{sub}</div>
+    </div>
+  </div>
+);
+
+/* ─── BADGES ────────────────────────────────────────────── */
+const badges = [
+  { icon:'⭐', name:'First Star', req:'Score 1 star', unlocked:true },
+  { icon:'🔥', name:'On Fire', req:'3 day streak', unlocked:true },
+  { icon:'📚', name:'Star Learner', req:'Complete 10 tasks', unlocked:false },
+  { icon:'🏆', name:'Champion', req:'Reach 200 stars', unlocked:false },
+];
+
+const BadgeRow = () => (
+  <div style={{ display:'flex', gap:10 }}>
+    {badges.map(b => (
+      <div key={b.name} style={{
+        flex:1, background: b.unlocked ? '#fff' : '#f5f0e8',
+        borderRadius:18, padding:'12px 8px', textAlign:'center',
+        border: b.unlocked ? '2px solid #fde68a' : '2px solid #e7e0d4',
+        opacity: b.unlocked ? 1 : 0.55,
+        boxShadow: b.unlocked ? '0 3px 12px rgba(245,158,11,0.15)' : 'none',
+        transition:'transform 0.15s',
+      }}
+      onMouseEnter={e => b.unlocked && (e.currentTarget.style.transform='translateY(-2px)')}
+      onMouseLeave={e => (e.currentTarget.style.transform='translateY(0)')}
+      >
+        <div style={{ fontSize:26, filter: b.unlocked ? 'none' : 'grayscale(1)' }}>{b.icon}</div>
+        <div style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:10, color:'#78350f', marginTop:5 }}>{b.name}</div>
+        <div style={{ fontFamily:'Nunito', fontWeight:600, fontSize:9, color:'#a16207', marginTop:2 }}>{b.req}</div>
+        {b.unlocked && (
+          <div style={{ marginTop:5, display:'inline-block', background:'#f59e0b', borderRadius:8, padding:'1px 7px', fontFamily:'Baloo 2', fontSize:8, fontWeight:800, color:'#fff' }}>UNLOCKED</div>
+        )}
+      </div>
+    ))}
+  </div>
+);
+
+/* ─── MOTIVATIONAL FOOTER ───────────────────────────────── */
+const Footer = () => (
+  <div style={{
+    margin:'12px 0 4px',
+    background:'linear-gradient(90deg, #fef3c7, #fffbf0)',
+    borderRadius:16, padding:'12px 20px',
+    display:'flex', alignItems:'center', justifyContent:'center', gap:10,
+    border:'1.5px solid #fde68a',
+  }}>
+    <span style={{ fontSize:20 }}>🚀</span>
+    <span style={{ fontFamily:'Baloo 2', fontWeight:700, fontSize:14, color:'#92400e' }}>
+      Learning is your greatest adventure!
+    </span>
+  </div>
+);
+
+/* ─── MAIN DASHBOARD ────────────────────────────────────── */
+function Dashboard() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const { studentName, stars, streak, showBadges } = tweaks;
+
+  return (
+    <div style={{ background:'#f5f0e8', minHeight:'100vh' }}>
+      <Nav streak={streak} />
+
+      <div style={{ padding:'0 20px 28px' }}>
+        <Hero name={studentName} stars={stars} />
+
+        {/* Section label */}
+        <div style={{ display:'flex', alignItems:'center', gap:10, margin:'22px 0 12px' }}>
+          <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:11, color:'#b45309', letterSpacing:1.5, textTransform:'uppercase' }}>Play Now</span>
+          <div style={{ flex:1, height:1.5, background:'linear-gradient(90deg,#fde68a,transparent)' }}/>
+        </div>
+
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 }}>
+          <ActivityCard
+            grad="linear-gradient(135deg, #7c3aed 0%, #a855f7 100%)"
+            shadow="#6d28d9"
+            icon="🎯"
+            title="Daily Missions"
+            sub="Earn stars — 3 tasks left!"
+            badge="NEW"
+          />
+          <ActivityCard
+            grad="linear-gradient(135deg, #be185d 0%, #ec4899 100%)"
+            shadow="#9d174d"
+            icon="💬"
+            title="Chat with PrimePal"
+            sub="Ask anything you want!"
+          />
+          <ActivityCard
+            grad="linear-gradient(135deg, #b45309 0%, #f59e0b 100%)"
+            shadow="#92400e"
+            icon="🐝"
+            title="Spelling Bee"
+            sub="Can you spell it in 30 seconds?"
+          />
+          <ActivityCard
+            grad="linear-gradient(135deg, #0e7490 0%, #06b6d4 100%)"
+            shadow="#0c4a6e"
+            icon="🏆"
+            title="Leaderboard"
+            sub="You're #4 in your class!"
+          />
+          <ActivityCard
+            grad="linear-gradient(135deg, #065f46 0%, #10b981 100%)"
+            shadow="#064e3b"
+            icon="📖"
+            title="Story Time"
+            sub="Read & answer questions"
+            wide={true}
+          />
+          <ActivityCard
+            grad="linear-gradient(135deg, #9f1239 0%, #f43f5e 100%)"
+            shadow="#881337"
+            icon="🎤"
+            title="Speaking Practice"
+            sub="Talk to PrimePal — it listens!"
+            wide={true}
+          />
+        </div>
+
+        {/* Badges */}
+        {showBadges && (
+          <>
+            <div style={{ display:'flex', alignItems:'center', gap:10, margin:'22px 0 12px' }}>
+              <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:11, color:'#b45309', letterSpacing:1.5, textTransform:'uppercase' }}>Your Badges</span>
+              <div style={{ flex:1, height:1.5, background:'linear-gradient(90deg,#fde68a,transparent)' }}/>
+            </div>
+            <BadgeRow />
+          </>
+        )}
+
+        <Footer />
+      </div>
+
+      <TweaksPanel>
+        <TweakText   id="studentName" label="Student name"    value={tweaks.studentName} onChange={v=>setTweak('studentName',v)} />
+        <TweakNumber id="stars"       label="Stars"           value={tweaks.stars}        onChange={v=>setTweak('stars',v)} min={0} max={999} />
+        <TweakNumber id="streak"      label="Day streak"      value={tweaks.streak}       onChange={v=>setTweak('streak',v)} min={0} max={30} />
+        <TweakToggle id="showBadges"  label="Show badges"     value={tweaks.showBadges}   onChange={v=>setTweak('showBadges',v)} />
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Dashboard />);
+</script>
+</body>
+</html>

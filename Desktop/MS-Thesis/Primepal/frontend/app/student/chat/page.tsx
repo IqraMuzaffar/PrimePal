@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useRef, KeyboardEvent } from "react";
 import { motion } from "framer-motion";
+import ReactMarkdown from "react-markdown";
 
 interface Message {
   id: number;
   role: "student" | "tutor";
   text: string;
-  englishReply?: string;  // only present on tutor messages
+  urduText?: string;
 }
 
 export default function ChatPage() {
@@ -15,12 +16,12 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [showEnglish, setShowEnglish] = useState<Set<number>>(new Set());
+  const [showUrdu, setShowUrdu] = useState<Set<number>>(new Set());
+  const [loadingUrdu, setLoadingUrdu] = useState<Set<number>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const nextId = useRef(1);
 
-  // Read student name from localStorage and seed welcome message
   useEffect(() => {
     const name = localStorage.getItem("primepal_student_name");
     const displayName = name && name.trim() ? name.trim() : "there";
@@ -34,18 +35,16 @@ export default function ChatPage() {
     ]);
   }, []);
 
-  // Auto-scroll to bottom whenever messages change or loading state changes
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
 
-  // Auto-resize textarea up to 3 rows
   function handleInputChange(e: React.ChangeEvent<HTMLTextAreaElement>) {
     setInput(e.target.value);
     const ta = e.target;
     ta.style.height = "auto";
-    const lineHeight = 24; // ~text-base line-height
-    const maxHeight = lineHeight * 3 + 16; // 3 rows + padding
+    const lineHeight = 24;
+    const maxHeight = lineHeight * 3 + 16;
     ta.style.height = Math.min(ta.scrollHeight, maxHeight) + "px";
   }
 
@@ -53,19 +52,16 @@ export default function ChatPage() {
     const text = input.trim();
     if (!text || loading) return;
 
-    // Add student message immediately
     const studentMsg: Message = { id: nextId.current++, role: "student", text };
     setMessages((prev) => [...prev, studentMsg]);
     setInput("");
 
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
     }
 
     setLoading(true);
 
-    // Add empty tutor message that will be filled token by token
     const tutorMsgId = nextId.current++;
     setMessages((prev) => [
       ...prev,
@@ -98,7 +94,6 @@ export default function ChatPage() {
 
         buffer += decoder.decode(value, { stream: true });
 
-        // Only process complete lines (ending with \n)
         const lastNewline = buffer.lastIndexOf("\n");
         if (lastNewline === -1) continue;
 
@@ -122,7 +117,7 @@ export default function ChatPage() {
               );
             }
           } catch {
-            // Skip malformed JSON chunks gracefully
+            // Skip malformed JSON chunks
           }
         }
       }
@@ -139,13 +134,53 @@ export default function ChatPage() {
     }
   }
 
-  function toggleEnglish(id: number) {
-    setShowEnglish((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  async function fetchUrdu(msgId: number, text: string) {
+    // If already loaded, just toggle
+    const msg = messages.find((m) => m.id === msgId);
+    if (msg?.urduText) {
+      setShowUrdu((prev) => {
+        const next = new Set(prev);
+        if (next.has(msgId)) next.delete(msgId);
+        else next.add(msgId);
+        return next;
+      });
+      return;
+    }
+
+    setLoadingUrdu((prev) => new Set(prev).add(msgId));
+
+    const BASE_URL =
+      process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+    const token = localStorage.getItem("primepal_student_token");
+
+    try {
+      const resp = await fetch(`${BASE_URL}/chat/urdu`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ text }),
+      });
+
+      if (!resp.ok) throw new Error("Translation failed");
+      const data = await resp.json();
+
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === msgId ? { ...m, urduText: data.urdu } : m
+        )
+      );
+      setShowUrdu((prev) => new Set(prev).add(msgId));
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingUrdu((prev) => {
+        const next = new Set(prev);
+        next.delete(msgId);
+        return next;
+      });
+    }
   }
 
   function handleKeyDown(e: KeyboardEvent<HTMLTextAreaElement>) {
@@ -157,9 +192,11 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-[calc(100vh-64px)] bg-yellow-50">
-      {/* Page title row */}
+      {/* Header */}
       <div className="py-3 px-4 border-b border-yellow-200 flex items-center gap-2">
-        <span className="text-xl">🤖</span>
+        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-orange-400 flex items-center justify-center text-white text-sm font-bold shadow-sm">
+          P
+        </div>
         <span className="text-lg font-bold text-gray-700">Chat with PrimePal</span>
       </div>
 
@@ -172,10 +209,17 @@ export default function ChatPage() {
               msg.role === "student" ? "items-end" : "items-start"
             }`}
           >
-            {/* Label */}
-            <span className="text-xs text-gray-400 mb-1 px-1">
-              {msg.role === "tutor" ? "PrimePal 🤖" : studentName}
-            </span>
+            {/* Avatar + label */}
+            <div className={`flex items-center gap-1.5 mb-1 px-1 ${msg.role === "student" ? "flex-row-reverse" : ""}`}>
+              {msg.role === "tutor" ? (
+                <div className="w-5 h-5 rounded-full bg-gradient-to-br from-yellow-400 to-orange-400 flex items-center justify-center text-white text-[10px] font-bold">
+                  P
+                </div>
+              ) : null}
+              <span className="text-xs text-gray-400">
+                {msg.role === "tutor" ? "PrimePal" : studentName}
+              </span>
+            </div>
 
             {/* Bubble */}
             <div
@@ -185,20 +229,47 @@ export default function ChatPage() {
                   : "bg-orange-400 text-white rounded-2xl rounded-tr-sm px-4 py-3 max-w-[85%] self-end shadow-sm text-base leading-relaxed"
               }
             >
-              {showEnglish.has(msg.id) && msg.englishReply ? msg.englishReply : msg.text}
+              {msg.role === "tutor" ? (
+                showUrdu.has(msg.id) && msg.urduText ? (
+                  <p className="text-right font-urdu leading-loose text-lg" dir="rtl">
+                    {msg.urduText}
+                  </p>
+                ) : (
+                  <ReactMarkdown
+                    components={{
+                      p: ({ children }) => <p className="mb-1 last:mb-0">{children}</p>,
+                      strong: ({ children }) => (
+                        <strong className="text-orange-600 font-bold">{children}</strong>
+                      ),
+                      ul: ({ children }) => <ul className="list-none space-y-0.5 my-1">{children}</ul>,
+                      li: ({ children }) => <li className="flex gap-1">{children}</li>,
+                    }}
+                  >
+                    {msg.text}
+                  </ReactMarkdown>
+                )
+              ) : (
+                msg.text
+              )}
             </div>
 
-            {/* English toggle button — only for tutor messages with englishReply */}
-            {msg.role === "tutor" && msg.englishReply && (
-              <motion.button
-                onClick={() => toggleEnglish(msg.id)}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="text-xs text-gray-400 hover:text-orange-500 mt-1 ml-1 transition-colors"
-                aria-label={showEnglish.has(msg.id) ? "Switch to bilingual mode" : "Switch to English only"}
-              >
-                {showEnglish.has(msg.id) ? "🔄 Bilingual" : "🇬🇧 English only"}
-              </motion.button>
+            {/* Action buttons for tutor messages */}
+            {msg.role === "tutor" && msg.text && (
+              <div className="flex gap-2 mt-1 ml-1">
+                <motion.button
+                  onClick={() => fetchUrdu(msg.id, msg.text)}
+                  disabled={loadingUrdu.has(msg.id)}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="text-xs text-gray-400 hover:text-orange-500 transition-colors disabled:opacity-50"
+                >
+                  {loadingUrdu.has(msg.id)
+                    ? "⏳ Translating…"
+                    : showUrdu.has(msg.id)
+                    ? "🔄 Original"
+                    : "اردو"}
+                </motion.button>
+              </div>
             )}
           </div>
         ))}
@@ -206,7 +277,12 @@ export default function ChatPage() {
         {/* Typing indicator */}
         {loading && (
           <div className="flex flex-col items-start">
-            <span className="text-xs text-gray-400 mb-1 px-1">PrimePal 🤖</span>
+            <div className="flex items-center gap-1.5 mb-1 px-1">
+              <div className="w-5 h-5 rounded-full bg-gradient-to-br from-yellow-400 to-orange-400 flex items-center justify-center text-white text-[10px] font-bold">
+                P
+              </div>
+              <span className="text-xs text-gray-400">PrimePal</span>
+            </div>
             <div className="bg-white border-2 border-yellow-200 rounded-2xl rounded-tl-sm shadow-sm self-start">
               <div className="flex gap-1 items-center px-4 py-3">
                 <span className="w-2 h-2 bg-yellow-400 rounded-full animate-bounce [animation-delay:0ms]" />
@@ -217,7 +293,6 @@ export default function ChatPage() {
           </div>
         )}
 
-        {/* Scroll anchor */}
         <div ref={bottomRef} />
       </div>
 

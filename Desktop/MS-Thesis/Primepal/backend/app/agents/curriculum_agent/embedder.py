@@ -1,25 +1,24 @@
 """
 Agent A - Curriculum Guardrail: Vector Storage & Curricular Tagging (Feature 4)
 
-Embeds SNC text chunks using sentence-transformers/all-MiniLM-L6-v2 (free, local)
+Embeds SNC text chunks using OpenAI text-embedding-3-small (1536 dims)
 and stores them in Supabase pgvector (snc_knowledge_base table).
 
 Each chunk is a dict:
     {"content": str, "metadata": {"grade_level": int, "book_title": str, "chunk_id": str}}
 This is exactly the format returned by chunk_documents() in ingestion.py.
 """
-import os
-os.environ["USE_TF"] = "0"          # stop transformers from importing TensorFlow
-os.environ["USE_TORCH"] = "1"
-
-from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_openai import OpenAIEmbeddings
 
 from app.core.config import settings
 
 
-def _get_embeddings_model() -> HuggingFaceEmbeddings:
-    """Return a HuggingFaceEmbeddings instance (all-MiniLM-L6-v2, 384 dims, runs locally)."""
-    return HuggingFaceEmbeddings(model_name=settings.EMBEDDING_MODEL)
+def _get_embeddings_model() -> OpenAIEmbeddings:
+    """Return an OpenAIEmbeddings instance (text-embedding-3-small, 1536 dims)."""
+    return OpenAIEmbeddings(
+        model=settings.EMBEDDING_MODEL,
+        openai_api_key=settings.OPENAI_API_KEY,
+    )
 
 
 async def embed_and_store_chunks(chunks: list[dict], supabase_admin_client) -> int:

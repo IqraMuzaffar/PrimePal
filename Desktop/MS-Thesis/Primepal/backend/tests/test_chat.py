@@ -34,8 +34,7 @@ FAKE_CHUNKS_GRADE_3 = [
     "Look at the red ball. The ball is round.",
 ]
 
-FAKE_BILINGUAL_REPLY = "Great question! Ek cat ek chota sa animal hai jo 'meow' kehta hai. Well done!"
-FAKE_ENGLISH_REPLY   = "Great question! A cat is a small animal that says 'meow'. Well done!"
+FAKE_REPLY = "🐱 Great question! **Cat** — ek chota sa animal hai jo 'meow' kehta hai. Well done!"
 
 ADVANCED_GRADE5_QUESTION = (
     "What is the difference between photosynthesis and cellular respiration "
@@ -79,13 +78,11 @@ def _make_missing_classroom_mock():
 
 
 def _make_tutor_response_mock(
-    bilingual_reply: str = FAKE_BILINGUAL_REPLY,
-    english_reply: str = FAKE_ENGLISH_REPLY,
+    reply: str = FAKE_REPLY,
 ) -> MagicMock:
-    """Create a mock TutorResponse object with bilingual_reply and english_reply."""
+    """Create a mock TutorResponse object with reply."""
     mock_response = MagicMock()
-    mock_response.bilingual_reply = bilingual_reply
-    mock_response.english_reply = english_reply
+    mock_response.reply = reply
     return mock_response
 
 
@@ -134,8 +131,7 @@ class TestChatEndpoint:
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body["reply"] == FAKE_BILINGUAL_REPLY
-        assert body["english_reply"] == FAKE_ENGLISH_REPLY
+        assert body["reply"] == FAKE_REPLY
         assert body["grade_level"] == 3
         assert body["context_used"] is True
 
@@ -157,8 +153,7 @@ class TestChatEndpoint:
             patch(
                 "app.api.v1.endpoints.chat.get_guardrailed_response",
                 new=AsyncMock(return_value=_make_tutor_response_mock(
-                    bilingual_reply="I don't know that yet!",
-                    english_reply="I don't know that yet!",
+                    reply="I don't know that yet!",
                 )),
             ),
         ):
@@ -189,8 +184,7 @@ class TestChatEndpoint:
             patch(
                 "app.api.v1.endpoints.chat.get_guardrailed_response",
                 new=AsyncMock(return_value=_make_tutor_response_mock(
-                    bilingual_reply="Hello!",
-                    english_reply="Hello!",
+                    reply="Hello!",
                 )),
             ),
         ):
@@ -271,8 +265,7 @@ class TestGradeGuardrail:
         """
         retrieval_mock = AsyncMock(return_value=[])
         llm_mock = AsyncMock(return_value=_make_tutor_response_mock(
-            bilingual_reply="Let's ask your teacher about that!",
-            english_reply="Let's ask your teacher about that!",
+            reply="Let's ask your teacher about that!",
         ))
 
         with (
@@ -336,8 +329,7 @@ class TestGradeGuardrail:
             patch(
                 "app.api.v1.endpoints.chat.get_guardrailed_response",
                 new=AsyncMock(return_value=_make_tutor_response_mock(
-                    bilingual_reply="Hello!",
-                    english_reply="Hello!",
+                    reply="Hello!",
                 )),
             ),
         ):
@@ -462,12 +454,11 @@ class TestGetGuardrailedResponse:
     pytestmark = pytest.mark.asyncio
 
     async def test_returns_tutor_response_object(self):
-        """get_guardrailed_response must return a TutorResponse with bilingual and english fields."""
+        """get_guardrailed_response must return a TutorResponse with reply field."""
         from app.agents.tutor_agent.chatbot import TutorResponse
 
         fake_tutor_response = TutorResponse(
-            bilingual_reply="Ek cat ek chota animal hai — a cat is a small animal.",
-            english_reply="A cat is a small animal.",
+            reply="🐱 **Cat** — ek chota animal hai — a cat is a small animal!",
         )
 
         mock_llm = MagicMock()
@@ -477,7 +468,7 @@ class TestGetGuardrailedResponse:
         mock_chain.ainvoke = AsyncMock(return_value=fake_tutor_response)
 
         with patch("app.agents.tutor_agent.chatbot.ChatOpenAI", return_value=mock_llm):
-            with patch("app.agents.tutor_agent.chatbot._BILINGUAL_PROMPT") as mock_prompt:
+            with patch("app.agents.tutor_agent.chatbot._TUTOR_PROMPT") as mock_prompt:
                 mock_prompt.__or__ = MagicMock(return_value=mock_chain)
 
                 from app.agents.tutor_agent.chatbot import get_guardrailed_response
@@ -490,16 +481,14 @@ class TestGetGuardrailedResponse:
                 )
 
         assert isinstance(result, TutorResponse)
-        assert result.bilingual_reply == "Ek cat ek chota animal hai — a cat is a small animal."
-        assert result.english_reply == "A cat is a small animal."
+        assert result.reply == "🐱 **Cat** — ek chota animal hai — a cat is a small animal!"
 
     async def test_handles_empty_context_chunks_gracefully(self):
         """When context_chunks is empty, the function must not raise — uses fallback text."""
         from app.agents.tutor_agent.chatbot import TutorResponse
 
         fake_tutor_response = TutorResponse(
-            bilingual_reply="I don't know that yet — let's ask your teacher!",
-            english_reply="I don't know that yet — let's ask your teacher!",
+            reply="I don't know that yet — let's ask your teacher!",
         )
 
         mock_llm = MagicMock()
@@ -509,7 +498,7 @@ class TestGetGuardrailedResponse:
         mock_chain.ainvoke = AsyncMock(return_value=fake_tutor_response)
 
         with patch("app.agents.tutor_agent.chatbot.ChatOpenAI", return_value=mock_llm):
-            with patch("app.agents.tutor_agent.chatbot._BILINGUAL_PROMPT") as mock_prompt:
+            with patch("app.agents.tutor_agent.chatbot._TUTOR_PROMPT") as mock_prompt:
                 mock_prompt.__or__ = MagicMock(return_value=mock_chain)
 
                 from app.agents.tutor_agent.chatbot import get_guardrailed_response
@@ -534,8 +523,7 @@ class TestGetGuardrailedResponse:
         from app.agents.tutor_agent.chatbot import TutorResponse
 
         fake_tutor_response = TutorResponse(
-            bilingual_reply="Noun ek naming word hai!",
-            english_reply="A noun is a naming word.",
+            reply="📚 **Noun** — aisa lafz jo naam batata hai — is a naming word!",
         )
 
         mock_llm = MagicMock()
@@ -545,7 +533,7 @@ class TestGetGuardrailedResponse:
         mock_chain.ainvoke = AsyncMock(return_value=fake_tutor_response)
 
         with patch("app.agents.tutor_agent.chatbot.ChatOpenAI", return_value=mock_llm):
-            with patch("app.agents.tutor_agent.chatbot._BILINGUAL_PROMPT") as mock_prompt:
+            with patch("app.agents.tutor_agent.chatbot._TUTOR_PROMPT") as mock_prompt:
                 mock_prompt.__or__ = MagicMock(return_value=mock_chain)
 
                 from app.agents.tutor_agent.chatbot import get_guardrailed_response
@@ -656,10 +644,9 @@ class TestFeature7Translation:
         # Confirm the original Urdu message was NOT passed to retrieval
         assert kwargs["query"] != "Noun kya hota hai?"
 
-    async def test_response_contains_bilingual_and_english_reply(self, client: AsyncClient):
-        """Response body must include both 'reply' (bilingual) and 'english_reply' fields."""
-        bilingual = "Noun ek naming word hai!"
-        english   = "A noun is a naming word."
+    async def test_response_contains_adaptive_reply(self, client: AsyncClient):
+        """Response body must include 'reply' field with adaptive content."""
+        expected_reply = "📚 **Noun** — aisa lafz jo naam batata hai — is a naming word!"
 
         with (
             patch(
@@ -677,8 +664,7 @@ class TestFeature7Translation:
             patch(
                 "app.api.v1.endpoints.chat.get_guardrailed_response",
                 new=AsyncMock(return_value=_make_tutor_response_mock(
-                    bilingual_reply=bilingual,
-                    english_reply=english,
+                    reply=expected_reply,
                 )),
             ),
         ):
@@ -690,8 +676,7 @@ class TestFeature7Translation:
 
         assert resp.status_code == 200
         body = resp.json()
-        assert body["reply"] == bilingual
-        assert body["english_reply"] == english
+        assert body["reply"] == expected_reply
 
     async def test_translated_query_in_response(self, client: AsyncClient):
         """The response must include 'translated_query' with the English translation."""
