@@ -20,7 +20,8 @@ before this module is called, and is injected into every vector query.
 from typing import AsyncGenerator
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
-from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain_core.messages import HumanMessage, AIMessage
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -130,6 +131,7 @@ SNC CURRICULUM CONTEXT (Grade {grade_level}):
 _TUTOR_PROMPT = ChatPromptTemplate.from_messages(
     [
         ("system", _TUTOR_SYSTEM_PROMPT),
+        MessagesPlaceholder(variable_name="history", optional=True),
         ("user", "{translated_message}"),
     ]
 )
@@ -208,6 +210,7 @@ async def get_guardrailed_response(
     translated_message: str,
     grade_level: int,
     context_chunks: list[str],
+    history: list[HumanMessage | AIMessage] | None = None,
 ) -> TutorResponse:
     """
     Send the student's original + translated message and retrieved SNC context
@@ -227,6 +230,7 @@ async def get_guardrailed_response(
             "original_message": original_message,
             "translated_message": translated_message,
             "context": _build_context(context_chunks, grade_level),
+            "history": history or [],
         }
     )
     return result
@@ -237,6 +241,7 @@ async def stream_guardrailed_response(
     translated_message: str,
     context_chunks: list[str],
     grade_level: int,
+    history: list[HumanMessage | AIMessage] | None = None,
 ) -> AsyncGenerator[str, None]:
     """Stream adaptive tutor response token by token."""
     llm = ChatOpenAI(
@@ -254,6 +259,7 @@ async def stream_guardrailed_response(
         "original_message": original_message,
         "translated_message": translated_message,
         "context": _build_context(context_chunks, grade_level),
+        "history": history or [],
     }):
         if hasattr(chunk, "content") and chunk.content:
             yield chunk.content

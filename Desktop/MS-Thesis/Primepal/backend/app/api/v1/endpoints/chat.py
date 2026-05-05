@@ -18,6 +18,7 @@ import json
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
+from langchain_core.messages import HumanMessage, AIMessage
 from pydantic import BaseModel, Field
 
 from app.core.security import get_current_student
@@ -34,8 +35,14 @@ from app.agents.evaluator_agent.interaction_logger import log_interaction
 router = APIRouter()
 
 
+class ChatMessage(BaseModel):
+    role: str = Field(..., pattern=r"^(student|tutor)$")
+    content: str = Field(..., min_length=1, max_length=1000)
+
+
 class ChatRequest(BaseModel):
     message: str = Field(..., min_length=1, max_length=1000)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=10)
 
 
 class ChatResponse(BaseModel):
@@ -51,6 +58,17 @@ class UrduRequest(BaseModel):
 
 class UrduResponse(BaseModel):
     urdu: str
+
+
+def _convert_history(history: list[ChatMessage]) -> list[HumanMessage | AIMessage]:
+    """Convert ChatMessage list to LangChain message objects."""
+    messages = []
+    for msg in history:
+        if msg.role == "student":
+            messages.append(HumanMessage(content=msg.content))
+        else:
+            messages.append(AIMessage(content=msg.content))
+    return messages
 
 
 @router.post("", response_model=ChatResponse, summary="Guardrailed adaptive student chat")
@@ -98,6 +116,7 @@ async def chat(
         translated_message=translated_query,
         grade_level=grade_level,
         context_chunks=context_chunks,
+        history=_convert_history(body.history),
     )
 
     background_tasks.add_task(
@@ -160,6 +179,8 @@ async def chat_stream(
         supabase_admin_client=supabase,
     )
 
+    lc_history = _convert_history(body.history)
+
     async def event_stream():
         yield f"data: {json.dumps({'type': 'status', 'content': 'Thinking...'})}\n\n"
 
@@ -169,6 +190,7 @@ async def chat_stream(
             translated_message=translated_query,
             context_chunks=context_chunks,
             grade_level=grade_level,
+            history=lc_history,
         ):
             accumulated_response.append(token)
             yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
