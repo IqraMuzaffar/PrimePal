@@ -142,26 +142,44 @@ function DashboardContent() {
         {!loading && skillAccuracy && (
           <div className="mb-8">
             <h2 className="text-lg font-bold text-gray-900 mb-4">Skill Breakdown</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+            {/* NEW: Skill cards with data-driven approach */}
+            <div className={
+              pillar
+                ? "grid grid-cols-1 md:grid-cols-3 gap-4"  // 1 large + 3 small
+                : "grid grid-cols-2 md:grid-cols-4 gap-4"  // 4 equal
+            }>
               {[
-                { label: "Reading", value: skillAccuracy.reading, icon: BookOpenCheck },
-                { label: "Writing", value: skillAccuracy.writing, icon: BookOpen },
-                { label: "Listening", value: skillAccuracy.listening, icon: Headphones },
-                { label: "Speaking", value: skillAccuracy.speaking, icon: MessageSquare },
-              ].map(({ label, value, icon: Icon }) => (
-                <div
-                  key={label}
-                  className={`rounded-xl border p-4 ${skillColor(value)}`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Icon className="w-4 h-4" />
-                    <span className="text-sm font-semibold">{label}</span>
+                { key: "reading", label: "Reading", value: skillAccuracy.reading, icon: BookOpenCheck },
+                { key: "writing", label: "Writing", value: skillAccuracy.writing, icon: BookOpen },
+                { key: "listening", label: "Listening", value: skillAccuracy.listening, icon: Headphones },
+                { key: "speaking", label: "Speaking", value: skillAccuracy.speaking, icon: MessageSquare },
+              ].map(({ key, label, value, icon: Icon }) => {
+                const isSelected = pillar === key;
+                const isOther = pillar && !isSelected;
+
+                return (
+                  <div
+                    key={key}
+                    className={`
+                      rounded-xl border p-4
+                      ${isSelected ? "md:col-span-2 border-2" : ""}
+                      ${isOther ? "opacity-40" : "opacity-100"}
+                      ${skillColor(value)}
+                      transition-all duration-200
+                    `}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Icon className="w-4 h-4" />
+                      <span className="text-sm font-semibold">{label}</span>
+                    </div>
+                    <p className="text-2xl font-bold">{Math.round(value)}%</p>
+                    <p className="text-xs opacity-75 mt-1">accuracy</p>
                   </div>
-                  <p className="text-2xl font-bold">{Math.round(value)}%</p>
-                  <p className="text-xs opacity-75 mt-1">accuracy</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
+
             {skillAccuracy.active_today > 0 && (
               <p className="text-xs text-gray-500 mt-3">
                 {skillAccuracy.active_today} student{skillAccuracy.active_today !== 1 ? "s" : ""} active today
