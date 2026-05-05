@@ -124,7 +124,29 @@
       "Bash(for f:*)",
       "Bash(do python:*)",
       "Bash(done)",
-      "Bash(find /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal -path */backend/* -name *chat* -type f)"
+      "Bash(find /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal -path */backend/* -name *chat* -type f)",
+      "Bash(grep -r \"speechSynthesis\\\\|webkitSpeechRecognition\\\\|AudioContext\\\\|getUserMedia\" /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/frontend --include=*.tsx --include=*.ts)",
+      "Bash(find /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/frontend -type f -name *chat*)",
+      "Bash(grep -r dangerously /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/frontend/app --include=*.tsx)",
+      "Bash(where gh:*)",
+      "Read(//c/Program Files/GitHub CLI/**)",
+      "Read(//c/Program Files \\(x86\\)/GitHub CLI/**)",
+      "Bash(find ./frontend -path ./frontend/node_modules -prune -o -type f -name *chat* -print)",
+      "Bash(find ./frontend/components -name *.tsx)",
+      "Bash(find \"/c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/backend/app/core\" -name \"*.pyc\" -delete)",
+      "Bash(find \"/c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/backend/app/core\" -name \"__pycache__\" -type d -exec rm -rf {} +)",
+      "Bash(find 'C:\\\\Users\\\\Iqra Muzaffar\\\\Desktop\\\\MS-Thesis\\\\Primepal' -name *.tsx -path *teacher*dashboard*)",
+      "Bash(find 'C:\\\\Users\\\\Iqra Muzaffar\\\\Desktop\\\\MS-Thesis\\\\Primepal/backend' -name *.py)",
+      "Bash(grep -E \"\\\\.tsx$\")",
+      "Bash(grep -rn \"jsPDF\\\\|html2pdf\" /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/frontend/app --include=*.tsx --include=*.ts)",
+      "Bash(grep -rn \"download\\\\|export\\\\|pdf\" /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/backend/app/api/v1/endpoints/*.py)",
+      "Bash(export PATH=\"$PATH:/c/Program Files/GitHub CLI:/c/Program Files \\(x86\\)/GitHub CLI:/c/Users/Iqra Muzaffar/AppData/Local/GitHub CLI:$LOCALAPPDATA/GitHub CLI\")",
+      "Bash(gh --version)",
+      "Bash(\"/c/Program Files/GitHub CLI/gh.exe\" --version)",
+      "Read(//c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/frontend/$LOCALAPPDATA/**)",
+      "Bash(git config:*)",
+      "Bash(git add:*)",
+      "Bash(echo \"Type check completed with exit code: $?\")"
     ]
   }
 }
