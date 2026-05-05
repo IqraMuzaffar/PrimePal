@@ -6,6 +6,7 @@ Covers:
   - Pillars with existing cache are skipped
   - No generation when active topics list is empty
   - One pillar failure does not block others
+  - Topic update endpoint triggers pre-generation as a background task
 
 Patching conventions:
   - Supabase:            app.utils.pregenerate_missions.get_supabase_admin
@@ -13,6 +14,8 @@ Patching conventions:
   - Active topics:       app.utils.pregenerate_missions.get_active_topics
   - Cache get:           app.utils.pregenerate_missions.cache_get
   - Cache set:           app.utils.pregenerate_missions.cache_set
+  - Classroom supabase:  app.api.v1.endpoints.classroom.get_supabase_admin
+  - Classroom pregen:    app.api.v1.endpoints.classroom.pregenerate_pillar_missions
 """
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -172,3 +175,58 @@ class TestPregeneratePillarMissions:
             cached_pillars.append(key)
         # None of the cached keys should contain "writing"
         assert all("writing" not in k for k in cached_pillars)
+
+
+# ── Integration: Topic Update Triggers Pre-generation ───────────────────────
+
+MOCK_TEACHER = {
+    "id": "tttttttt-0000-0000-0000-000000000001",
+    "email": "teacher@test.com",
+    "is_admin": False,
+}
+
+
+class TestTopicUpdateTriggersPregen:
+    """Verify PUT /{classroom_id}/active-topics fires pregenerate_pillar_missions."""
+
+    @pytest.mark.asyncio
+    async def test_topic_update_fires_pregenerate(self):
+        """PUT active-topics should schedule pregenerate_pillar_missions as a background task."""
+        from httpx import ASGITransport, AsyncClient
+        from app.main import app
+        from app.core.security import get_current_teacher
+
+        # Override teacher auth
+        app.dependency_overrides[get_current_teacher] = lambda: MOCK_TEACHER
+
+        # Mock supabase admin for the delete/insert chain in save_active_topics
+        mock_supabase = MagicMock()
+        mock_supabase.table.return_value.delete.return_value.eq.return_value.execute.return_value = MagicMock()
+        mock_supabase.table.return_value.insert.return_value.execute.return_value = MagicMock()
+
+        mock_pregen = AsyncMock()
+
+        try:
+            with (
+                patch(
+                    "app.api.v1.endpoints.classroom.get_supabase_admin",
+                    return_value=mock_supabase,
+                ),
+                patch(
+                    "app.utils.pregenerate_missions.pregenerate_pillar_missions",
+                    new=mock_pregen,
+                ),
+            ):
+                async with AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    resp = await client.put(
+                        f"/api/v1/classroom/{CLASSROOM_ID}/active-topics",
+                        json={"topic_ids": [1, 2, 3]},
+                    )
+
+                assert resp.status_code == 200
+                assert resp.json()["active_count"] == 3
+                mock_pregen.assert_awaited_once_with(CLASSROOM_ID)
+        finally:
+            app.dependency_overrides.pop(get_current_teacher, None)
