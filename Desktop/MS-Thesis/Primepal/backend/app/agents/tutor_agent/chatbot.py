@@ -17,6 +17,7 @@ The grade_level filter is the hard guardrail: it is resolved from the
 student's JWT (classroom_id → classrooms.grade_level) in the endpoint
 before this module is called, and is injected into every vector query.
 """
+import hashlib
 from typing import AsyncGenerator
 
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
@@ -24,6 +25,7 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_core.messages import HumanMessage, AIMessage
 from pydantic import BaseModel
 
+from app.core.cache import cache_get, cache_set
 from app.core.config import settings
 
 
@@ -179,7 +181,13 @@ async def retrieve_grade_filtered_chunks(
         model=settings.EMBEDDING_MODEL,
         openai_api_key=settings.OPENAI_API_KEY,
     )
-    query_vector = await embeddings_model.aembed_query(query)
+    embed_cache_key = f"embedding:{hashlib.md5(query.encode()).hexdigest()[:12]}"
+    cached_vector = await cache_get(embed_cache_key)
+    if cached_vector:
+        query_vector = cached_vector
+    else:
+        query_vector = await embeddings_model.aembed_query(query)
+        await cache_set(embed_cache_key, query_vector, ttl=86400)  # 24 hours
 
     response = supabase_admin_client.rpc(
         "match_snc_documents",
