@@ -88,8 +88,6 @@ export const queryKeys = {
   streak: ["streak"] as const,
   dailySummary: ["dailySummary"] as const,
   achievements: ["achievements"] as const,
-  leaderboard: (classroomId: string) => ["leaderboard", classroomId] as const,
-  studentLeaderboard: ["studentLeaderboard"] as const,
   spellingWords: ["spellingWords"] as const,
   storyTime: ["storyTime"] as const,
   speakingPrompts: ["speakingPrompts"] as const,
@@ -130,37 +128,6 @@ export function useAchievements() {
     queryKey: queryKeys.achievements,
     queryFn: () => studentFetch<AchievementsResponse>("/achievements/me"),
     staleTime: 5 * 60 * 1000,
-  });
-}
-
-export interface LeaderboardEntry {
-  rank: number;
-  student_id: string;
-  student_name: string;
-  avatar_url: string | null;
-  points: number;
-  is_current_student: boolean;
-}
-
-export interface LeaderboardResponse {
-  entries: LeaderboardEntry[];
-  current_student_rank: number;
-  total_students: number;
-}
-
-export function useClassroomId(): string | null {
-  return typeof window !== "undefined" ? getStudentClassroomId() : null;
-}
-
-export function useLeaderboard(classroomId: string | undefined) {
-  return useQuery({
-    queryKey: queryKeys.leaderboard(classroomId ?? ""),
-    queryFn: () =>
-      studentFetch<LeaderboardResponse>(
-        `/missions/leaderboard`
-      ),
-    enabled: !!classroomId,
-    staleTime: 60 * 1000,
   });
 }
 
@@ -219,14 +186,6 @@ interface EvalQuestion {
   task_type: string;
   options: Array<{ label: string; value: string; emoji?: string }> | null;
   audio_text: string | null;
-}
-
-export function useStudentLeaderboard() {
-  return useQuery({
-    queryKey: queryKeys.studentLeaderboard,
-    queryFn: () => studentFetch<LeaderboardResponse>("/missions/leaderboard"),
-    staleTime: 60 * 1000,
-  });
 }
 
 export function useSpellingWords() {

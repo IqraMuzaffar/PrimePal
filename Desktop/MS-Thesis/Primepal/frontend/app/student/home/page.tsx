@@ -251,20 +251,6 @@ export default function HomePage() {
               <span className="text-xs text-amber-200 font-semibold">Can you spell it?</span>
             </button>
           </motion.div>
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <button
-              onClick={() => {
-                router.push("/student/leaderboard");
-              }}
-              className="w-full flex flex-col items-center gap-2 p-5 rounded-2xl bg-yellow-500 border-b-4 border-yellow-700
-                         shadow-[0_4px_0_#a16207] hover:brightness-110
-                         text-white font-extrabold text-center transition-all duration-100"
-            >
-              <span className="text-4xl">🏆</span>
-              <span className="text-base">Leaderboard</span>
-              <span className="text-xs text-yellow-100 font-semibold">See who&apos;s #1!</span>
-            </button>
-          </motion.div>
           <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} className="col-span-2">
             <Link
               href="/student/story-time"

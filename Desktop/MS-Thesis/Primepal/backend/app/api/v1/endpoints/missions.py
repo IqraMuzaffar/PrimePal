@@ -6,7 +6,6 @@ Endpoints:
   POST /api/v1/missions/complete         — Record answer result, award points (student auth required)
   GET  /api/v1/missions/me               — Fetch student profile + points (student auth required)
   GET  /api/v1/missions/pillar           — Generate 10 questions for specific pillar (student auth required)
-  GET  /api/v1/missions/leaderboard      — Class leaderboard ranked by points (student auth required)
   GET  /api/v1/missions/weekly-progress  — Weekly 4-pillar progress tracking (student auth required)
 
 Grade level is always resolved from the classroom DB record — the client cannot supply or
@@ -1019,93 +1018,6 @@ async def get_performance(student: dict = Depends(get_current_student)):
     student_id = student["sub"]
     profile = await get_student_performance_profile(student_id)
     return PerformanceResponse(**profile)
-
-
-# ---------------------------------------------------------------------------
-# GET /leaderboard (Feature 17: Class Leaderboard)
-# ---------------------------------------------------------------------------
-
-class LeaderboardEntry(BaseModel):
-    rank: int
-    student_id: str
-    student_name: str
-    avatar_url: str | None
-    points: int
-    is_current_student: bool
-
-
-class LeaderboardResponse(BaseModel):
-    entries: list[LeaderboardEntry]
-    current_student_rank: int
-    total_students: int
-
-
-@router.get("/leaderboard", response_model=LeaderboardResponse, summary="Class leaderboard by points")
-async def get_leaderboard(student: dict = Depends(get_current_student)):
-    """
-    Return the class leaderboard sorted by points (highest first).
-
-    - Scoped to the student's own classroom (from JWT classroom_id)
-    - Marks which row is the requesting student for UI highlighting
-    - Returns all students in the classroom, ranked by points descending
-    - Cached for 10 minutes to reduce database queries
-
-    Returns:
-      - entries: ranked list of all students in the class
-      - current_student_rank: rank position of the requesting student
-      - total_students: total count of students in the classroom
-    """
-    supabase = get_supabase_admin()
-    classroom_id: str = student["classroom_id"]
-    student_id: str = student["sub"]
-
-    # Check cache first (10 min TTL for leaderboard)
-    cache_key = make_cache_key("leaderboard", classroom_id)
-    cached = await cache_get(cache_key)
-    if cached:
-        response_data = cached
-        # Update is_current_student flag for this student
-        for entry in response_data["entries"]:
-            entry["is_current_student"] = entry["student_id"] == student_id
-        return LeaderboardResponse(**response_data)
-
-    # Fetch all students in the classroom, ordered by points descending
-    result = (
-        supabase.table("students")
-        .select("id, student_name, avatar_url, points")
-        .eq("classroom_id", classroom_id)
-        .order("points", desc=True)
-        .execute()
-    )
-    rows = result.data or []
-
-    # Build ranked entries
-    entries: list[LeaderboardEntry] = []
-    current_rank = len(rows)  # default if not found
-
-    for i, row in enumerate(rows):
-        is_current = row["id"] == student_id
-        entry = LeaderboardEntry(
-            rank=i + 1,
-            student_id=row["id"],
-            student_name=row["student_name"],
-            avatar_url=row.get("avatar_url"),
-            points=row.get("points") or 0,
-            is_current_student=is_current,
-        )
-        entries.append(entry)
-        if is_current:
-            current_rank = i + 1
-
-    response = LeaderboardResponse(
-        entries=entries,
-        current_student_rank=current_rank,
-        total_students=len(rows),
-    )
-
-    # Cache for 10 minutes
-    await cache_set(cache_key, response.model_dump(), ttl=600)
-    return response
 
 
 # ---------------------------------------------------------------------------
