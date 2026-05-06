@@ -58,6 +58,11 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
     router.push("/teacher/login");
   }
 
+  // Skip layout shell for login page
+  if (pathname === '/teacher/login') {
+    return <>{children}</>;
+  }
+
   // Get page title from pathname
   const matchedTitle = Object.entries(PAGE_TITLES).find(([key]) => pathname.startsWith(key))?.[1];
   const pageTitle = matchedTitle || 'Teacher';
