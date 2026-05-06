@@ -19,7 +19,7 @@ interface GradeCardProps {
 
 export function GradeCard({
   grade,
-  gradeNumber,
+  gradeNumber: _gradeNumber,
   color,
   subject,
   topic,

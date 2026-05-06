@@ -1,243 +1,26 @@
-import { getTeacherHeaders } from "@/lib/teacherAuth";
-import { apiFetch } from "@/lib/api";
-import TabbedDashboard from "@/components/teacher/TabbedDashboard";
-import type { AnalyticsDashboardData, ClassroomInfo, SectionInfo } from "@/types/analytics";
+"use client";
 
-interface StudentSummary {
-  student_id: string;
-  student_name: string;
-  avatar_url: string | null;
-  roll_number: string | null;
-  total_interactions: number;
-  mission_accuracy_pct: number;
-}
+import React from "react";
+import { useFilterParams } from "@/components/teacher/FilterBar";
+import { useTeacherAnalytics } from "@/lib/hooks/teacher-queries";
+import AnalyticsClient from "./components/AnalyticsClient";
 
-interface ClassroomReportResponse {
-  classroom_id: string;
-  grade_level: number;
-  students: StudentSummary[];
-}
+export default function AnalyticsPage() {
+  const { gradeLevel, pillar, section } = useFilterParams();
+  const { data, isLoading, error } = useTeacherAnalytics({
+    gradeLevel,
+    pillar,
+    section,
+  });
 
-interface PageProps {
-  searchParams: Promise<{ grade?: string; pillar?: string }>;
-}
-
-async function fetchAnalyticsData(
-  gradeLevel?: number,
-  _pillar?: string
-): Promise<AnalyticsDashboardData> {
-  try {
-    const headers = await getTeacherHeaders();
-
-    // Build query string for teacher report
-    const reportParams = new URLSearchParams();
-    if (gradeLevel) reportParams.set("grade_level", String(gradeLevel));
-    const reportQs = reportParams.toString();
-    const _reportSuffix = reportQs ? `?${reportQs}` : "";
-
-    // Fetch all classrooms (optionally filtered by grade)
-    const classroomList = await apiFetch<
-      Array<{ id: string; class_name: string; grade_level: number }>
-    >("/classroom", { headers });
-
-    // Filter classrooms client-side if grade filter is set
-    const filteredClassrooms = gradeLevel
-      ? classroomList.filter((c) => c.grade_level === gradeLevel)
-      : classroomList;
-
-    // Fetch analytics for each classroom
-    const analyticsResults = await Promise.all(
-      filteredClassrooms.map(async (room) => {
-        try {
-          const data = await apiFetch<ClassroomReportResponse>(
-            `/evaluator/report/classroom/${room.id}`,
-            { headers }
-          );
-          return {
-            ...data,
-            classroom_name: room.class_name,
-          };
-        } catch {
-          return {
-            classroom_id: room.id,
-            classroom_name: room.class_name,
-            grade_level: room.grade_level,
-            students: [],
-          };
-        }
-      })
-    );
-
-    // ── Aggregate data ─────────────────────────────────────────────────
-
-    // All students across classrooms
-    const allStudents = analyticsResults.flatMap((classroom) =>
-      classroom.students.map((s) => ({
-        ...s,
-        classroom_id: classroom.classroom_id,
-        classroom_name: classroom.classroom_name || "Unknown",
-        grade_level: classroom.grade_level,
-      }))
-    );
-
-    // Summary stats
-    const totalInteractions = allStudents.reduce(
-      (sum, s) => sum + s.total_interactions,
-      0
-    );
-    const avgAccuracy =
-      allStudents.length > 0
-        ? allStudents.reduce((sum, s) => sum + s.mission_accuracy_pct, 0) /
-          allStudents.length
-        : 0;
-
-    // Classroom infos
-    const classrooms: ClassroomInfo[] = analyticsResults.map((classroom) => {
-      const classroomStudents = classroom.students;
-      return {
-        id: classroom.classroom_id,
-        name: classroom.classroom_name || "Unknown",
-        grade: classroom.grade_level,
-        studentCount: classroomStudents.length,
-        avgAccuracy:
-          classroomStudents.length > 0
-            ? classroomStudents.reduce((sum, s) => sum + s.mission_accuracy_pct, 0) /
-              classroomStudents.length
-            : 0,
-      };
-    });
-
-    // Top 5 students by accuracy
-    const topStudents = allStudents
-      .sort((a, b) => b.mission_accuracy_pct - a.mission_accuracy_pct)
-      .slice(0, 5)
-      .map((s) => ({
-        id: s.student_id,
-        name: s.student_name,
-        avatarUrl: s.avatar_url,
-        grade: s.grade_level,
-        accuracy: s.mission_accuracy_pct,
-        totalPoints: Math.round(s.total_interactions * 10),
-      }));
-
-    // Student table data (first 50 students, sorted by points)
-    const studentTableData = {
-      items: allStudents
-        .map((s) => ({
-          id: s.student_id,
-          name: s.student_name,
-          rollNumber: s.roll_number || "",
-          grade: s.grade_level,
-          className: s.classroom_name,
-          classId: s.classroom_id,
-          accuracy: s.mission_accuracy_pct,
-          totalPoints: Math.round(s.total_interactions * 10),
-          avatarUrl: s.avatar_url,
-        }))
-        .sort((a, b) => b.totalPoints - a.totalPoints)
-        .slice(0, 50),
-      totalCount: allStudents.length,
-      pageSize: 50,
-      currentPage: 1,
-    };
-
-    // Section infos (derived from classrooms + students)
-    const sections: SectionInfo[] = classrooms.map((classroom, idx) => {
-      const classroomStudents = allStudents.filter(
-        (s) => s.classroom_id === classroom.id
-      );
-      const topStudent =
-        classroomStudents.length > 0
-          ? classroomStudents.reduce((best, s) =>
-              s.mission_accuracy_pct > best.mission_accuracy_pct ? s : best
-            )
-          : null;
-
-      return {
-        grade: classroom.grade,
-        section: String.fromCharCode(65 + idx), // A, B, C, ...
-        sectionId: classroom.id,
-        studentCount: classroomStudents.length,
-        topStudentName: topStudent?.student_name || "—",
-        topStudentAccuracy: topStudent?.mission_accuracy_pct || 0,
-      };
-    });
-
-    return {
-      summaryStats: {
-        totalInteractions,
-        totalStudents: allStudents.length,
-        avgAccuracy: Math.round(avgAccuracy),
-        activeClassrooms: classrooms.length,
-      },
-      classrooms,
-      topStudents,
-      weakPointsByGrade: {},
-      studentTableData,
-      sections,
-    };
-  } catch (error) {
-    console.error("Failed to fetch analytics data:", error);
-    return {
-      summaryStats: {
-        totalInteractions: 0,
-        totalStudents: 0,
-        avgAccuracy: 0,
-        activeClassrooms: 0,
-      },
-      classrooms: [],
-      topStudents: [],
-      weakPointsByGrade: {},
-      studentTableData: {
-        items: [],
-        totalCount: 0,
-        pageSize: 50,
-        currentPage: 1,
-      },
-      sections: [],
-      fetchError: true,
-    };
-  }
-}
-
-export default async function AnalyticsPage({ searchParams }: PageProps) {
-  const resolvedParams = await searchParams;
-  const gradeLevel = resolvedParams.grade ? Number(resolvedParams.grade) : undefined;
-  const pillar = resolvedParams.pillar || undefined;
-
-  const data = await fetchAnalyticsData(gradeLevel, pillar);
-
-  // Empty state
-  if (data.fetchError) {
-    return (
-      <div className="bg-gray-50 min-h-full p-6">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Global Analytics</h1>
-          <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-            <p className="text-red-700 font-medium">Failed to load analytics data</p>
-            <p className="text-sm text-red-500 mt-1">Please check your connection and try refreshing the page.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (data.summaryStats.activeClassrooms === 0) {
-    return (
-      <div className="bg-gray-50 min-h-full p-6">
-        <div className="max-w-4xl mx-auto">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Global Analytics</h1>
-          <p className="text-gray-500 mb-8">
-            Monitor all classrooms and student performance in one dashboard
-          </p>
-          <div className="bg-white rounded-2xl border border-gray-200 flex flex-col items-center justify-center py-24 text-gray-400">
-            <p className="font-medium text-gray-500">No classrooms yet</p>
-            <p className="text-sm mt-1">Create a classroom to start tracking analytics.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return <TabbedDashboard data={data} gradeLevel={gradeLevel} pillar={pillar} />;
+  return (
+    <AnalyticsClient
+      data={data}
+      isLoading={isLoading}
+      error={error}
+      gradeLevel={gradeLevel}
+      pillar={pillar}
+      section={section}
+    />
+  );
 }

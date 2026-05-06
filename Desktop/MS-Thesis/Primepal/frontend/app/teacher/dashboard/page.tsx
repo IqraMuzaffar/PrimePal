@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Activity, BookOpenCheck, Headphones, MessageSquare, FileText, Target } from "lucide-react";
 import FilterBar, { useFilterParams } from "@/components/teacher/FilterBar";
 import { useTeacherClassrooms, useTeacherDashboardStats, useTeacherSkillAccuracy, type TeacherClassroom } from "@/lib/hooks/teacher-queries";
+import { WelcomeBanner } from "@/components/teacher/dashboard";
 import { StatCard } from "@/components/teacher/design-system";
 import { designTokens } from "@/lib/design-tokens";
 import { supabase } from "@/lib/supabase/client";
@@ -81,7 +82,7 @@ function DashboardContent() {
       <WelcomeBanner
         teacherName={email?.split('@')[0] || 'Teacher'}
         activeClasses={classrooms.length}
-        pendingMissions={stats?.live_missions || 0}
+        pendingMissions={0}
         onNewMission={() => router.push('/teacher/missions')}
       />
 
