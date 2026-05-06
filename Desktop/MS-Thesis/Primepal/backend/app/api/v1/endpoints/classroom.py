@@ -505,6 +505,46 @@ async def get_classroom_active_topics(
     return await get_active_topics(classroom_id, grade_level, supabase)
 
 
+async def invalidate_classroom_missions_cache(classroom_id: str) -> None:
+    """
+    Invalidate all cached missions for students in this classroom.
+    Called when teacher changes active topics to ensure students get fresh missions.
+    """
+    from app.core.cache import cache_delete_pattern
+    from app.core.supabase_client import get_supabase_admin
+    import logging
+
+    logger = logging.getLogger(__name__)
+    supabase = get_supabase_admin()
+
+    try:
+        # Get all students in classroom
+        students_resp = (
+            supabase.table("students")
+            .select("id")
+            .eq("classroom_id", classroom_id)
+            .execute()
+        )
+
+        pillars = ["reading", "writing", "listening", "speaking"]
+        total_deleted = 0
+
+        for student in (students_resp.data or []):
+            student_id = student["id"]
+
+            # Delete all pillar mission caches for this student
+            for pillar in pillars:
+                pattern = f"pillar_missions:{student_id}:{pillar}:*"
+                deleted = await cache_delete_pattern(pattern)
+                total_deleted += deleted
+
+        logger.info(f"Cache invalidation: cleared {total_deleted} mission caches for classroom {classroom_id}")
+
+    except Exception as exc:
+        logger.warning(f"Cache invalidation failed for classroom {classroom_id}: {exc}")
+        # Non-fatal - pre-generation will create new caches anyway
+
+
 @router.put("/{classroom_id}/active-topics", response_model=ActiveTopicsResponse)
 async def update_classroom_active_topics(
     classroom_id: str,
@@ -520,6 +560,9 @@ async def update_classroom_active_topics(
     """
     supabase = get_supabase_admin()
     result = await save_active_topics(classroom_id, body.topic_ids, supabase)
+
+    # Invalidate old caches before pre-generating new ones
+    background_tasks.add_task(invalidate_classroom_missions_cache, classroom_id)
 
     from app.utils.pregenerate_missions import pregenerate_pillar_missions
     background_tasks.add_task(pregenerate_pillar_missions, classroom_id)
