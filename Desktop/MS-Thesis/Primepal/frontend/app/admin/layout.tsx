@@ -1,11 +1,38 @@
+// frontend/app/admin/layout.tsx
+
 "use client";
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { supabase } from "@/lib/supabase/client";
 import { isCurrentUserAdmin } from "@/lib/adminAuth";
-import Link from "next/link";
-import { ClipboardCheck, Download, LayoutDashboard, LogOut, Menu, Sparkles, X } from "lucide-react";
+import {
+  ClipboardCheck,
+  Users,
+  Network,
+  GraduationCap,
+  BookOpen,
+  Download,
+} from "lucide-react";
+import { Sidebar, TopBar } from "@/components/teacher/design-system";
+
+const ADMIN_NAV_LINKS = [
+  { href: "/admin/dashboard", label: "Evaluations", icon: ClipboardCheck },
+  { href: "/admin/dashboard/staff", label: "Staff", icon: Users },
+  { href: "/admin/dashboard/hierarchy", label: "Hierarchy", icon: Network },
+  { href: "/admin/dashboard/students", label: "Students", icon: GraduationCap },
+  { href: "/admin/dashboard/curriculum", label: "Curriculum", icon: BookOpen },
+  { href: "/admin/dashboard/export", label: "Export", icon: Download },
+];
+
+const PAGE_TITLES: Record<string, string> = {
+  "/admin/dashboard": "Evaluations",
+  "/admin/dashboard/staff": "Staff Management",
+  "/admin/dashboard/hierarchy": "Hierarchy",
+  "/admin/dashboard/students": "Students",
+  "/admin/dashboard/curriculum": "Curriculum",
+  "/admin/dashboard/export": "Export Data",
+};
 
 export default function AdminLayout({
   children,
@@ -17,7 +44,6 @@ export default function AdminLayout({
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [adminName, setAdminName] = useState("");
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   const isLoginPage = pathname === "/admin/login";
 
@@ -50,7 +76,7 @@ export default function AdminLayout({
     };
 
     checkAuth();
-  }, [router, isLoginPage]);
+  }, [router, isLoginPage, pathname]);
 
   if (isLoginPage) {
     return <>{children}</>;
@@ -58,8 +84,8 @@ export default function AdminLayout({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-slate-900 flex items-center justify-center">
-        <div className="text-white">Loading...</div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-600">Loading...</div>
       </div>
     );
   }
@@ -68,252 +94,26 @@ export default function AdminLayout({
     return null;
   }
 
-  const isActive = (path: string) => pathname.includes(path);
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    router.push("/admin/login");
+  }
+
+  const pageTitle = PAGE_TITLES[pathname] || 'Admin';
 
   return (
-    <div className="min-h-screen bg-slate-900">
-      {/* Header */}
-      <div className="bg-slate-800 border-b border-slate-700">
-        <div className="max-w-7xl mx-auto px-4 lg:px-6 py-4 flex items-center justify-between gap-4">
-          {/* Mobile menu toggle */}
-          <button
-            onClick={() => setShowMobileMenu(!showMobileMenu)}
-            className="lg:hidden text-white hover:bg-slate-700 p-2 rounded-lg transition-colors"
-          >
-            {showMobileMenu ? <X size={20} /> : <Menu size={20} />}
-          </button>
-
-          <h1 className="text-xl lg:text-2xl font-bold text-white">PrimePal Admin</h1>
-          <div className="flex items-center gap-2 lg:gap-4">
-            <span className="hidden sm:inline text-sm text-gray-300">{adminName}</span>
-            <button
-              onClick={async () => {
-                await supabase.auth.signOut();
-                router.push("/admin/login");
-              }}
-              className="flex items-center gap-2 px-3 lg:px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm text-white transition"
-            >
-              <LogOut size={16} />
-              <span className="hidden sm:inline">Sign Out</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Tab Navigation (desktop) */}
-      <div className="hidden lg:block bg-slate-800 border-b border-slate-700 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="flex gap-8 text-white">
-            <Link
-              href="/admin/dashboard"
-              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
-                pathname === "/admin/dashboard"
-                  ? "border-indigo-500 text-white"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              <ClipboardCheck size={14} />
-              Evaluations
-            </Link>
-            <Link
-              href="/admin/dashboard/staff"
-              className={`px-4 py-3 border-b-2 transition text-sm font-medium ${
-                isActive("/staff")
-                  ? "border-indigo-500 text-white"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              Staff Directory
-            </Link>
-            <Link
-              href="/admin/dashboard/hierarchy"
-              className={`px-4 py-3 border-b-2 transition text-sm font-medium ${
-                isActive("/hierarchy")
-                  ? "border-indigo-500 text-white"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              School Hierarchy
-            </Link>
-            <Link
-              href="/admin/dashboard/students"
-              className={`px-4 py-3 border-b-2 transition text-sm font-medium ${
-                isActive("/students")
-                  ? "border-indigo-500 text-white"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              Students
-            </Link>
-            <Link
-              href="/admin/dashboard/curriculum"
-              className={`px-4 py-3 border-b-2 transition text-sm font-medium ${
-                isActive("/curriculum")
-                  ? "border-indigo-500 text-white"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              Global Curriculum
-            </Link>
-            <Link
-              href="/admin/dashboard/export"
-              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
-                isActive("/export")
-                  ? "border-indigo-500 text-white"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              <Download size={14} />
-              Data Export
-            </Link>
-
-            {/* Divider */}
-            <div className="border-l border-slate-600 h-6 self-center" />
-
-            {/* Teacher View section */}
-            <span className="self-center text-xs text-slate-500 uppercase tracking-wider font-semibold">Teacher View</span>
-            <Link
-              href="/teacher/dashboard"
-              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
-                pathname.startsWith("/teacher/dashboard")
-                  ? "border-emerald-500 text-white"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              <LayoutDashboard size={14} />
-              Dashboard
-            </Link>
-            <Link
-              href="/teacher/assistant"
-              className={`px-4 py-3 border-b-2 transition text-sm font-medium flex items-center gap-1.5 ${
-                pathname.startsWith("/teacher/assistant")
-                  ? "border-emerald-500 text-white"
-                  : "border-transparent text-gray-400 hover:text-white"
-              }`}
-            >
-              <Sparkles size={14} />
-              AI Assistant
-            </Link>
-          </div>
-        </div>
-      </div>
-
-      {/* Mobile Navigation Drawer */}
-      {showMobileMenu && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-black/40 z-40 lg:hidden"
-            onClick={() => setShowMobileMenu(false)}
-          />
-
-          {/* Drawer */}
-          <nav className="fixed top-16 left-0 right-0 bg-slate-800 border-b border-slate-700 z-50 lg:hidden">
-            <div className="flex flex-col p-2 space-y-1">
-              <Link
-                href="/admin/dashboard"
-                onClick={() => setShowMobileMenu(false)}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
-                  pathname === "/admin/dashboard"
-                    ? "bg-indigo-600 text-white"
-                    : "text-gray-300 hover:text-white hover:bg-slate-700"
-                }`}
-              >
-                <ClipboardCheck size={14} />
-                Evaluations
-              </Link>
-              <Link
-                href="/admin/dashboard/staff"
-                onClick={() => setShowMobileMenu(false)}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition ${
-                  isActive("/staff")
-                    ? "bg-indigo-600 text-white"
-                    : "text-gray-300 hover:text-white hover:bg-slate-700"
-                }`}
-              >
-                Staff Directory
-              </Link>
-              <Link
-                href="/admin/dashboard/hierarchy"
-                onClick={() => setShowMobileMenu(false)}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition ${
-                  isActive("/hierarchy")
-                    ? "bg-indigo-600 text-white"
-                    : "text-gray-300 hover:text-white hover:bg-slate-700"
-                }`}
-              >
-                School Hierarchy
-              </Link>
-              <Link
-                href="/admin/dashboard/students"
-                onClick={() => setShowMobileMenu(false)}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition ${
-                  isActive("/students")
-                    ? "bg-indigo-600 text-white"
-                    : "text-gray-300 hover:text-white hover:bg-slate-700"
-                }`}
-              >
-                Students
-              </Link>
-              <Link
-                href="/admin/dashboard/curriculum"
-                onClick={() => setShowMobileMenu(false)}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition ${
-                  isActive("/curriculum")
-                    ? "bg-indigo-600 text-white"
-                    : "text-gray-300 hover:text-white hover:bg-slate-700"
-                }`}
-              >
-                Global Curriculum
-              </Link>
-              <Link
-                href="/admin/dashboard/export"
-                onClick={() => setShowMobileMenu(false)}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
-                  isActive("/export")
-                    ? "bg-indigo-600 text-white"
-                    : "text-gray-300 hover:text-white hover:bg-slate-700"
-                }`}
-              >
-                <Download size={14} />
-                Data Export
-              </Link>
-
-              {/* Teacher View section */}
-              <div className="border-t border-slate-600 my-1" />
-              <span className="px-4 py-1 text-xs text-slate-500 uppercase tracking-wider font-semibold">Teacher View</span>
-              <Link
-                href="/teacher/dashboard"
-                onClick={() => setShowMobileMenu(false)}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
-                  pathname.startsWith("/teacher/dashboard")
-                    ? "bg-emerald-600 text-white"
-                    : "text-gray-300 hover:text-white hover:bg-slate-700"
-                }`}
-              >
-                <LayoutDashboard size={14} />
-                Dashboard
-              </Link>
-              <Link
-                href="/teacher/assistant"
-                onClick={() => setShowMobileMenu(false)}
-                className={`px-4 py-3 rounded-lg text-sm font-medium transition flex items-center gap-1.5 ${
-                  pathname.startsWith("/teacher/assistant")
-                    ? "bg-emerald-600 text-white"
-                    : "text-gray-300 hover:text-white hover:bg-slate-700"
-                }`}
-              >
-                <Sparkles size={14} />
-                AI Assistant
-              </Link>
-            </div>
-          </nav>
-        </>
-      )}
-
-      {/* Content */}
-      <div className="max-w-7xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
-        {children}
+    <div className="flex h-screen">
+      <Sidebar
+        navItems={ADMIN_NAV_LINKS}
+        userEmail={adminName}
+        userRole="Administrator"
+        onLogout={handleLogout}
+      />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <TopBar pageTitle={pageTitle} userEmail={adminName} />
+        <main className="flex-1 overflow-auto" style={{ backgroundColor: '#f0f2f8' }}>
+          {children}
+        </main>
       </div>
     </div>
   );

@@ -1,10 +1,14 @@
 "use client";
 
-import { Suspense } from "react";
+import React, { Suspense } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Zap, Activity, BookOpenCheck, Headphones, MessageSquare, FileText } from "lucide-react";
+import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Activity, BookOpenCheck, Headphones, MessageSquare, FileText, Target } from "lucide-react";
 import FilterBar, { useFilterParams } from "@/components/teacher/FilterBar";
-import { useTeacherClassrooms, useTeacherDashboardStats, useTeacherSkillAccuracy } from "@/lib/hooks/teacher-queries";
+import { useTeacherClassrooms, useTeacherDashboardStats, useTeacherSkillAccuracy, type TeacherClassroom } from "@/lib/hooks/teacher-queries";
+import { StatCard } from "@/components/teacher/design-system";
+import { designTokens } from "@/lib/design-tokens";
+import { supabase } from "@/lib/supabase/client";
 
 function skillColor(pct: number): string {
   if (pct >= 70) return "text-emerald-600 bg-emerald-50 border-emerald-200";
@@ -13,7 +17,15 @@ function skillColor(pct: number): string {
 }
 
 function DashboardContent() {
+  const router = useRouter();
   const { gradeLevel, pillar, section } = useFilterParams();
+  const [email, setEmail] = React.useState<string>('');
+
+  React.useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setEmail(session?.user?.email || '');
+    });
+  }, []);
 
   const { data: classrooms = [], isLoading: classroomsLoading } = useTeacherClassrooms();
   const { data: stats, isLoading: statsLoading } = useTeacherDashboardStats({ gradeLevel, pillar, section });
@@ -23,107 +35,144 @@ function DashboardContent() {
   const availableSections = Array.from(new Set(classrooms.map(c => c.section).filter(Boolean))) as string[];
   availableSections.sort();
 
+  // Compute filtered sections based on grade selection
+  const filteredSections = gradeLevel
+    ? Array.from(new Set(
+        classrooms
+          .filter(c => c.grade_level === gradeLevel)
+          .map(c => c.section)
+          .filter((s): s is string => Boolean(s))  // Type predicate
+      )).sort()
+    : availableSections;
+
   const loading = classroomsLoading || statsLoading || skillLoading;
 
+  // NEW: Calculate match score for classroom sorting
+  const getMatchScore = (classroom: TeacherClassroom) => {
+    let score = 0;
+    if (gradeLevel) {
+      if (classroom.grade_level === gradeLevel) {
+        score += 100;
+        if (section && classroom.section === section) {
+          score += 10;
+        }
+      }
+    } else {
+      score = 50; // Default score when no filter
+    }
+    return score;
+  };
+
+  // NEW: Get opacity class for classroom card
+  const getClassroomOpacity = (classroom: TeacherClassroom) => {
+    if (!gradeLevel) return "opacity-100";
+
+    const matchesGrade = classroom.grade_level === gradeLevel;
+    const matchesSection = !section || classroom.section === section;
+
+    if (matchesGrade && matchesSection) return "opacity-100";
+    if (matchesGrade) return "opacity-60";
+    return "opacity-30";
+  };
+
   return (
-    <div className="bg-gray-50 min-h-full">
-      <main className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
-        {/* Page heading */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Teaching Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back! Here is your teaching overview.</p>
+    <div style={{ padding: designTokens.spacing.section }}>
+      {/* Welcome Banner */}
+      <WelcomeBanner
+        teacherName={email?.split('@')[0] || 'Teacher'}
+        activeClasses={classrooms.length}
+        pendingMissions={stats?.live_missions || 0}
+        onNewMission={() => router.push('/teacher/missions')}
+      />
+
+      {/* Filter Bar */}
+      <div className="mb-6">
+        <FilterBar showSearch={false} showPillar={true} showSection={true} sections={filteredSections} />
+      </div>
+
+      {/* Stats Grid */}
+      {!loading && stats && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard
+            value={stats.total_students}
+            label="Total Students"
+            subtitle="Across all classrooms"
+            icon={Users}
+            iconColor={designTokens.colors.primary}
+            iconBg={designTokens.colors.primaryBg}
+            trend={3}
+          />
+          <StatCard
+            value={stats.total_interactions || 0}
+            label="Total Interactions"
+            subtitle={pillar ? `${pillar.charAt(0).toUpperCase() + pillar.slice(1)} only` : 'Student missions & chat'}
+            icon={Activity}
+            iconColor={designTokens.colors.success}
+            iconBg={designTokens.colors.successBg}
+            trend={2}
+          />
+          <StatCard
+            value={`${Math.round(stats.avg_accuracy)}%`}
+            label="Avg Accuracy"
+            subtitle={pillar ? `${pillar.charAt(0).toUpperCase() + pillar.slice(1)} only` : 'Across all students'}
+            icon={Target}
+            iconColor={designTokens.colors.warning}
+            iconBg={designTokens.colors.warningBg}
+          />
+          <StatCard
+            value={stats.active_this_week}
+            label="Active This Week"
+            subtitle={pillar ? `${pillar.charAt(0).toUpperCase() + pillar.slice(1)} only` : 'Recent activity'}
+            icon={TrendingUp}
+            iconColor="#7c3aed"
+            iconBg="#ede9fe"
+            trend={4}
+          />
         </div>
-
-        {/* Filter Bar */}
-        <div className="mb-6">
-          <FilterBar showSearch={false} showPillar={true} showSection={true} sections={availableSections} />
-        </div>
-
-        {/* Stats Grid */}
-        {!loading && stats && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {/* Total Students */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Students</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total_students}</p>
-                  <p className="text-xs text-gray-500 mt-2">Across all classrooms</p>
-                </div>
-                <div className="p-3 bg-indigo-100 rounded-lg">
-                  <Users className="w-6 h-6 text-indigo-600" />
-                </div>
-              </div>
-            </div>
-
-            {/* Total Interactions */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Interactions</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total_interactions}</p>
-                  <p className="text-xs text-gray-500 mt-2">Student missions &amp; chat</p>
-                </div>
-                <div className="p-3 bg-emerald-100 rounded-lg">
-                  <Zap className="w-6 h-6 text-emerald-600" />
-                </div>
-              </div>
-            </div>
-
-            {/* Avg Accuracy */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Avg Accuracy</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{Math.round(stats.avg_accuracy)}%</p>
-                  <p className="text-xs text-gray-500 mt-2">Across all students</p>
-                </div>
-                <div className="p-3 bg-rose-100 rounded-lg">
-                  <TrendingUp className="w-6 h-6 text-rose-600" />
-                </div>
-              </div>
-            </div>
-
-            {/* Active This Week */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Active This Week</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{stats.active_this_week}</p>
-                  <p className="text-xs text-gray-500 mt-2">Students with recent activity</p>
-                </div>
-                <div className="p-3 bg-sky-100 rounded-lg">
-                  <Activity className="w-6 h-6 text-sky-600" />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+      )}
 
         {/* Skill Breakdown */}
         {!loading && skillAccuracy && (
           <div className="mb-8">
             <h2 className="text-lg font-bold text-gray-900 mb-4">Skill Breakdown</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+            {/* NEW: Skill cards with data-driven approach */}
+            <div className={
+              pillar
+                ? "grid grid-cols-1 md:grid-cols-5 gap-4"  // 1 large (2 cols) + 3 small (1 col each) = 5
+                : "grid grid-cols-2 md:grid-cols-4 gap-4"  // 4 equal
+            }>
               {[
-                { label: "Reading", value: skillAccuracy.reading, icon: BookOpenCheck },
-                { label: "Writing", value: skillAccuracy.writing, icon: BookOpen },
-                { label: "Listening", value: skillAccuracy.listening, icon: Headphones },
-                { label: "Speaking", value: skillAccuracy.speaking, icon: MessageSquare },
-              ].map(({ label, value, icon: Icon }) => (
-                <div
-                  key={label}
-                  className={`rounded-xl border p-4 ${skillColor(value)}`}
-                >
-                  <div className="flex items-center gap-2 mb-2">
-                    <Icon className="w-4 h-4" />
-                    <span className="text-sm font-semibold">{label}</span>
+                { key: "reading", label: "Reading", value: skillAccuracy.reading, icon: BookOpenCheck },
+                { key: "writing", label: "Writing", value: skillAccuracy.writing, icon: BookOpen },
+                { key: "listening", label: "Listening", value: skillAccuracy.listening, icon: Headphones },
+                { key: "speaking", label: "Speaking", value: skillAccuracy.speaking, icon: MessageSquare },
+              ].map(({ key, label, value, icon: Icon }) => {
+                const isSelected = pillar === key;
+                const isOther = pillar && !isSelected;
+
+                return (
+                  <div
+                    key={key}
+                    className={`
+                      rounded-xl border p-4
+                      ${isSelected ? "md:col-span-2 border-2" : ""}
+                      ${isOther ? "opacity-40" : "opacity-100"}
+                      ${skillColor(value)}
+                      transition-all duration-200
+                    `}
+                  >
+                    <div className="flex items-center gap-2 mb-2">
+                      <Icon className="w-4 h-4" />
+                      <span className="text-sm font-semibold">{label}</span>
+                    </div>
+                    <p className="text-2xl font-bold">{Math.round(value)}%</p>
+                    <p className="text-xs opacity-75 mt-1">accuracy</p>
                   </div>
-                  <p className="text-2xl font-bold">{Math.round(value)}%</p>
-                  <p className="text-xs opacity-75 mt-1">accuracy</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
+
             {skillAccuracy.active_today > 0 && (
               <p className="text-xs text-gray-500 mt-3">
                 {skillAccuracy.active_today} student{skillAccuracy.active_today !== 1 ? "s" : ""} active today
@@ -172,11 +221,14 @@ function DashboardContent() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {classrooms.map((c) => (
+              {classrooms
+                .slice()
+                .sort((a, b) => getMatchScore(b) - getMatchScore(a))
+                .map((c) => (
                 <Link
                   key={c.id}
                   href={`/teacher/classroom/${c.id}`}
-                  className="group bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md hover:border-indigo-300 transition-all"
+                  className={`group bg-white rounded-xl border border-gray-200 p-4 hover:shadow-md hover:border-indigo-300 transition-all duration-200 ${getClassroomOpacity(c)}`}
                 >
                   <div className="flex items-start justify-between mb-3">
                     <span className={`text-xs font-bold px-2 py-1 rounded-full ${
@@ -236,7 +288,6 @@ function DashboardContent() {
             </Link>
           </div>
         </div>
-      </main>
     </div>
   );
 }

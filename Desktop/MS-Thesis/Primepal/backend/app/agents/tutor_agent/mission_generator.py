@@ -321,6 +321,126 @@ POINTS_BY_DIFFICULTY = {
 
 
 # ---------------------------------------------------------------------------
+# Validation helper - Topic alignment
+# ---------------------------------------------------------------------------
+
+# Semantic keyword mapping for topic validation
+# Maps high-level topic names to concrete vocabulary that LLM might use
+TOPIC_KEYWORDS = {
+    "animals": ["animal", "cat", "dog", "bird", "fish", "cow", "horse", "lion", "tiger",
+                "elephant", "monkey", "rabbit", "mouse", "chicken", "duck", "goat", "sheep",
+                "pet", "zoo", "farm"],
+    "food": ["food", "eat", "drink", "hungry", "apple", "banana", "bread", "rice", "milk",
+             "water", "fruit", "vegetable", "meal", "breakfast", "lunch", "dinner", "pizza",
+             "burger", "sandwich", "juice", "tea", "coffee", "cake", "cookie"],
+    "family": ["family", "mother", "father", "sister", "brother", "parent", "son", "daughter",
+               "grandmother", "grandfather", "uncle", "aunt", "cousin", "baby", "child"],
+    "colors": ["color", "red", "blue", "green", "yellow", "black", "white", "pink", "purple",
+               "orange", "brown", "gray"],
+    "numbers": ["number", "one", "two", "three", "four", "five", "six", "seven", "eight",
+                "nine", "ten", "count", "many", "few"],
+    "body": ["body", "head", "eye", "ear", "nose", "mouth", "hand", "foot", "leg", "arm",
+             "finger", "toe", "face", "hair"],
+    "clothes": ["clothes", "shirt", "pant", "dress", "shoe", "sock", "hat", "coat", "jacket"],
+    "weather": ["weather", "sun", "rain", "cloud", "wind", "hot", "cold", "warm", "cool"],
+    "school": ["school", "teacher", "student", "book", "pencil", "desk", "class", "learn",
+               "read", "write"],
+    "home": ["home", "house", "room", "door", "window", "bed", "table", "chair", "kitchen"],
+    "transportation": ["transport", "car", "bus", "train", "bike", "bicycle", "plane", "boat",
+                      "walk", "drive", "ride"],
+    "time": ["time", "day", "night", "morning", "afternoon", "evening", "today", "tomorrow",
+             "yesterday", "hour", "minute"],
+    "greetings": ["hello", "hi", "goodbye", "bye", "good morning", "good night", "thank",
+                  "please", "sorry", "welcome"],
+}
+
+
+def validate_topic_alignment(questions: list[dict], active_topics: list[str], pillar: str) -> list[dict]:
+    """
+    Validate that questions align with teacher-selected topics.
+    Returns only questions that reference at least one active topic.
+
+    Uses expanded keyword matching to catch semantic variations:
+    - "Animals" matches: animal, cat, dog, bird, fish, etc.
+    - "Food" matches: food, eat, apple, bread, rice, etc.
+    - "Family" matches: family, mother, father, sister, brother, etc.
+
+    Args:
+        questions: List of validated question dictionaries
+        active_topics: Teacher-selected topics that questions should align with
+        pillar: The pillar being validated (for logging)
+
+    Returns:
+        List of questions that match active topics. If no topics are selected,
+        returns all questions unchanged.
+    """
+    if not active_topics:
+        # No topics selected, accept all questions
+        logger.info(f"No active topics filter for {pillar} - accepting all {len(questions)} questions")
+        return questions
+
+    # Build keyword set for active topics
+    active_keywords = set()
+    for topic in active_topics:
+        topic_lower = topic.lower().strip()
+        # Add the topic itself
+        active_keywords.add(topic_lower)
+        # Add individual words from multi-word topics
+        active_keywords.update(topic_lower.split())
+        # Add expanded keywords if available
+        for key, keywords in TOPIC_KEYWORDS.items():
+            if key in topic_lower or topic_lower in key:
+                active_keywords.update(keywords)
+
+    validated = []
+    rejected = []
+
+    for q in questions:
+        question_text = q.get("question", "").lower()
+
+        # Also check other relevant fields that might contain topic keywords
+        audio_text = (q.get("audio_text") or "").lower()
+        passage = (q.get("passage") or "").lower()
+        urdu_hint = (q.get("urdu_hint") or "").lower()
+
+        # Also check options/image_options for keywords
+        options_text = ""
+        if q.get("options"):
+            options_text = " ".join([opt.get("text", "").lower() for opt in q.get("options", [])])
+        if q.get("image_options"):
+            options_text += " " + " ".join([opt.get("text", "").lower() for opt in q.get("image_options", [])])
+
+        # Combine all searchable text
+        searchable_text = f"{question_text} {audio_text} {passage} {urdu_hint} {options_text}"
+
+        # Split searchable text into words for word-boundary matching
+        # This prevents false matches like "eat" matching "weather"
+        searchable_words = set(searchable_text.split())
+
+        # Check if ANY active keyword appears as a whole word in the question
+        topic_match = any(keyword in searchable_words for keyword in active_keywords)
+
+        if topic_match:
+            validated.append(q)
+        else:
+            rejected.append({
+                "question": q.get("question", "")[:60],
+                "task_type": q.get("task_type", "unknown")
+            })
+
+    if rejected:
+        logger.warning(
+            f"Topic validation: {len(rejected)}/{len(questions)} questions rejected for {pillar}. "
+            f"Active topics: {active_topics}. "
+            f"Rejected samples: {rejected[:3]}"  # Log first 3 rejected questions
+        )
+    else:
+        logger.info(f"Topic validation: All {len(questions)} questions passed for {pillar}")
+
+    return validated
+
+
+# ---------------------------------------------------------------------------
 # Public API - Pillar-based Missions (LLM-based with structured output)
 # ---------------------------------------------------------------------------
 
@@ -332,6 +452,7 @@ async def generate_pillar_missions(
     student_weaknesses: list[str],
     is_frustrated: bool = False,
     performance_profile: dict | None = None,
+    context_chunks: list[dict] | None = None,
 ) -> list[dict]:
     valid_pillars = ["reading", "writing", "listening", "speaking"]
     if pillar not in valid_pillars:
@@ -339,6 +460,10 @@ async def generate_pillar_missions(
 
     config = PILLAR_TASK_CONFIGS[pillar]
     topic_text = ", ".join(active_topics) if active_topics else "General English skills"
+
+    # Retry configuration for LLM generation
+    MAX_RETRIES = 2
+    RETRY_DELAY_BASE = 2.0  # seconds
 
     # Build task distribution string
     task_distribution_lines = []
@@ -407,6 +532,21 @@ CRITICAL OVERRIDE — CONFIDENCE BUILDER MODE:
 - Frame with encouragement ("Great job!", "You can do it!").
 - All questions still worth points_value: 10, but use simpler content."""
 
+    # Build curriculum context section from RAG retrieval
+    curriculum_context = ""
+    if context_chunks:
+        context_text = "\n\n".join([
+            f"[{i+1}] {chunk['content'][:300]}"
+            for i, chunk in enumerate(context_chunks[:3])
+        ])
+        curriculum_context = f"""
+
+SNC CURRICULUM CONTEXT (Grade {grade_level}):
+{context_text}
+
+Use vocabulary and concepts from this SNC curriculum context when creating questions.
+"""
+
     system_prompt = f"""\
 You are an ESL mission designer for Pakistani primary school Grade {grade_level} students.
 
@@ -433,73 +573,138 @@ RULES:
 5. For multiple choice fields (options, image_options): always provide exactly 4 items with ids "a","b","c","d".
 6. correct_answer for option-based questions must be one of "a","b","c","d".
 7. URDU_HINT: Add an urdu_hint field with the Urdu translation of the key vocabulary or sentence. Use simple Urdu appropriate for Grade {grade_level}. For example: "The cat is sleeping" → "بلی سو رہی ہے".
-{weakness_context}{confidence_override}{adaptive_section}"""
+{weakness_context}{confidence_override}{adaptive_section}{curriculum_context}"""
 
     user_message = f"Generate 10 {pillar} questions for Grade {grade_level} on topics: {topic_text}."
 
-    try:
-        llm = ChatOpenAI(
-            model=settings.CHAT_MODEL,
-            temperature=0.7,
-            openai_api_key=settings.OPENAI_API_KEY,
-            max_retries=2,
-            timeout=10.0,  # Reduced from 15s - gpt-4o-mini is fast
-        ).with_structured_output(PillarMissions)
+    # Retry loop for better reliability
+    last_exception = None
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            if attempt > 0:
+                delay = RETRY_DELAY_BASE * (2 ** (attempt - 1))  # Exponential backoff
+                logger.warning(f"Retry attempt {attempt}/{MAX_RETRIES} for {pillar} grade {grade_level} after {delay}s delay")
+                await asyncio.sleep(delay)
 
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            ("user", user_message),
-        ])
+            llm = ChatOpenAI(
+                model=settings.CHAT_MODEL,
+                temperature=0.7,
+                openai_api_key=settings.OPENAI_API_KEY,
+                max_retries=3,  # Increased from 2 for better reliability
+                timeout=25.0,  # Increased from 10s - pillar missions generate 10 questions (3.3x daily missions)
+            ).with_structured_output(PillarMissions)
 
-        chain = prompt | llm
+            prompt = ChatPromptTemplate.from_messages([
+                ("system", system_prompt),
+                ("user", user_message),
+            ])
 
-        # Single attempt with 12s timeout - fail fast if LLM has issues
-        result: PillarMissions | None = await asyncio.wait_for(
-            chain.ainvoke({}),
-            timeout=12.0,  # Reduced from 60s - consistent with daily missions
-        )
+            chain = prompt | llm
 
-        if result is None or not result.questions:
-            raise ValueError("LLM returned empty result")
+            # Pillar missions need more time: 10 questions vs 3 for daily missions
+            logger.info(f"Starting {pillar} mission generation for grade {grade_level} (expecting 10 questions)")
+            start_time = asyncio.get_event_loop().time()
 
-        # If LLM returned fewer than 10 questions, pad with simpler questions rather than retry
-        if len(result.questions) < PILLAR_QUESTIONS_COUNT:
-            logger.warning(
-                f"LLM generated {len(result.questions)} questions (expected {PILLAR_QUESTIONS_COUNT}), "
-                f"using available questions"
+            result: PillarMissions | None = await asyncio.wait_for(
+                chain.ainvoke({}),
+                timeout=30.0,  # Increased from 12s - allows sufficient time for 10 questions
             )
-            # Use what we got rather than waiting another 60s for retry
-            if len(result.questions) == 0:
-                raise ValueError("LLM returned no questions")
 
-        # Normalize and validate - use whatever questions we got (prefer partial success over total failure)
-        validated = []
-        questions_to_use = result.questions[:PILLAR_QUESTIONS_COUNT] if len(result.questions) >= PILLAR_QUESTIONS_COUNT else result.questions
+            elapsed_time = asyncio.get_event_loop().time() - start_time
+            logger.info(f"LLM generation completed in {elapsed_time:.2f}s for {pillar} grade {grade_level}")
 
-        for i, q in enumerate(questions_to_use):
-            d = q.model_dump()
-            d["id"] = i + 1
-            d["pillar"] = pillar
-            if not d.get("task_type"):
-                d["task_type"] = "multiple_choice"
-            if not d.get("difficulty"):
-                d["difficulty"] = "medium"
-            # Always set to 10 points - consistent scoring across all questions
-            d["points_value"] = 10
-            d["is_weakness_focused"] = False
-            validated.append(d)
+            if result is None or not result.questions:
+                logger.error(f"LLM returned empty result for {pillar} grade {grade_level}")
+                raise ValueError("LLM returned empty result")
 
-        logger.info(f"Generated {len(validated)} {pillar} questions for grade {grade_level}")
+            # CRITICAL: Require exactly 10 questions - reject partial results
+            questions_returned = len(result.questions)
+            logger.info(f"LLM returned {questions_returned} questions for {pillar} grade {grade_level}")
 
-        # Log warning if we didn't get full set, but still return what we have
-        if len(validated) < PILLAR_QUESTIONS_COUNT:
-            logger.warning(f"Returning {len(validated)}/{PILLAR_QUESTIONS_COUNT} questions - better than failing completely")
+            if questions_returned < PILLAR_QUESTIONS_COUNT:
+                logger.error(
+                    f"LLM generated only {questions_returned}/{PILLAR_QUESTIONS_COUNT} questions for {pillar} grade {grade_level}. "
+                    f"Rejecting partial result to prevent caching incomplete question sets."
+                )
+                raise ValueError(
+                    f"LLM returned only {questions_returned}/{PILLAR_QUESTIONS_COUNT} questions. "
+                    f"This indicates a timeout or generation issue. Please retry."
+                )
 
-        return validated
+            # Normalize and validate - require full set of questions
+            validated = []
+            questions_to_use = result.questions[:PILLAR_QUESTIONS_COUNT]
 
-    except asyncio.TimeoutError:
-        logger.error(f"Pillar mission generation timeout (12s) for {pillar} grade {grade_level}")
-        raise RuntimeError("Mission generation timed out after 12 seconds. Please try again.")
-    except Exception as e:
-        logger.error(f"Pillar mission generation failed: {e}", exc_info=True)
-        raise RuntimeError(f"Mission generation failed: {e}")
+            for i, q in enumerate(questions_to_use):
+                d = q.model_dump()
+                d["id"] = i + 1
+                d["pillar"] = pillar
+                if not d.get("task_type"):
+                    d["task_type"] = "multiple_choice"
+                if not d.get("difficulty"):
+                    d["difficulty"] = "medium"
+                # Always set to 10 points - consistent scoring across all questions
+                d["points_value"] = 10
+                d["is_weakness_focused"] = False
+                validated.append(d)
+
+            # Validate topic alignment after normalization
+            validated = validate_topic_alignment(validated, active_topics, pillar)
+
+            # If we lost too many questions, log error and potentially retry
+            if len(validated) < PILLAR_QUESTIONS_COUNT:
+                logger.error(
+                    f"Topic validation rejected too many questions ({len(validated)}/{PILLAR_QUESTIONS_COUNT}) for {pillar}. "
+                    f"Active topics: {active_topics}. "
+                    f"This indicates LLM did not follow topic constraints. "
+                    f"Attempt {attempt + 1}/{MAX_RETRIES + 1}."
+                )
+                # Treat this as a generation failure and retry if attempts remain
+                if attempt < MAX_RETRIES:
+                    raise ValueError(
+                        f"Topic validation failed: only {len(validated)}/{PILLAR_QUESTIONS_COUNT} questions matched topics {active_topics}"
+                    )
+                else:
+                    # Last attempt - return what we have with a warning
+                    logger.warning(
+                        f"Final attempt: returning {len(validated)} topic-aligned questions (expected {PILLAR_QUESTIONS_COUNT})"
+                    )
+
+            logger.info(f"✓ Successfully generated and validated {len(validated)} {pillar} questions for grade {grade_level}")
+
+            return validated
+
+        except asyncio.TimeoutError as e:
+            last_exception = e
+            logger.error(
+                f"Attempt {attempt + 1}/{MAX_RETRIES + 1}: Pillar mission generation timeout (30s) for {pillar} grade {grade_level}. "
+                f"This may indicate OpenAI API slowness or complex prompt. "
+                f"Active topics: {', '.join(active_topics) if active_topics else 'None'}"
+            )
+            if attempt >= MAX_RETRIES:
+                raise RuntimeError(
+                    f"Mission generation timed out after 30 seconds ({MAX_RETRIES + 1} attempts). "
+                    f"Please try again or contact support if this persists."
+                )
+            continue  # Retry
+
+        except ValueError as e:
+            # ValueError raised when LLM returns incomplete results - retry
+            last_exception = e
+            logger.error(f"Attempt {attempt + 1}/{MAX_RETRIES + 1}: Incomplete result from LLM: {e}")
+            if attempt >= MAX_RETRIES:
+                raise RuntimeError(str(e))
+            continue  # Retry
+
+        except Exception as e:
+            # Unexpected errors - don't retry, fail immediately
+            logger.error(
+                f"Pillar mission generation failed for {pillar} grade {grade_level}: {e}",
+                exc_info=True
+            )
+            raise RuntimeError(f"Mission generation failed: {e}")
+
+    # If we get here, all retries failed
+    if last_exception:
+        logger.error(f"All {MAX_RETRIES + 1} attempts failed for {pillar} grade {grade_level}")
+        raise RuntimeError(f"Mission generation failed after {MAX_RETRIES + 1} attempts: {last_exception}")

@@ -61,7 +61,7 @@ async def pregenerate_pillar_missions(classroom_id: str) -> None:
         logger.info("pregenerate: no active topics for classroom %s — skipping", classroom_id)
         return
 
-    active_topic_names = [t["name"] for t in active_topics]
+    active_topic_names = [t["topic_name"] for t in active_topics]
 
     # Step 3: Compute topics hash
     topics_hash = hashlib.md5(
