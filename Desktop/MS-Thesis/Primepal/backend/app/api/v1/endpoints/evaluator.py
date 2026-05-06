@@ -1477,7 +1477,7 @@ class TeacherDailyPlan(BaseModel):
     suggested_activities: list[SuggestedActivity]  # 3-5 activities
     student_groups: list[StudentGroup]  # 2-3 groups
     snc_references: list[str]  # curriculum references from RAG
-    generated_at: str  # ISO timestamp
+    generated_at: str = ""  # ISO timestamp — set by server, not LLM
 
 
 @router.post(
