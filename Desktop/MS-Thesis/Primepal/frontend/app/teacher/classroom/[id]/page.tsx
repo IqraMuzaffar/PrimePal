@@ -166,7 +166,7 @@ export default function ClassroomDetailPage({
         </div>
 
         {/* Active Topics by Skill */}
-        <TopicSelectionBySkill classroomId={params.id} />
+        <TopicSelectionBySkill classroomId={params.id} viewOnly />
 
         {/* Tabs */}
         <div className="flex gap-1 bg-gray-100 rounded-xl p-1 mb-6 w-fit">

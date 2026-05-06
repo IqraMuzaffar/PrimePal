@@ -25,6 +25,7 @@ interface TopicsBySkillResponse {
 
 interface TopicSelectionBySkillProps {
   classroomId: string;
+  viewOnly?: boolean;
 }
 
 const SKILL_LABELS: Record<string, string> = {
@@ -41,7 +42,7 @@ const SKILL_COLORS: Record<string, string> = {
   writing: "bg-orange-100 text-orange-700 border-orange-300",
 };
 
-export default function TopicSelectionBySkill({ classroomId }: TopicSelectionBySkillProps) {
+export default function TopicSelectionBySkill({ classroomId, viewOnly = false }: TopicSelectionBySkillProps) {
   const [data, setData] = useState<TopicsBySkillResponse | null>(null);
   const [selectedTopicIds, setSelectedTopicIds] = useState<Set<number>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -138,16 +139,20 @@ export default function TopicSelectionBySkill({ classroomId }: TopicSelectionByS
         <div>
           <h2 className="text-sm font-semibold text-gray-900">Active Topics by Skill</h2>
           <p className="text-xs text-gray-500 mt-1">
-            Select topics to include in missions. Topics are organized by LSRW skills (Listening, Speaking, Reading, Writing).
+            {viewOnly
+              ? "Topics active for this classroom's grade level."
+              : "Select topics to include in missions. Topics are organized by LSRW skills (Listening, Speaking, Reading, Writing)."}
           </p>
         </div>
-        <button
-          onClick={saveSelections}
-          disabled={saving}
-          className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
-        >
-          {saving ? "Saving…" : "Save Changes"}
-        </button>
+        {!viewOnly && (
+          <button
+            onClick={saveSelections}
+            disabled={saving}
+            className="text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed px-3 py-1.5 rounded-lg transition-colors"
+          >
+            {saving ? "Saving…" : "Save Changes"}
+          </button>
+        )}
       </div>
 
       <div className="space-y-4">
@@ -175,13 +180,15 @@ export default function TopicSelectionBySkill({ classroomId }: TopicSelectionByS
                 return (
                   <button
                     key={topic.id}
-                    onClick={() => isGloballyActive && toggleTopic(topic.id)}
-                    disabled={!isGloballyActive}
+                    onClick={() => !viewOnly && isGloballyActive && toggleTopic(topic.id)}
+                    disabled={viewOnly || !isGloballyActive}
                     className={`px-3 py-1.5 rounded-full text-sm font-medium border-2 transition-all ${
                       !isGloballyActive
                         ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed opacity-50"
                         : isSelected
                         ? "bg-indigo-600 text-white border-indigo-600"
+                        : viewOnly
+                        ? "bg-white text-gray-400 border-gray-200 cursor-default"
                         : "bg-white text-gray-500 border-gray-300 hover:border-indigo-400"
                     }`}
                     title={!isGloballyActive ? "This topic is deactivated at the grade level" : ""}

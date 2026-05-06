@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
-import { useTeacherRole } from "@/lib/useTeacherRole";
 import { useTeacherTopics, teacherQueryKeys } from "@/lib/hooks/teacher-queries";
 import { teacherMutate } from "@/lib/api-helpers";
 import { useQueryClient } from "@tanstack/react-query";
@@ -44,7 +43,6 @@ export default function TopicsPage() {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [dirty, setDirty] = useState(false);
-  const { isAdmin } = useTeacherRole();
 
   // Sync topics from query data
   useEffect(() => {
@@ -161,25 +159,23 @@ export default function TopicsPage() {
               </div>
             </div>
 
-            {/* Actions — admin only */}
-            {isAdmin && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={selectAll}
-                  disabled={loading}
-                  className="px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                >
-                  Select All
-                </button>
-                <button
-                  onClick={deselectAll}
-                  disabled={loading}
-                  className="px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                >
-                  Deselect All
-                </button>
-              </div>
-            )}
+            {/* Actions */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={selectAll}
+                disabled={loading}
+                className="px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                Select All
+              </button>
+              <button
+                onClick={deselectAll}
+                disabled={loading}
+                className="px-3 py-2 text-xs font-medium text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+              >
+                Deselect All
+              </button>
+            </div>
           </div>
 
           {/* Summary */}
@@ -238,9 +234,8 @@ export default function TopicsPage() {
                       {skillTopics.map((topic) => (
                         <button
                           key={topic.topic_id}
-                          onClick={() => isAdmin && toggleTopic(topic.topic_id)}
-                          disabled={!isAdmin}
-                          className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all ${!isAdmin ? "cursor-default " : ""}${
+                          onClick={() => toggleTopic(topic.topic_id)}
+                          className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all ${
                             topic.is_active
                               ? `${colors.border} ${colors.bg}`
                               : "border-gray-100 bg-gray-50 hover:border-gray-200"
@@ -287,8 +282,8 @@ export default function TopicsPage() {
             </div>
           )}
 
-          {/* Footer with save — admin only */}
-          {!loading && topics.length > 0 && isAdmin && (
+          {/* Footer with save */}
+          {!loading && topics.length > 0 && (
             <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between">
               <div>
                 {error && (
@@ -309,13 +304,6 @@ export default function TopicsPage() {
               >
                 {saving ? "Saving..." : "Save Changes"}
               </button>
-            </div>
-          )}
-          {!loading && topics.length > 0 && !isAdmin && (
-            <div className="px-5 py-4 border-t border-gray-100">
-              <p className="text-sm text-gray-500">
-                View only — contact an admin to change grade-level topic selections.
-              </p>
             </div>
           )}
         </div>

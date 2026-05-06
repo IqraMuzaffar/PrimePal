@@ -11,6 +11,7 @@ import {
   Zap,
   BookOpen,
   BookMarked,
+  BarChart2,
   FileBarChart,
   Sparkles,
 } from "lucide-react";
@@ -24,6 +25,7 @@ const NAV_LINKS = [
   { href: "/teacher/missions", label: "Missions", icon: Zap },
   { href: "/teacher/curriculum", label: "Curriculum Hub", icon: BookOpen },
   { href: "/teacher/topics", label: "Topics", icon: BookMarked },
+  { href: "/teacher/analytics", label: "Analytics", icon: BarChart2 },
   { href: "/teacher/reports", label: "Reports", icon: FileBarChart },
   { href: "/teacher/assistant", label: "AI Assistant", icon: Sparkles },
 ];
@@ -35,6 +37,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/teacher/missions": "Missions",
   "/teacher/curriculum": "Curriculum Hub",
   "/teacher/topics": "Topics",
+  "/teacher/analytics": "Analytics",
   "/teacher/reports": "Reports",
   "/teacher/assistant": "AI Assistant",
 };
@@ -56,7 +59,8 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
   }
 
   // Get page title from pathname
-  const pageTitle = PAGE_TITLES[pathname] || pathname.split('/').pop() || 'Teacher';
+  const matchedTitle = Object.entries(PAGE_TITLES).find(([key]) => pathname.startsWith(key))?.[1];
+  const pageTitle = matchedTitle || 'Teacher';
 
   return (
     <div className="flex h-screen">

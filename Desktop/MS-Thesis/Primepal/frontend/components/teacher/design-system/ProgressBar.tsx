@@ -1,7 +1,5 @@
 // frontend/components/teacher/design-system/ProgressBar.tsx
 
-import { designTokens } from '@/lib/design-tokens';
-
 interface ProgressBarProps {
   value: number; // 0-100
   color: string;

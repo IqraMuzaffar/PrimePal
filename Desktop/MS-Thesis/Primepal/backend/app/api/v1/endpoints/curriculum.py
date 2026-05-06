@@ -204,16 +204,15 @@ async def get_uploads(
     teacher: dict = Depends(get_current_teacher),
 ):
     """
-    Return all snc_uploads rows for the current teacher, newest first.
+    Return all snc_uploads rows (all teachers), newest first.
+    Uploads are shared across all teachers — the vector DB is global.
     Optional query param: ?grade_level=3 to filter to one grade.
     """
     supabase = get_supabase_admin()
-    teacher_id: str = teacher["id"]
 
     query = (
         supabase.table("snc_uploads")
         .select("id, book_title, grade_level, filename, total_chunks, embedded_count, created_at")
-        .eq("teacher_id", teacher_id)
     )
     if grade_level is not None:
         query = query.eq("grade_level", grade_level)
