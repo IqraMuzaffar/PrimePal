@@ -2,9 +2,31 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Loader2, AlertCircle, Shield } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
 
 type LoginStep = "code" | "signup" | "login";
+
+const inputStyle = {
+  width: '100%',
+  padding: '15px 18px',
+  fontSize: 16,
+  backgroundColor: '#f8f9fc',
+  border: '1px solid #e4e7f2',
+  borderRadius: 12,
+  color: '#0f1729',
+  outline: 'none',
+  textAlign: 'center' as const,
+};
+
+const labelStyle = {
+  display: 'block',
+  fontSize: 14,
+  fontWeight: 600,
+  color: '#374151',
+  marginBottom: 8,
+  textAlign: 'center' as const,
+};
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -75,15 +97,8 @@ export default function AdminLoginPage() {
         throw new Error(data.detail || "Failed to create account");
       }
 
-      // Sign in with created credentials
-      const signInResponse = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInResponse.error) {
-        throw new Error(signInResponse.error.message);
-      }
+      const signInResponse = await supabase.auth.signInWithPassword({ email, password });
+      if (signInResponse.error) throw new Error(signInResponse.error.message);
 
       router.push("/admin/dashboard/staff");
     } catch (err: any) {
@@ -99,15 +114,8 @@ export default function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const signInResponse = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (signInResponse.error) {
-        throw new Error(signInResponse.error.message);
-      }
-
+      const signInResponse = await supabase.auth.signInWithPassword({ email, password });
+      if (signInResponse.error) throw new Error(signInResponse.error.message);
       router.push("/admin/dashboard/staff");
     } catch (err: any) {
       setError(err.message);
@@ -116,171 +124,287 @@ export default function AdminLoginPage() {
     }
   };
 
+  const stepTitles: Record<LoginStep, { heading: string; sub: string }> = {
+    code: { heading: "Enter invite code", sub: "Use the code provided by your administrator." },
+    signup: { heading: "Create your account", sub: `Setting up account for ${email}` },
+    login: { heading: "Welcome back", sub: "Enter your credentials to access the admin dashboard." },
+  };
+
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        <div className="bg-white rounded-xl shadow-2xl p-8">
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">Admin Portal</h1>
-            <p className="text-gray-600 text-sm mt-2">PrimePal School Management</p>
+    <div
+      className="min-h-screen flex items-center justify-center px-4 py-12"
+      style={{
+        background: "linear-gradient(145deg, #0b1535 0%, #0f1e4a 45%, #162660 100%)",
+      }}
+    >
+      {/* Decorative blobs */}
+      <div style={{
+        position: 'fixed', top: -160, right: -160, width: 500, height: 500,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(67,97,238,0.20) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+      <div style={{
+        position: 'fixed', bottom: -120, left: -120, width: 420, height: 420,
+        borderRadius: '50%',
+        background: 'radial-gradient(circle, rgba(124,158,255,0.14) 0%, transparent 70%)',
+        pointerEvents: 'none',
+      }} />
+
+      {/* Card */}
+      <div
+        className="w-full relative z-10"
+        style={{
+          maxWidth: 520,
+          backgroundColor: '#ffffff',
+          borderRadius: 24,
+          padding: '52px 52px 44px',
+          boxShadow: '0 32px 80px rgba(0,0,0,0.35), 0 8px 24px rgba(0,0,0,0.2)',
+        }}
+      >
+        {/* Logo */}
+        <div className="flex flex-col items-center mb-10">
+          <div
+            className="flex items-center justify-center text-white font-extrabold rounded-2xl mb-4"
+            style={{
+              width: 60,
+              height: 60,
+              fontSize: 26,
+              background: 'linear-gradient(135deg, #4361ee 0%, #7c9eff 100%)',
+              boxShadow: '0 6px 24px rgba(67,97,238,0.5)',
+            }}
+          >
+            P
           </div>
-
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
-              {error}
+          <div className="text-center">
+            <div
+              className="font-extrabold tracking-tight"
+              style={{ fontSize: 26, color: '#0f1729', letterSpacing: '-0.02em' }}
+            >
+              PrimePal
             </div>
-          )}
-
-          {/* Step 1: Invite Code */}
-          {step === "code" && (
-            <form onSubmit={handleCodeSubmit} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Admin Invite Code
-                </label>
-                <input
-                  type="text"
-                  value={inviteCode}
-                  onChange={(e) => setInviteCode(e.target.value)}
-                  placeholder="Enter your invite code"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
-              >
-                {loading ? "Verifying..." : "Continue"}
-              </button>
-              <p className="text-center text-sm text-gray-600">
-                Already have an admin account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setStep("login")}
-                  className="text-indigo-600 font-semibold hover:underline"
-                >
-                  Sign in
-                </button>
-              </p>
-            </form>
-          )}
-
-          {/* Step 2: Signup */}
-          {step === "signup" && (
-            <form onSubmit={handleSignup} className="space-y-4">
-              <p className="text-sm text-gray-600 mb-4">
-                Create your admin account for <span className="font-semibold">{email}</span>
-              </p>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Full Name
-                </label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="John Doe"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Confirm Password
-                </label>
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
-              >
-                {loading ? "Creating Account..." : "Create Admin Account"}
-              </button>
-              <p className="text-center text-sm text-gray-600">
-                Already have an account?{" "}
-                <button
-                  type="button"
-                  onClick={() => setStep("login")}
-                  className="text-indigo-600 font-semibold hover:underline"
-                >
-                  Sign in
-                </button>
-              </p>
-            </form>
-          )}
-
-          {/* Step 3: Login */}
-          {step === "login" && (
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Email
-                </label>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@school.com"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500"
-                  required
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 transition"
-              >
-                {loading ? "Signing In..." : "Sign In"}
-              </button>
-              <p className="text-center text-sm text-gray-600">
-                Don&apos;t have an invite code?{" "}
-                <button
-                  type="button"
-                  onClick={() => setStep("code")}
-                  className="text-indigo-600 font-semibold hover:underline"
-                >
-                  Back to invite code
-                </button>
-              </p>
-            </form>
-          )}
+            <div
+              className="font-medium mt-1"
+              style={{ fontSize: 13, color: '#9aa8c9', letterSpacing: '0.06em' }}
+            >
+              ADMIN PORTAL
+            </div>
+          </div>
         </div>
+
+        {/* Divider */}
+        <div style={{ height: 1, backgroundColor: '#eaecf4', marginBottom: 32 }} />
+
+        {/* Step indicator */}
+        <div className="flex justify-center gap-2 mb-6">
+          {(['code', 'signup', 'login'] as LoginStep[]).map((s, i) => (
+            <div
+              key={s}
+              style={{
+                width: step === s ? 24 : 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: step === s ? '#4361ee' : '#e4e7f2',
+                transition: 'all 0.3s ease',
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Heading */}
+        <div className="text-center mb-8">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <Shield size={20} color="#4361ee" strokeWidth={1.8} />
+            <span style={{ fontSize: 13, color: '#4361ee', fontWeight: 700, letterSpacing: '0.05em' }}>
+              {step === 'code' ? 'INVITE CODE' : step === 'signup' ? 'NEW ACCOUNT' : 'SIGN IN'}
+            </span>
+          </div>
+          <h2
+            className="font-extrabold"
+            style={{ fontSize: 28, color: '#0f1729', letterSpacing: '-0.02em', lineHeight: 1.2 }}
+          >
+            {stepTitles[step].heading}
+          </h2>
+          <p className="mt-2" style={{ fontSize: 15, color: '#8896b8' }}>
+            {stepTitles[step].sub}
+          </p>
+        </div>
+
+        {/* Error */}
+        {error && (
+          <div
+            className="flex items-start gap-3 rounded-xl px-4 py-3 mb-5"
+            style={{ backgroundColor: '#fff1f1', border: '1px solid #fecaca', color: '#dc2626', fontSize: 14 }}
+          >
+            <AlertCircle size={16} className="mt-0.5 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Step 1: Invite Code */}
+        {step === "code" && (
+          <form onSubmit={handleCodeSubmit} className="space-y-5">
+            <div>
+              <label style={labelStyle}>Admin Invite Code</label>
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="XXXX-XXXX-XXXX"
+                style={inputStyle}
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all"
+              style={{
+                padding: '16px 24px',
+                fontSize: 17,
+                marginTop: 8,
+                background: loading ? '#a5b4fc' : 'linear-gradient(135deg, #4361ee 0%, #5a7cf5 100%)',
+                boxShadow: loading ? 'none' : '0 4px 20px rgba(67,97,238,0.40)',
+                cursor: loading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {loading && <Loader2 size={18} className="animate-spin" />}
+              {loading ? "Verifying…" : "Continue"}
+            </button>
+            <p className="text-center mt-4" style={{ fontSize: 14, color: '#8896b8' }}>
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={() => { setError(""); setStep("login"); }}
+                className="font-semibold"
+                style={{ color: '#4361ee', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                Sign in
+              </button>
+            </p>
+          </form>
+        )}
+
+        {/* Step 2: Signup */}
+        {step === "signup" && (
+          <form onSubmit={handleSignup} className="space-y-5">
+            <div>
+              <label style={labelStyle}>Full Name</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Your full name"
+                style={inputStyle}
+                required
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••"
+                style={inputStyle}
+                required
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Confirm Password</label>
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="••••••••••"
+                style={inputStyle}
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all"
+              style={{
+                padding: '16px 24px',
+                fontSize: 17,
+                marginTop: 8,
+                background: loading ? '#a5b4fc' : 'linear-gradient(135deg, #4361ee 0%, #5a7cf5 100%)',
+                boxShadow: loading ? 'none' : '0 4px 20px rgba(67,97,238,0.40)',
+                cursor: loading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {loading && <Loader2 size={18} className="animate-spin" />}
+              {loading ? "Creating account…" : "Create Admin Account"}
+            </button>
+            <p className="text-center mt-4" style={{ fontSize: 14, color: '#8896b8' }}>
+              Already have an account?{" "}
+              <button
+                type="button"
+                onClick={() => { setError(""); setStep("login"); }}
+                className="font-semibold"
+                style={{ color: '#4361ee', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                Sign in
+              </button>
+            </p>
+          </form>
+        )}
+
+        {/* Step 3: Login */}
+        {step === "login" && (
+          <form onSubmit={handleLogin} className="space-y-5">
+            <div>
+              <label style={labelStyle}>Email address</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@school.edu"
+                style={inputStyle}
+                required
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••"
+                style={inputStyle}
+                required
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all"
+              style={{
+                padding: '16px 24px',
+                fontSize: 17,
+                marginTop: 8,
+                background: loading ? '#a5b4fc' : 'linear-gradient(135deg, #4361ee 0%, #5a7cf5 100%)',
+                boxShadow: loading ? 'none' : '0 4px 20px rgba(67,97,238,0.40)',
+                cursor: loading ? 'not-allowed' : 'pointer',
+              }}
+            >
+              {loading && <Loader2 size={18} className="animate-spin" />}
+              {loading ? "Signing in…" : "Sign in"}
+            </button>
+            <p className="text-center mt-4" style={{ fontSize: 14, color: '#8896b8' }}>
+              New admin?{" "}
+              <button
+                type="button"
+                onClick={() => { setError(""); setStep("code"); }}
+                className="font-semibold"
+                style={{ color: '#4361ee', background: 'none', border: 'none', cursor: 'pointer' }}
+              >
+                Enter invite code
+              </button>
+            </p>
+          </form>
+        )}
       </div>
     </div>
   );
