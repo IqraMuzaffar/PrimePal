@@ -1,10 +1,14 @@
 "use client";
 
-import { Suspense } from "react";
+import React, { Suspense } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Zap, Activity, BookOpenCheck, Headphones, MessageSquare, FileText } from "lucide-react";
+import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Activity, BookOpenCheck, Headphones, MessageSquare, FileText, Target } from "lucide-react";
 import FilterBar, { useFilterParams } from "@/components/teacher/FilterBar";
 import { useTeacherClassrooms, useTeacherDashboardStats, useTeacherSkillAccuracy, type TeacherClassroom } from "@/lib/hooks/teacher-queries";
+import { StatCard } from "@/components/teacher/design-system";
+import { designTokens } from "@/lib/design-tokens";
+import { supabase } from "@/lib/supabase/client";
 
 function skillColor(pct: number): string {
   if (pct >= 70) return "text-emerald-600 bg-emerald-50 border-emerald-200";
@@ -13,7 +17,15 @@ function skillColor(pct: number): string {
 }
 
 function DashboardContent() {
+  const router = useRouter();
   const { gradeLevel, pillar, section } = useFilterParams();
+  const [email, setEmail] = React.useState<string>('');
+
+  React.useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setEmail(session?.user?.email || '');
+    });
+  }, []);
 
   const { data: classrooms = [], isLoading: classroomsLoading } = useTeacherClassrooms();
   const { data: stats, isLoading: statsLoading } = useTeacherDashboardStats({ gradeLevel, pillar, section });
@@ -64,103 +76,60 @@ function DashboardContent() {
   };
 
   return (
-    <div className="bg-gray-50 min-h-full">
-      <main className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
-        {/* Page heading */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-gray-900">Teaching Dashboard</h1>
-          <p className="text-gray-600 mt-1">Welcome back! Here is your teaching overview.</p>
+    <div style={{ padding: designTokens.spacing.section }}>
+      {/* Welcome Banner */}
+      <WelcomeBanner
+        teacherName={email?.split('@')[0] || 'Teacher'}
+        activeClasses={classrooms.length}
+        pendingMissions={stats?.live_missions || 0}
+        onNewMission={() => router.push('/teacher/missions')}
+      />
+
+      {/* Filter Bar */}
+      <div className="mb-6">
+        <FilterBar showSearch={false} showPillar={true} showSection={true} sections={filteredSections} />
+      </div>
+
+      {/* Stats Grid */}
+      {!loading && stats && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <StatCard
+            value={stats.total_students}
+            label="Total Students"
+            subtitle="Across all classrooms"
+            icon={Users}
+            iconColor={designTokens.colors.primary}
+            iconBg={designTokens.colors.primaryBg}
+            trend={3}
+          />
+          <StatCard
+            value={stats.total_interactions || 0}
+            label="Total Interactions"
+            subtitle={pillar ? `${pillar.charAt(0).toUpperCase() + pillar.slice(1)} only` : 'Student missions & chat'}
+            icon={Activity}
+            iconColor={designTokens.colors.success}
+            iconBg={designTokens.colors.successBg}
+            trend={2}
+          />
+          <StatCard
+            value={`${Math.round(stats.avg_accuracy)}%`}
+            label="Avg Accuracy"
+            subtitle={pillar ? `${pillar.charAt(0).toUpperCase() + pillar.slice(1)} only` : 'Across all students'}
+            icon={Target}
+            iconColor={designTokens.colors.warning}
+            iconBg={designTokens.colors.warningBg}
+          />
+          <StatCard
+            value={stats.active_this_week}
+            label="Active This Week"
+            subtitle={pillar ? `${pillar.charAt(0).toUpperCase() + pillar.slice(1)} only` : 'Recent activity'}
+            icon={TrendingUp}
+            iconColor="#7c3aed"
+            iconBg="#ede9fe"
+            trend={4}
+          />
         </div>
-
-        {/* Filter Bar */}
-        <div className="mb-6">
-          <FilterBar showSearch={false} showPillar={true} showSection={true} sections={filteredSections} />
-        </div>
-
-        {/* Stats Grid */}
-        {!loading && stats && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {/* Total Students */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Students</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total_students}</p>
-                  <p className="text-xs text-gray-500 mt-2">Across all classrooms</p>
-                </div>
-                <div className="p-3 bg-indigo-100 rounded-lg">
-                  <Users className="w-6 h-6 text-indigo-600" />
-                </div>
-              </div>
-            </div>
-
-            {/* Total Interactions */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Total Interactions</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{stats.total_interactions}</p>
-
-                  {/* NEW: Skill filter badge */}
-                  {pillar && (
-                    <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full">
-                      {pillar.charAt(0).toUpperCase() + pillar.slice(1)} only
-                    </span>
-                  )}
-
-                  <p className="text-xs text-gray-500 mt-2">Student missions &amp; chat</p>
-                </div>
-                <div className="p-3 bg-emerald-100 rounded-lg">
-                  <Zap className="w-6 h-6 text-emerald-600" />
-                </div>
-              </div>
-            </div>
-
-            {/* Avg Accuracy */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Avg Accuracy</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{Math.round(stats.avg_accuracy)}%</p>
-
-                  {/* NEW: Skill filter badge */}
-                  {pillar && (
-                    <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full">
-                      {pillar.charAt(0).toUpperCase() + pillar.slice(1)} only
-                    </span>
-                  )}
-
-                  <p className="text-xs text-gray-500 mt-2">Across all students</p>
-                </div>
-                <div className="p-3 bg-rose-100 rounded-lg">
-                  <TrendingUp className="w-6 h-6 text-rose-600" />
-                </div>
-              </div>
-            </div>
-
-            {/* Active This Week */}
-            <div className="bg-white rounded-2xl border border-gray-200 p-6 hover:shadow-md transition-shadow">
-              <div className="flex items-start justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Active This Week</p>
-                  <p className="text-3xl font-bold text-gray-900 mt-2">{stats.active_this_week}</p>
-
-                  {/* NEW: Skill filter badge */}
-                  {pillar && (
-                    <span className="inline-block mt-1 px-2 py-0.5 bg-indigo-50 text-indigo-600 text-xs font-medium rounded-full">
-                      {pillar.charAt(0).toUpperCase() + pillar.slice(1)} only
-                    </span>
-                  )}
-
-                  <p className="text-xs text-gray-500 mt-2">Students with recent activity</p>
-                </div>
-                <div className="p-3 bg-sky-100 rounded-lg">
-                  <Activity className="w-6 h-6 text-sky-600" />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+      )}
 
         {/* Skill Breakdown */}
         {!loading && skillAccuracy && (
@@ -319,7 +288,6 @@ function DashboardContent() {
             </Link>
           </div>
         </div>
-      </main>
     </div>
   );
 }
