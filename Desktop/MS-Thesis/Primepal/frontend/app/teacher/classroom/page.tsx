@@ -104,7 +104,7 @@ export default function ClassroomPage() {
                 <div key={grade}>
                   {/* Grade section header */}
                   <div className="flex items-center gap-3 mb-3 px-1">
-                    <h2 className="text-sm font-bold text-gray-700 uppercase tracking-wide">
+                    <h2 className="text-base font-bold text-gray-700 uppercase tracking-wide">
                       Grade {grade}
                     </h2>
                     <span className="inline-block px-2.5 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
@@ -125,7 +125,7 @@ export default function ClassroomPage() {
                           <div className="flex-1 min-w-0">
                             <Link
                               href={`/teacher/classroom/${c.id}`}
-                              className="block font-semibold text-gray-900 hover:text-indigo-600 transition-colors truncate text-base"
+                              className="block font-semibold text-gray-900 hover:text-indigo-600 transition-colors truncate text-lg"
                             >
                               {c.class_name}
                             </Link>

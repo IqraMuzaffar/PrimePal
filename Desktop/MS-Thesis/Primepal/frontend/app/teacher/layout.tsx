@@ -72,7 +72,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar pageTitle={pageTitle} userEmail={email || undefined} />
-        <main className="flex-1 overflow-auto" style={{ backgroundColor: '#f0f2f8' }}>
+        <main className="flex-1 overflow-auto" style={{ backgroundColor: '#f0f2f8', backgroundImage: 'radial-gradient(circle at 20% 0%, rgba(67,97,238,0.04) 0%, transparent 60%)' }}>
           {children}
         </main>
       </div>

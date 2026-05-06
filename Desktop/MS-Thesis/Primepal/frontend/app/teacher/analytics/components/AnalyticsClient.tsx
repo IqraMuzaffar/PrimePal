@@ -30,7 +30,6 @@ export default function AnalyticsClient({
     const msg = error instanceof Error ? error.message : String(error);
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">Analytics Dashboard</h1>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
           <p className="font-semibold">Failed to load analytics data.</p>
           <p className="text-sm mt-1 font-mono">{msg}</p>
@@ -42,7 +41,6 @@ export default function AnalyticsClient({
   if (isLoading) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold mb-4">Analytics Dashboard</h1>
         <FilterBar showSearch={false} showPillar={true} showSection={true} />
         <div className="grid grid-cols-1 gap-6 mt-6">
           {[1, 2, 3, 4].map((i) => (
@@ -58,8 +56,6 @@ export default function AnalyticsClient({
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Analytics Dashboard</h1>
-      
       <FilterBar showSearch={false} showPillar={true} showSection={true} />
 
       {data && (

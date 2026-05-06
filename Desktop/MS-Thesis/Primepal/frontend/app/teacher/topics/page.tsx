@@ -125,7 +125,7 @@ export default function TopicsPage() {
       <div className="max-w-3xl mx-auto">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-gray-900">Topic Selection</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Topic Selection</h1>
           <p className="text-sm text-gray-500 mt-1">
             Control which SNC topics are active for each grade level. Deactivated
             topics will be excluded from AI-generated tasks across all classrooms.
