@@ -6,12 +6,9 @@ import { useTeacherAnalytics } from "@/lib/hooks/teacher-queries";
 import AnalyticsClient from "./components/AnalyticsClient";
 
 function AnalyticsPageInner() {
-  const { gradeLevel, pillar, section } = useFilterParams();
-  const { data, isLoading, error } = useTeacherAnalytics({
-    gradeLevel,
-    pillar,
-    section,
-  });
+  const { gradeLevel, pillar } = useFilterParams();
+  // Fetch once — no filter params. Client-side filtering handles grade/pillar.
+  const { data, isLoading, error } = useTeacherAnalytics();
 
   return (
     <AnalyticsClient
@@ -20,7 +17,6 @@ function AnalyticsPageInner() {
       error={error}
       gradeLevel={gradeLevel}
       pillar={pillar}
-      section={section}
     />
   );
 }

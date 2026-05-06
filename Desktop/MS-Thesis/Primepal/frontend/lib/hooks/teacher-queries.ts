@@ -276,22 +276,14 @@ export function useUnlockNextWeek(classroomId: string) {
   });
 }
 
-export function useTeacherAnalytics(params: {
-  gradeLevel?: number;
-  pillar?: string;
-  section?: string;
-}) {
-  const qs = new URLSearchParams();
-  if (params.gradeLevel) qs.set("grade_level", String(params.gradeLevel));
-  if (params.pillar) qs.set("pillar", params.pillar);
-  if (params.section) qs.set("section", params.section);
-  const suffix = qs.toString() ? `?${qs.toString()}` : "";
-
+// Always fetches the full unfiltered dataset — filtering is done client-side.
+// This means filter changes never trigger a network request.
+export function useTeacherAnalytics() {
   return useQuery({
-    queryKey: ["teacher", "analytics", suffix],
+    queryKey: ["teacher", "analytics"],
     queryFn: () =>
       teacherFetch<import("@/types/analytics").TeacherAnalyticsData>(
-        `/teacher/analytics${suffix}`
+        "/teacher/analytics"
       ),
     staleTime: 5 * 60 * 1000, // 5 minutes
   });

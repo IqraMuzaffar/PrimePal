@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useMemo } from "react";
 import FilterBar from "@/components/teacher/FilterBar";
 import { TeacherAnalyticsData } from "@/types/analytics";
 import AnalyticsOverview from "./AnalyticsOverview";
@@ -15,7 +15,6 @@ interface AnalyticsClientProps {
   error: any;
   gradeLevel?: number;
   pillar?: string;
-  section?: string;
 }
 
 export default function AnalyticsClient({
@@ -24,8 +23,49 @@ export default function AnalyticsClient({
   error,
   gradeLevel,
   pillar,
-  section,
 }: AnalyticsClientProps) {
+  // Client-side filtering — no network request on filter change
+  const filteredData = useMemo((): TeacherAnalyticsData | undefined => {
+    if (!data) return undefined;
+
+    let gradeBreakdown = data.grade_breakdown;
+    let pillarBreakdown = data.pillar_breakdown;
+    let topStudents = data.top_students;
+    let strugglingStudents = data.struggling_students;
+
+    if (gradeLevel) {
+      gradeBreakdown = gradeBreakdown.filter((g) => g.grade_level === gradeLevel);
+      topStudents = topStudents.filter((s) => s.grade_level === gradeLevel);
+      strugglingStudents = strugglingStudents.filter((s) => s.grade_level === gradeLevel);
+    }
+
+    if (pillar) {
+      pillarBreakdown = pillarBreakdown.filter((p) => p.pillar === pillar);
+    }
+
+    // Recompute summary stats from the filtered grade breakdown
+    const summaryStats =
+      gradeLevel && gradeBreakdown.length > 0
+        ? {
+            total_students: gradeBreakdown.reduce((sum, g) => sum + g.student_count, 0),
+            total_interactions: gradeBreakdown.reduce((sum, g) => sum + g.total_interactions, 0),
+            avg_accuracy: Math.round(
+              gradeBreakdown.reduce((sum, g) => sum + g.avg_accuracy, 0) / gradeBreakdown.length
+            ),
+            active_this_week: data.summary_stats.active_this_week,
+          }
+        : data.summary_stats;
+
+    return {
+      ...data,
+      summary_stats: summaryStats,
+      grade_breakdown: gradeBreakdown,
+      pillar_breakdown: pillarBreakdown,
+      top_students: topStudents,
+      struggling_students: strugglingStudents,
+    };
+  }, [data, gradeLevel, pillar]);
+
   if (error) {
     const msg = error instanceof Error ? error.message : String(error);
     return (
@@ -41,7 +81,7 @@ export default function AnalyticsClient({
   if (isLoading) {
     return (
       <div className="p-6">
-        <FilterBar showSearch={false} showPillar={true} showSection={true} />
+        <FilterBar showSearch={false} showPillar={true} showSection={false} />
         <div className="grid grid-cols-1 gap-6 mt-6">
           {[1, 2, 3, 4].map((i) => (
             <div
@@ -56,27 +96,27 @@ export default function AnalyticsClient({
 
   return (
     <div className="p-6">
-      <FilterBar showSearch={false} showPillar={true} showSection={true} />
+      <FilterBar showSearch={false} showPillar={true} showSection={false} />
 
-      {data && (
+      {filteredData && (
         <div className="space-y-6 mt-6">
-          <AnalyticsOverview stats={data.summary_stats} pillar={pillar} />
-          
+          <AnalyticsOverview stats={filteredData.summary_stats} pillar={pillar} />
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <GradeBreakdown breakdown={data.grade_breakdown} gradeLevel={gradeLevel} />
-            <SkillBreakdown breakdown={data.pillar_breakdown} pillar={pillar} />
+            <GradeBreakdown breakdown={filteredData.grade_breakdown} gradeLevel={gradeLevel} />
+            <SkillBreakdown breakdown={filteredData.pillar_breakdown} pillar={pillar} />
           </div>
 
           <StudentRankings
-            topStudents={data.top_students}
-            strugglingStudents={data.struggling_students}
+            topStudents={filteredData.top_students}
+            strugglingStudents={filteredData.struggling_students}
           />
 
-          <PerformanceTrends trends={data.weekly_trends} pillar={pillar} />
+          <PerformanceTrends trends={filteredData.weekly_trends} pillar={pillar} />
         </div>
       )}
 
-      {data && data.summary_stats.total_students === 0 && (
+      {filteredData && filteredData.summary_stats.total_students === 0 && (
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-8 text-center mt-6">
           <p className="text-gray-500 font-medium">No analytics data available</p>
           <p className="text-sm text-gray-400 mt-1">
