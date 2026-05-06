@@ -32,6 +32,11 @@ const NAV_LINKS = [
 function StudentLayoutContent({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+
+  // Play page is a pre-auth entry screen with its own header — skip the app nav
+  if (pathname === "/student/play") {
+    return <>{children}</>;
+  }
   const queryClient = useQueryClient();
   const [mobileOpen, setMobileOpen] = useState(false);
 

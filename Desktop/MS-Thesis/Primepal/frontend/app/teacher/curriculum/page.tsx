@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Upload, BookOpen } from "lucide-react";
 import { supabase } from "@/lib/supabase/client";
+import { teacherFetch } from "@/lib/api-helpers";
 import { useTeacherRole } from "@/lib/useTeacherRole";
 import UploadBookModal from "@/components/teacher/UploadBookModal";
 import type { SncTopic } from "@/types";
@@ -43,16 +44,10 @@ export default function CurriculumPage() {
 
   const fetchUploads = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-      const res = await fetch(`${API_BASE}/curriculum/uploads`, {
-        headers: { Authorization: `Bearer ${session.access_token}` },
-      });
-      if (res.ok) {
-        const data: UploadRecord[] = await res.json();
-        setUploads(data);
-      }
+      const data = await teacherFetch<UploadRecord[]>("/curriculum/uploads");
+      setUploads(data);
+    } catch {
+      // silently ignore - show empty state
     } finally {
       setLoading(false);
     }
@@ -67,23 +62,7 @@ export default function CurriculumPage() {
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold text-gray-900 mb-1">Curriculum Hub</h1>
-      <p className="text-sm text-gray-500 mb-6">
-        Upload SNC textbook PDFs by grade. Each PDF is chunked and embedded into
-        the vector database for the AI tutor.
-      </p>
-
-      {/* Curriculum Hub banner */}
-      <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-5 mb-8">
-        <h2 className="text-sm font-semibold text-indigo-800 mb-1">
-          How Curriculum Hub drives learning
-        </h2>
-        <p className="text-sm text-indigo-700">
-          The <strong>Current Week Topic</strong> you set in each classroom (e.g., &quot;Week 2: Past Tense&quot;)
-          is used by the AI to generate grade-appropriate quiz questions for students.
-          Upload curriculum documents here to give the AI deeper context for each grade level.
-        </p>
-      </div>
+      <h1 className="text-2xl font-bold text-gray-900 mb-6">Curriculum Hub</h1>
 
       {/* Grade cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">

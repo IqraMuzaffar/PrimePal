@@ -10,6 +10,7 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
         "report:read",
         "report:export",
         "topic:read",
+        "topic:manage_grade",
         "dashboard:read",
         "analytics:read",
         "assistant:use",

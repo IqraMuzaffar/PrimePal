@@ -90,11 +90,7 @@ def aggregate_student_stats(
     # Base query: fetch interactions from last 30 days
     query = (
         supabase.table("student_interactions")
-        .select(
-            "id, student_id, classroom_id, pillar, correct, created_at, "
-            "students(student_name, avatar_url), "
-            "classrooms(grade_level, section, class_name)"
-        )
+        .select("id, student_id, classroom_id, grade_level, pillar, correct, created_at")
         .gte("created_at", thirty_days_ago)
         .in_("interaction_type", ["mission_mc", "mission_fill", "spelling_bee"])
     )
@@ -102,8 +98,6 @@ def aggregate_student_stats(
     # Apply filters
     if grade_level:
         query = query.eq("grade_level", grade_level)
-    if section:
-        query = query.eq("section", section)
     if pillar:
         query = query.eq("pillar", pillar)
 
@@ -113,20 +107,45 @@ def aggregate_student_stats(
     if not interactions:
         return {"all_students": [], "summary": {}}
 
+    # Get unique student IDs and classroom IDs
+    student_ids = list(set(i["student_id"] for i in interactions))
+    classroom_ids = list(set(i["classroom_id"] for i in interactions))
+
+    # Fetch student data
+    students_result = supabase.table("students").select("id, student_name, avatar_url, classroom_id").in_("id", student_ids).execute()
+    students_by_id = {s["id"]: s for s in students_result.data}
+
+    # Fetch classroom data
+    classrooms_result = supabase.table("classrooms").select("id, grade_level, section, class_name").in_("id", classroom_ids).execute()
+    classrooms_by_id = {c["id"]: c for c in classrooms_result.data}
+
+    # Apply section filter if provided
+    if section:
+        # Filter interactions to only those from classrooms with matching section
+        section_classroom_ids = [cid for cid, c in classrooms_by_id.items() if c.get("section") == section]
+        interactions = [i for i in interactions if i["classroom_id"] in section_classroom_ids]
+
+        if not interactions:
+            return {"all_students": [], "summary": {}}
+
     # Group by student_id
     student_map = {}
     for interaction in interactions:
         sid = interaction["student_id"]
-        if sid not in student_map:
+        if sid not in student_map and sid in students_by_id:
+            student_data = students_by_id[sid]
+            classroom_data = classrooms_by_id.get(student_data["classroom_id"], {})
+
             student_map[sid] = {
                 "student_id": sid,
-                "student_name": interaction["students"]["student_name"],
-                "avatar_url": interaction["students"]["avatar_url"],
-                "grade_level": interaction["classrooms"]["grade_level"],
-                "section": interaction["classrooms"]["section"],
+                "student_name": student_data.get("student_name", "Unknown"),
+                "avatar_url": student_data.get("avatar_url"),
+                "grade_level": classroom_data.get("grade_level", interaction["grade_level"]),
+                "section": classroom_data.get("section"),
                 "interactions": [],
             }
-        student_map[sid]["interactions"].append(interaction)
+        if sid in student_map:
+            student_map[sid]["interactions"].append(interaction)
 
     # Calculate per-student stats
     all_students = []
@@ -295,17 +314,15 @@ def compute_weekly_trends(
         # Query interactions for this week
         query = (
             supabase.table("student_interactions")
-            .select("id, correct, created_at, classrooms(grade_level, section)")
+            .select("id, correct, created_at, classroom_id")
             .gte("created_at", week_start.isoformat())
             .lt("created_at", week_end.isoformat())
             .in_("interaction_type", ["mission_mc", "mission_fill", "spelling_bee"])
         )
 
-        # Apply filters
+        # Apply filters directly on student_interactions columns
         if grade_level:
             query = query.eq("grade_level", grade_level)
-        if section:
-            query = query.eq("section", section)
         if pillar:
             query = query.eq("pillar", pillar)
 

@@ -2,7 +2,6 @@
 
 import React from "react";
 import FilterBar from "@/components/teacher/FilterBar";
-import { designTokens } from "@/lib/design-tokens";
 import { TeacherAnalyticsData } from "@/types/analytics";
 import AnalyticsOverview from "./AnalyticsOverview";
 import GradeBreakdown from "./GradeBreakdown";
@@ -28,11 +27,13 @@ export default function AnalyticsClient({
   section,
 }: AnalyticsClientProps) {
   if (error) {
+    const msg = error instanceof Error ? error.message : String(error);
     return (
-      <div style={{ padding: designTokens.spacing.section }}>
+      <div className="p-6">
         <h1 className="text-2xl font-bold mb-4">Analytics Dashboard</h1>
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">
-          Failed to load analytics data. Please try again later.
+          <p className="font-semibold">Failed to load analytics data.</p>
+          <p className="text-sm mt-1 font-mono">{msg}</p>
         </div>
       </div>
     );
@@ -40,7 +41,7 @@ export default function AnalyticsClient({
 
   if (isLoading) {
     return (
-      <div style={{ padding: designTokens.spacing.section }}>
+      <div className="p-6">
         <h1 className="text-2xl font-bold mb-4">Analytics Dashboard</h1>
         <FilterBar showSearch={false} showPillar={true} showSection={true} />
         <div className="grid grid-cols-1 gap-6 mt-6">
@@ -56,7 +57,7 @@ export default function AnalyticsClient({
   }
 
   return (
-    <div style={{ padding: designTokens.spacing.section }}>
+    <div className="p-6">
       <h1 className="text-2xl font-bold mb-4">Analytics Dashboard</h1>
       
       <FilterBar showSearch={false} showPillar={true} showSection={true} />
