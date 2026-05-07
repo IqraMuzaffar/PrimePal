@@ -51,15 +51,15 @@ export default function LandingPage() {
 
       {/* ── hero ── */}
       <AnimatedHeroSection>
-        <AnimatedHeroItem className="inline-flex items-center justify-center w-14 h-14 bg-white/10 backdrop-blur-md rounded-2xl mb-4 border border-white/20 shadow-lg shadow-black/10">
+        <AnimatedHeroItem className="inline-flex items-center justify-center backdrop-blur-md rounded-2xl mb-4 border border-white/20" style={{ width: '56px', height: '56px', background: 'linear-gradient(135deg, #4361ee 0%, #7c9eff 100%)', boxShadow: '0 6px 24px rgba(67,97,238,0.4)' }}>
           <span className="text-3xl leading-none">⭐</span>
         </AnimatedHeroItem>
 
-        <AnimatedHeroH1 className="text-5xl sm:text-7xl font-black text-white tracking-tight leading-none">
+        <AnimatedHeroH1 className="font-black text-white tracking-tight leading-none" style={{ fontSize: '56px', letterSpacing: '-0.02em' }}>
           PrimePal
         </AnimatedHeroH1>
 
-        <AnimatedHeroP className="text-indigo-200 text-lg sm:text-xl font-semibold mt-4">
+        <AnimatedHeroP className="font-semibold mt-4" style={{ color: '#93c5fd', fontSize: '18px' }}>
           Learn English the fun way!
         </AnimatedHeroP>
 
@@ -67,7 +67,8 @@ export default function LandingPage() {
           {pillars.map(({ icon: Icon, label }) => (
             <span
               key={label}
-              className="flex items-center gap-1.5 text-indigo-300/70 text-xs font-bold uppercase tracking-wider"
+              className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider"
+              style={{ color: 'rgba(147,197,253,0.7)' }}
             >
               <Icon size={14} strokeWidth={2.5} />
               {label}
