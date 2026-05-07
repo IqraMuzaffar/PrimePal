@@ -59,7 +59,7 @@ export default function LandingPage() {
           PrimePal
         </AnimatedHeroH1>
 
-        <AnimatedHeroP className="text-white font-semibold mt-4" style={{ fontSize: '20px' }}>
+        <AnimatedHeroP className="text-white font-semibold mt-5" style={{ fontSize: '22px', opacity: 0.95 }}>
           Learn English the fun way!
         </AnimatedHeroP>
 
@@ -87,25 +87,25 @@ export default function LandingPage() {
                 🎮
               </div>
 
-              <div className="flex items-center gap-3 mb-5">
-                <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-xl">
-                  <Gamepad2 size={28} className="text-white" strokeWidth={2.5} />
+              <div className="flex items-center gap-4 mb-6">
+                <div className="bg-white/25 backdrop-blur-sm p-3 rounded-2xl shadow-lg">
+                  <Gamepad2 size={32} className="text-white" strokeWidth={2.5} />
                 </div>
-                <span className="bg-white/20 text-white text-[0.65rem] font-extrabold px-3 py-1 rounded-full uppercase tracking-wide">
+                <span className="bg-white/25 text-white text-sm font-extrabold px-4 py-2 rounded-full uppercase tracking-wide shadow-md">
                   Let&apos;s Play!
                 </span>
               </div>
 
-              <h2 className="font-black text-white mb-1.5 leading-tight" style={{ fontSize: '28px' }}>
+              <h2 className="font-black text-white mb-3 leading-tight" style={{ fontSize: '32px' }}>
                 I&apos;m a Student
               </h2>
-              <p className="font-medium leading-relaxed" style={{ color: 'rgba(254,243,199,0.9)', fontSize: '15px' }}>
+              <p className="font-medium leading-relaxed text-white" style={{ fontSize: '16px', lineHeight: '1.6' }}>
                 Enter your class code and start your English adventure with fun missions and games!
               </p>
 
-              <div className="mt-6 flex items-center gap-2 text-white font-bold text-sm group-hover:gap-3 transition-all duration-200">
+              <div className="mt-8 inline-flex items-center gap-3 text-white font-bold text-base px-6 py-3 bg-white/15 rounded-full backdrop-blur-sm group-hover:bg-white/25 transition-all duration-300 group-hover:gap-4 shadow-lg">
                 <span>Enter Class Code</span>
-                <span className="text-base transition-transform duration-200 group-hover:translate-x-0.5">→</span>
+                <span className="text-xl transition-transform duration-300 group-hover:translate-x-1">→</span>
               </div>
             </AnimatedCardInner>
           </Link>
@@ -119,25 +119,25 @@ export default function LandingPage() {
                 📊
               </div>
 
-              <div className="flex items-center gap-3 mb-5">
-                <div className="bg-white/20 backdrop-blur-sm p-2.5 rounded-xl">
-                  <GraduationCap size={28} className="text-white" strokeWidth={2.5} />
+              <div className="flex items-center gap-4 mb-6">
+                <div className="bg-white/25 backdrop-blur-sm p-3 rounded-2xl shadow-lg">
+                  <GraduationCap size={32} className="text-white" strokeWidth={2.5} />
                 </div>
-                <span className="bg-white/20 text-white text-[0.65rem] font-extrabold px-3 py-1 rounded-full uppercase tracking-wide">
+                <span className="bg-white/25 text-white text-sm font-extrabold px-4 py-2 rounded-full uppercase tracking-wide shadow-md">
                   Dashboard
                 </span>
               </div>
 
-              <h2 className="font-black text-white mb-1.5 leading-tight" style={{ fontSize: '28px' }}>
+              <h2 className="font-black text-white mb-3 leading-tight" style={{ fontSize: '32px' }}>
                 I&apos;m a Teacher
               </h2>
-              <p className="font-medium leading-relaxed" style={{ color: 'rgba(209,250,229,0.9)', fontSize: '15px' }}>
+              <p className="font-medium leading-relaxed text-white" style={{ fontSize: '16px', lineHeight: '1.6' }}>
                 Manage classrooms, track student progress, and view AI-powered insights across all four skills.
               </p>
 
-              <div className="mt-6 flex items-center gap-2 text-white font-bold text-sm group-hover:gap-3 transition-all duration-200">
+              <div className="mt-8 inline-flex items-center gap-3 text-white font-bold text-base px-6 py-3 bg-white/15 rounded-full backdrop-blur-sm group-hover:bg-white/25 transition-all duration-300 group-hover:gap-4 shadow-lg">
                 <span>Sign In</span>
-                <span className="text-base transition-transform duration-200 group-hover:translate-x-0.5">→</span>
+                <span className="text-xl transition-transform duration-300 group-hover:translate-x-1">→</span>
               </div>
             </AnimatedCardInner>
           </Link>
