@@ -99,14 +99,33 @@ async def get_story(student: dict = Depends(get_current_student)):
         )
     grade_level: int = classroom_resp.data["grade_level"]
 
+    # Fallback: if no active syllabus week, use active topics from teacher selection
     if not syllabus_resp.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="No active week found in pacing calendar",
+        topics_resp = await asyncio.to_thread(
+            lambda: supabase.table("classroom_active_topics")
+            .select("topic_id")
+            .eq("classroom_id", classroom_id)
+            .limit(1)
+            .execute()
         )
 
-    topic_title: str = syllabus_resp.data["topic_title"]
-    week_number: int = syllabus_resp.data["week_number"]
+        if topics_resp.data and len(topics_resp.data) > 0:
+            topic_id = topics_resp.data[0]["topic_id"]
+            topic_resp = await asyncio.to_thread(
+                lambda: supabase.table("snc_topics")
+                .select("topic_name")
+                .eq("id", topic_id)
+                .maybe_single()
+                .execute()
+            )
+            topic_title = topic_resp.data["topic_name"] if topic_resp.data else "General English"
+            week_number = 1
+        else:
+            topic_title = f"Grade {grade_level} English"
+            week_number = 1
+    else:
+        topic_title: str = syllabus_resp.data["topic_title"]
+        week_number: int = syllabus_resp.data["week_number"]
 
     # ------------------------------------------------------------------
     # Check cache first (1 hour TTL)
@@ -169,8 +188,8 @@ Return ONLY valid JSON (no markdown code blocks).
 
         questions: list[ComprehensionQuestion] = []
         for i, q in enumerate(data["questions"]):
-            if not isinstance(q, dict) or "options" not in q or "correct_index" not in q:
-                raise ValueError(f"Question {i} missing required fields")
+            if not isinstance(q, dict) or "question" not in q or "options" not in q or "correct_index" not in q:
+                raise ValueError(f"Question {i} missing required fields (need question, options, correct_index)")
             if len(q["options"]) != 4:
                 raise ValueError(f"Question {i} must have exactly 4 options")
             if not isinstance(q["correct_index"], int) or q["correct_index"] < 0 or q["correct_index"] > 3:

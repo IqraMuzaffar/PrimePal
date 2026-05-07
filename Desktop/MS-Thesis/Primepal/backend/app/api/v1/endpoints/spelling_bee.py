@@ -104,10 +104,10 @@ async def get_spelling_words(student: dict = Depends(get_current_student)):
         )
     grade_level: int = classroom_resp.data["grade_level"]
 
-    # Fallback: if no active week, use a random active topic from snc_topics
+    # Fallback: if no active syllabus week, use active topics from teacher selection
     if not syllabus_resp.data:
-        topics_resp = (
-            supabase.table("classroom_active_topics")
+        topics_resp = await asyncio.to_thread(
+            lambda: supabase.table("classroom_active_topics")
             .select("topic_id")
             .eq("classroom_id", classroom_id)
             .limit(1)
@@ -116,8 +116,8 @@ async def get_spelling_words(student: dict = Depends(get_current_student)):
 
         if topics_resp.data and len(topics_resp.data) > 0:
             topic_id = topics_resp.data[0]["topic_id"]
-            topic_resp = (
-                supabase.table("snc_topics")
+            topic_resp = await asyncio.to_thread(
+                lambda: supabase.table("snc_topics")
                 .select("topic_name")
                 .eq("id", topic_id)
                 .maybe_single()
@@ -126,7 +126,6 @@ async def get_spelling_words(student: dict = Depends(get_current_student)):
             topic_title = topic_resp.data["topic_name"] if topic_resp.data else "General English Vocabulary"
             week_number = 1
         else:
-            # Final fallback: use grade-appropriate general topic
             topic_title = f"Grade {grade_level} English Vocabulary"
             week_number = 1
 
