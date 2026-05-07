@@ -145,10 +145,21 @@ export default function LandingPage() {
       </div>
 
       {/* ── footer tagline ── */}
-      <AnimatedFooter className="text-indigo-300/40 text-xs font-medium mt-8 relative z-10 text-center">
+      <AnimatedFooter className="text-xs font-medium mt-8 relative z-10 text-center" style={{ color: 'rgba(147,197,253,0.4)' }}>
         AI-powered English learning for Pakistan&apos;s future &mdash; tackling the
         &ldquo;Mute English&rdquo; phenomenon
       </AnimatedFooter>
+
+      <p className="text-xs font-medium mt-3 relative z-10 text-center" style={{ color: 'rgba(147,197,253,0.5)' }}>
+        Are you an admin?{" "}
+        <Link
+          href="/admin/login"
+          className="font-semibold"
+          style={{ color: '#93c5fd', borderBottom: '1px solid rgba(147,197,253,0.5)', textDecoration: 'none' }}
+        >
+          Sign in here
+        </Link>
+      </p>
     </div>
   );
 }
