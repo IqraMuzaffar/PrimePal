@@ -51,11 +51,11 @@ export default function LandingPage() {
 
       {/* ── hero ── */}
       <AnimatedHeroSection>
-        <AnimatedHeroItem className="inline-flex items-center justify-center backdrop-blur-md rounded-2xl mb-4 border border-white/20" style={{ width: '80px', height: '80px', background: 'linear-gradient(135deg, #4361ee 0%, #7c9eff 100%)', boxShadow: '0 8px 32px rgba(67,97,238,0.5)' }}>
-          <span className="text-5xl leading-none">⭐</span>
+        <AnimatedHeroItem className="inline-flex items-center justify-center backdrop-blur-md rounded-3xl mb-6 border-2 border-white/30" style={{ width: '120px', height: '120px', background: 'linear-gradient(135deg, #4361ee 0%, #7c9eff 100%)', boxShadow: '0 12px 48px rgba(67,97,238,0.6)' }}>
+          <span className="text-7xl leading-none">⭐</span>
         </AnimatedHeroItem>
 
-        <AnimatedHeroH1 className="font-black text-white tracking-tight leading-none" style={{ fontSize: '72px', letterSpacing: '-0.02em' }}>
+        <AnimatedHeroH1 className="font-black text-white tracking-tight leading-none" style={{ fontSize: '96px', letterSpacing: '-0.02em' }}>
           PrimePal
         </AnimatedHeroH1>
 
@@ -82,7 +82,7 @@ export default function LandingPage() {
         {/* student */}
         <AnimatedCard xOffset={-36} delay={0.5} className="flex-1">
           <Link href="/student/play" className="block group">
-            <AnimatedCardInner className="relative bg-gradient-to-br from-amber-400 to-orange-500 overflow-hidden" style={{ maxWidth: '380px', borderRadius: '48px', padding: '40px 32px', boxShadow: '0 20px 60px rgba(234,88,12,0.35)', border: '2px solid rgba(252,211,77,0.4)' }}>
+            <AnimatedCardInner className="relative bg-gradient-to-br from-amber-400 to-orange-500 overflow-hidden" style={{ maxWidth: '400px', borderRadius: '80px', padding: '48px 40px', boxShadow: '0 24px 72px rgba(234,88,12,0.4)', border: '3px solid rgba(252,211,77,0.5)' }}>
               <div className="absolute -right-6 -bottom-6 text-[8rem] opacity-[0.08] leading-none select-none pointer-events-none">
                 🎮
               </div>
@@ -114,7 +114,7 @@ export default function LandingPage() {
         {/* teacher */}
         <AnimatedCard xOffset={36} delay={0.6} className="flex-1">
           <Link href="/teacher/login" className="block group">
-            <AnimatedCardInner className="relative bg-gradient-to-br from-green-500 to-emerald-600 overflow-hidden" style={{ maxWidth: '380px', borderRadius: '48px', padding: '40px 32px', boxShadow: '0 20px 60px rgba(5,150,105,0.35)', border: '2px solid rgba(110,231,183,0.4)' }}>
+            <AnimatedCardInner className="relative bg-gradient-to-br from-green-500 to-emerald-600 overflow-hidden" style={{ maxWidth: '400px', borderRadius: '80px', padding: '48px 40px', boxShadow: '0 24px 72px rgba(5,150,105,0.4)', border: '3px solid rgba(110,231,183,0.5)' }}>
               <div className="absolute -right-6 -bottom-6 text-[8rem] opacity-[0.08] leading-none select-none pointer-events-none">
                 📊
               </div>
