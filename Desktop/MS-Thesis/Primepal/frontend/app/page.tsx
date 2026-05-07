@@ -114,7 +114,7 @@ export default function LandingPage() {
         {/* teacher */}
         <AnimatedCard xOffset={36} delay={0.6} className="flex-1">
           <Link href="/teacher/login" className="block group">
-            <AnimatedCardInner className="relative bg-gradient-to-br from-emerald-500 to-teal-600 rounded-[1.5rem] p-6 sm:p-7 shadow-2xl shadow-teal-600/20 border border-emerald-400/30 overflow-hidden">
+            <AnimatedCardInner className="relative bg-gradient-to-br from-green-500 to-emerald-600 overflow-hidden" style={{ maxWidth: '380px', borderRadius: '24px', padding: '40px 32px', boxShadow: '0 20px 60px rgba(5,150,105,0.25)', border: '1px solid rgba(110,231,183,0.3)' }}>
               <div className="absolute -right-6 -bottom-6 text-[8rem] opacity-[0.08] leading-none select-none pointer-events-none">
                 📊
               </div>
@@ -128,10 +128,10 @@ export default function LandingPage() {
                 </span>
               </div>
 
-              <h2 className="text-2xl sm:text-3xl font-black text-white mb-1.5 leading-tight">
+              <h2 className="font-black text-white mb-1.5 leading-tight" style={{ fontSize: '28px' }}>
                 I&apos;m a Teacher
               </h2>
-              <p className="text-emerald-100/90 text-sm font-medium leading-relaxed">
+              <p className="font-medium leading-relaxed" style={{ color: 'rgba(209,250,229,0.9)', fontSize: '15px' }}>
                 Manage classrooms, track student progress, and view AI-powered insights across all four skills.
               </p>
 
