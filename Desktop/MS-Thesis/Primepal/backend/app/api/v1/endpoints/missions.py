@@ -673,20 +673,30 @@ async def _generate_personalized_missions(
 ) -> None:
     """Background task: generate personalized pillar missions and cache them."""
     try:
-        # Retrieve SNC curriculum context
+        # Retrieve SNC curriculum context (with caching)
         supabase = get_supabase_admin()
         seed_phrase = f"Topics: {', '.join(active_topic_names)}" if active_topic_names else "vocabulary words lesson"
-        try:
-            context_chunks = await retrieve_grade_filtered_chunks(
-                query=seed_phrase,
-                grade_level=grade_level,
-                supabase_admin_client=supabase,
-                match_count=5,
-            )
-            logger.info(f"Background task RAG retrieval: {len(context_chunks)} chunks for {pillar} grade {grade_level}")
-        except Exception as exc:
-            logger.warning(f"Background task RAG retrieval failed, continuing without curriculum context: {exc}")
-            context_chunks = []
+
+        # Use cached RAG context if available
+        topics_hash = hashlib.md5(",".join(sorted(active_topic_names)).encode()).hexdigest()[:12]
+        rag_cache_key = make_cache_key("rag_context", str(grade_level), topics_hash)
+        context_chunks = await cache_get(rag_cache_key)
+
+        if context_chunks is None:
+            try:
+                context_chunks = await retrieve_grade_filtered_chunks(
+                    query=seed_phrase,
+                    grade_level=grade_level,
+                    supabase_admin_client=supabase,
+                    match_count=5,
+                )
+                logger.info(f"Background task RAG retrieval: {len(context_chunks)} chunks for {pillar} grade {grade_level}")
+                await cache_set(rag_cache_key, context_chunks, ttl=3600)
+            except Exception as exc:
+                logger.warning(f"Background task RAG retrieval failed, continuing without curriculum context: {exc}")
+                context_chunks = []
+        else:
+            logger.info(f"Background task RAG cache hit for grade {grade_level}, topics {topics_hash}")
 
         missions = await generate_pillar_missions(
             pillar=pillar,
@@ -791,6 +801,14 @@ async def get_pillar_missions(
         Returns:
             List of weakness strings like ["reading (accuracy: 40%)", "listening (accuracy: 50%)"]
         """
+        # Cache weakness detection for 5 minutes
+        weakness_cache_key = make_cache_key("weaknesses", student_id)
+        cached_weaknesses = await cache_get(weakness_cache_key)
+
+        if cached_weaknesses is not None:
+            logger.info(f"Weakness cache hit for student {student_id}")
+            return cached_weaknesses
+
         try:
             # Get last 30 interactions across all pillars
             resp = (
@@ -828,6 +846,9 @@ async def get_pillar_missions(
                     student_id,
                     ", ".join(weaknesses)
                 )
+
+            # Cache for 5 minutes
+            await cache_set(weakness_cache_key, weaknesses, ttl=300)
 
             return weaknesses
         except Exception as exc:
@@ -875,20 +896,30 @@ async def get_pillar_missions(
             return PillarMissionsResponse(**generic_cached)
 
     # ------------------------------------------------------------------
-    # Step 3.5: Retrieve SNC curriculum context chunks (like daily missions)
+    # Step 3.5: Retrieve SNC curriculum context chunks (with caching)
     # ------------------------------------------------------------------
     seed_phrase = f"Topics: {', '.join(active_topic_names)}" if active_topic_names else "vocabulary words lesson"
-    try:
-        context_chunks = await retrieve_grade_filtered_chunks(
-            query=seed_phrase,
-            grade_level=grade_level,
-            supabase_admin_client=supabase,
-            match_count=5,
-        )
-        logger.info(f"RAG retrieval for pillar missions: {len(context_chunks)} chunks for {pillar} grade {grade_level}")
-    except Exception as exc:
-        logger.warning(f"RAG retrieval failed for pillar missions, continuing without curriculum context: {exc}")
-        context_chunks = []
+
+    # Cache RAG context by grade_level and topics (1 hour TTL)
+    rag_cache_key = make_cache_key("rag_context", str(grade_level), topics_hash)
+    context_chunks = await cache_get(rag_cache_key)
+
+    if context_chunks is None:
+        try:
+            context_chunks = await retrieve_grade_filtered_chunks(
+                query=seed_phrase,
+                grade_level=grade_level,
+                supabase_admin_client=supabase,
+                match_count=5,
+            )
+            logger.info(f"RAG retrieval for pillar missions: {len(context_chunks)} chunks for {pillar} grade {grade_level}")
+            # Cache for 1 hour
+            await cache_set(rag_cache_key, context_chunks, ttl=3600)
+        except Exception as exc:
+            logger.warning(f"RAG retrieval failed for pillar missions, continuing without curriculum context: {exc}")
+            context_chunks = []
+    else:
+        logger.info(f"RAG cache hit for grade {grade_level}, topics {topics_hash}: {len(context_chunks)} chunks")
 
     # ------------------------------------------------------------------
     # Step 4: Generate pillar missions via mission generator

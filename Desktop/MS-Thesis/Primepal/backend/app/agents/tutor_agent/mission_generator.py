@@ -327,31 +327,108 @@ POINTS_BY_DIFFICULTY = {
 # Semantic keyword mapping for topic validation
 # Maps high-level topic names to concrete vocabulary that LLM might use
 TOPIC_KEYWORDS = {
-    "animals": ["animal", "cat", "dog", "bird", "fish", "cow", "horse", "lion", "tiger",
-                "elephant", "monkey", "rabbit", "mouse", "chicken", "duck", "goat", "sheep",
-                "pet", "zoo", "farm"],
-    "food": ["food", "eat", "drink", "hungry", "apple", "banana", "bread", "rice", "milk",
-             "water", "fruit", "vegetable", "meal", "breakfast", "lunch", "dinner", "pizza",
-             "burger", "sandwich", "juice", "tea", "coffee", "cake", "cookie"],
-    "family": ["family", "mother", "father", "sister", "brother", "parent", "son", "daughter",
-               "grandmother", "grandfather", "uncle", "aunt", "cousin", "baby", "child"],
-    "colors": ["color", "red", "blue", "green", "yellow", "black", "white", "pink", "purple",
-               "orange", "brown", "gray"],
-    "numbers": ["number", "one", "two", "three", "four", "five", "six", "seven", "eight",
-                "nine", "ten", "count", "many", "few"],
-    "body": ["body", "head", "eye", "ear", "nose", "mouth", "hand", "foot", "leg", "arm",
-             "finger", "toe", "face", "hair"],
-    "clothes": ["clothes", "shirt", "pant", "dress", "shoe", "sock", "hat", "coat", "jacket"],
-    "weather": ["weather", "sun", "rain", "cloud", "wind", "hot", "cold", "warm", "cool"],
-    "school": ["school", "teacher", "student", "book", "pencil", "desk", "class", "learn",
-               "read", "write"],
-    "home": ["home", "house", "room", "door", "window", "bed", "table", "chair", "kitchen"],
-    "transportation": ["transport", "car", "bus", "train", "bike", "bicycle", "plane", "boat",
-                      "walk", "drive", "ride"],
-    "time": ["time", "day", "night", "morning", "afternoon", "evening", "today", "tomorrow",
-             "yesterday", "hour", "minute"],
-    "greetings": ["hello", "hi", "goodbye", "bye", "good morning", "good night", "thank",
-                  "please", "sorry", "welcome"],
+    "animals": ["animal", "animals", "cat", "cats", "dog", "dogs", "bird", "birds", "fish",
+                "fishes", "cow", "cows", "horse", "horses", "lion", "lions", "tiger", "tigers",
+                "elephant", "elephants", "monkey", "monkeys", "rabbit", "rabbits", "mouse",
+                "mice", "chicken", "chickens", "duck", "ducks", "goat", "goats", "sheep",
+                "pet", "pets", "zoo", "farm", "farms", "wild", "tail", "tails", "paw", "paws",
+                "wing", "wings", "beak", "beaks"],
+    "food": ["food", "foods", "eat", "eats", "eating", "drink", "drinks", "drinking", "hungry",
+             "apple", "apples", "banana", "bananas", "bread", "rice", "milk", "water", "fruit",
+             "fruits", "vegetable", "vegetables", "meal", "meals", "breakfast", "lunch", "dinner",
+             "pizza", "burger", "burgers", "sandwich", "sandwiches", "juice", "tea", "coffee",
+             "cake", "cakes", "cookie", "cookies", "dish", "dishes", "plate", "plates", "spoon",
+             "spoons", "fork", "forks", "knife", "knives", "sweet", "sweets", "sour", "salty",
+             "bitter", "taste", "tastes", "snack", "snacks"],
+    "family": ["family", "families", "mother", "mothers", "father", "fathers", "sister", "sisters",
+               "brother", "brothers", "parent", "parents", "son", "sons", "daughter", "daughters",
+               "grandmother", "grandmothers", "grandfather", "grandfathers", "uncle", "uncles",
+               "aunt", "aunts", "cousin", "cousins", "baby", "babies", "child", "children",
+               "mom", "moms", "dad", "dads", "grandma", "grandpa", "sibling", "siblings", "relative", "relatives"],
+    "colors": ["color", "colors", "colour", "colours", "red", "blue", "green", "yellow", "black",
+               "white", "pink", "purple", "orange", "brown", "gray", "grey", "bright", "dark",
+               "light", "shade", "shades"],
+    "numbers": ["number", "numbers", "one", "two", "three", "four", "five", "six", "seven", "eight",
+                "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "twenty",
+                "hundred", "count", "counting", "many", "few", "more", "less", "first", "second",
+                "third", "add", "adding", "subtract", "subtracting", "total"],
+    "body": ["body", "bodies", "head", "heads", "eye", "eyes", "ear", "ears", "nose", "noses",
+             "mouth", "mouths", "hand", "hands", "foot", "feet", "leg", "legs", "arm", "arms",
+             "finger", "fingers", "toe", "toes", "face", "faces", "hair", "teeth", "tooth",
+             "tongue", "tongues", "neck", "necks", "shoulder", "shoulders", "knee", "knees",
+             "elbow", "elbows", "stomach", "stomachs", "back", "backs", "chest", "chests"],
+    "clothes": ["clothes", "clothing", "shirt", "shirts", "pant", "pants", "dress", "dresses",
+                "shoe", "shoes", "sock", "socks", "hat", "hats", "coat", "coats", "jacket",
+                "jackets", "wear", "wearing", "uniform", "uniforms", "skirt", "skirts",
+                "sweater", "sweaters", "scarf", "scarves", "glove", "gloves", "button", "buttons",
+                "pocket", "pockets"],
+    "weather": ["weather", "sun", "sunny", "rain", "raining", "rainy", "cloud", "clouds", "cloudy",
+                "wind", "winds", "windy", "hot", "cold", "warm", "cool", "storm", "storms",
+                "stormy", "thunder", "lightning", "snow", "snowy", "snowing"],
+    "school": ["school", "schools", "teacher", "teachers", "student", "students", "book", "books",
+               "pencil", "pencils", "desk", "desks", "class", "classes", "learn", "learning",
+               "learned", "read", "reading", "write", "writing", "written", "study", "studying",
+               "studied", "lesson", "lessons", "homework", "exam", "exams", "test", "tests",
+               "grade", "grades", "classroom", "classrooms", "notebook", "notebooks", "pen",
+               "pens", "eraser", "erasers", "ruler", "rulers", "bag", "bags", "blackboard", "blackboards"],
+    "home": ["home", "homes", "house", "houses", "room", "rooms", "door", "doors", "window",
+             "windows", "bed", "beds", "table", "tables", "chair", "chairs", "kitchen", "kitchens",
+             "bedroom", "bedrooms", "bathroom", "bathrooms", "living", "dining", "garden",
+             "gardens", "roof", "roofs", "wall", "walls", "floor", "floors"],
+    "transportation": ["transport", "transportation", "car", "cars", "bus", "buses", "train",
+                       "trains", "bike", "bikes", "bicycle", "bicycles", "plane", "planes",
+                       "boat", "boats", "ship", "ships", "walk", "walking", "walked", "drive",
+                       "driving", "drove", "ride", "riding", "rode", "travel", "traveling",
+                       "traveled", "road", "roads", "street", "streets", "traffic", "vehicle", "vehicles"],
+    "time": ["time", "times", "day", "days", "night", "nights", "morning", "mornings", "afternoon",
+             "afternoons", "evening", "evenings", "today", "tomorrow", "yesterday", "hour",
+             "hours", "minute", "minutes", "second", "seconds", "week", "weeks", "month",
+             "months", "year", "years", "clock", "clocks", "watch", "watches"],
+    "greetings": ["hello", "hi", "goodbye", "bye", "good morning", "good night", "thank", "thanks",
+                  "please", "sorry", "welcome", "greet", "greeting", "greetings", "polite",
+                  "excuse", "excused"],
+    # Grade 4-5 specific topics
+    "grammar": ["grammar", "verb", "verbs", "noun", "nouns", "adjective", "adjectives", "adverb",
+                "adverbs", "sentence", "sentences", "word", "words", "tense", "tenses", "plural",
+                "plurals", "singular", "pronoun", "pronouns", "preposition", "prepositions",
+                "article", "articles", "conjunction", "conjunctions", "subject", "subjects",
+                "predicate", "predicates", "clause", "clauses", "phrase", "phrases"],
+    "composition": ["composition", "compositions", "writing", "essay", "essays", "paragraph",
+                   "paragraphs", "story", "stories", "description", "descriptions", "narrative",
+                   "narratives", "letter", "letters", "write", "writing", "written", "describe",
+                   "describing", "described", "explain", "explaining", "explained", "author",
+                   "authors", "title", "titles", "beginning", "middle", "end", "introduction",
+                   "introductions", "conclusion", "conclusions", "detail", "details", "compose",
+                   "composing", "composed", "draft", "drafting", "drafted"],
+    "reading comprehension": ["reading", "comprehension", "passage", "passages", "text", "texts",
+                              "understand", "understanding", "understood", "comprehend", "comprehending",
+                              "meaning", "meanings", "main idea", "detail", "details", "inference",
+                              "infer", "inferring", "inferred", "conclusion", "conclusions",
+                              "character", "characters", "plot", "plots", "setting", "settings",
+                              "theme", "themes", "author", "authors", "title", "titles", "summary",
+                              "summaries", "summarize", "summarizing", "summarized"],
+    "vocabulary": ["vocabulary", "word", "words", "meaning", "meanings", "definition", "definitions",
+                   "synonym", "synonyms", "antonym", "antonyms", "dictionary", "dictionaries",
+                   "spelling", "spell", "spelled", "prefix", "prefixes", "suffix", "suffixes",
+                   "root", "roots", "context", "contexts"],
+    "punctuation": ["punctuation", "punctuate", "punctuated", "period", "periods", "comma",
+                   "commas", "question mark", "question marks", "exclamation", "exclamations",
+                   "apostrophe", "apostrophes", "quotation", "quotations", "quote", "quotes",
+                   "colon", "colons", "semicolon", "semicolons", "capital", "capitals",
+                   "capitalize", "capitalized", "uppercase", "lowercase"],
+    "literature": ["literature", "poem", "poems", "poetry", "poet", "poets", "story", "stories",
+                   "tale", "tales", "character", "characters", "plot", "plots", "theme", "themes",
+                   "author", "authors", "book", "books", "novel", "novels", "fiction", "verse",
+                   "verses", "stanza", "stanzas", "rhyme", "rhymes"],
+    "letter writing": ["letter", "letters", "formal", "informal", "greeting", "greetings",
+                       "closing", "closings", "address", "addresses", "salutation", "salutations",
+                       "dear", "sincerely", "yours", "recipient", "recipients", "sender", "senders",
+                       "envelope", "envelopes", "mail", "mailing"],
+    "idioms": ["idiom", "idioms", "phrase", "phrases", "expression", "expressions", "figurative",
+               "literal", "literally", "meaning", "meanings", "saying", "sayings", "proverb",
+               "proverbs"],
+    "synonyms & antonyms": ["synonym", "synonyms", "antonym", "antonyms", "similar", "opposite",
+                            "opposites", "same", "different", "meaning", "meanings"],
 }
 
 
@@ -423,19 +500,26 @@ def validate_topic_alignment(questions: list[dict], active_topics: list[str], pi
         if topic_match:
             validated.append(q)
         else:
+            # Enhanced rejection logging with searchable text for debugging
             rejected.append({
                 "question": q.get("question", "")[:60],
-                "task_type": q.get("task_type", "unknown")
+                "task_type": q.get("task_type", "unknown"),
+                "searchable_text": searchable_text[:100]  # First 100 chars for debugging
             })
+
+    # Calculate validation statistics
+    pass_rate = (len(validated) / len(questions) * 100) if questions else 0
 
     if rejected:
         logger.warning(
-            f"Topic validation: {len(rejected)}/{len(questions)} questions rejected for {pillar}. "
-            f"Active topics: {active_topics}. "
-            f"Rejected samples: {rejected[:3]}"  # Log first 3 rejected questions
+            f"Topic validation: {len(validated)}/{len(questions)} passed ({pass_rate:.1f}%). "
+            f"Pillar: {pillar}. Active topics: {active_topics}. "
+            f"Rejected samples (first 3): {rejected[:3]}"
         )
     else:
-        logger.info(f"Topic validation: All {len(questions)} questions passed for {pillar}")
+        logger.info(
+            f"Topic validation: All {len(questions)} questions passed (100%) for {pillar}"
+        )
 
     return validated
 
@@ -463,7 +547,7 @@ async def generate_pillar_missions(
 
     # Retry configuration for LLM generation
     MAX_RETRIES = 2
-    RETRY_DELAY_BASE = 2.0  # seconds
+    RETRY_DELAY_BASE = 1.0  # seconds (reduced for faster retries)
 
     # Build task distribution string
     task_distribution_lines = []
@@ -550,9 +634,29 @@ Use vocabulary and concepts from this SNC curriculum context when creating quest
     system_prompt = f"""\
 You are an ESL mission designer for Pakistani primary school Grade {grade_level} students.
 
-Generate EXACTLY 10 questions for the {pillar} pillar using ONLY vocabulary appropriate for Grade {grade_level}.
+⚠️ CRITICAL REQUIREMENT: Generate EXACTLY 10 questions. Not 9, not 11 — EXACTLY 10.
+⚠️ MANDATORY: You MUST generate EXACTLY 10 questions for the {pillar} pillar.
+⚠️ VERIFICATION: Before responding, count your questions to ensure you have EXACTLY 10.
+⚠️ CONSEQUENCE: Responses with incorrect question counts (9, 11, etc.) will be REJECTED.
 
-ACTIVE TOPICS: {topic_text}
+Use ONLY vocabulary appropriate for Grade {grade_level}.
+
+CRITICAL TOPIC CONSTRAINT — MANDATORY COMPLIANCE:
+Active Topics: {topic_text}
+
+⚠️ EVERY question MUST directly relate to these topics: {topic_text}
+⚠️ MANDATORY: Each question MUST contain vocabulary from these topics.
+⚠️ REJECT any question idea that doesn't directly relate to: {topic_text}
+
+Examples of ACCEPTABLE questions for topics like "Animals":
+- "The cat is sleeping on the mat." (uses animal vocabulary)
+- "Which animal says 'moo'?" (directly about animals)
+- "How many legs does a dog have?" (animal-focused)
+
+Examples of UNACCEPTABLE questions (will be REJECTED):
+- "What color is the sky?" (about colors, not animals)
+- "I go to school every day." (about school, not animals)
+- "The number five comes after four." (about numbers, not animals)
 
 TASK TYPE DISTRIBUTION (you MUST follow this exactly):
 {task_distribution_str}
@@ -591,7 +695,7 @@ RULES:
                 temperature=0.7,
                 openai_api_key=settings.OPENAI_API_KEY,
                 max_retries=3,  # Increased from 2 for better reliability
-                timeout=25.0,  # Increased from 10s - pillar missions generate 10 questions (3.3x daily missions)
+                timeout=40.0,  # Increased to 40s for reliable 10-question generation
             ).with_structured_output(PillarMissions)
 
             prompt = ChatPromptTemplate.from_messages([
@@ -607,7 +711,7 @@ RULES:
 
             result: PillarMissions | None = await asyncio.wait_for(
                 chain.ainvoke({}),
-                timeout=30.0,  # Increased from 12s - allows sufficient time for 10 questions
+                timeout=45.0,  # Increased to 45s for reliable 10-question generation
             )
 
             elapsed_time = asyncio.get_event_loop().time() - start_time
@@ -649,7 +753,23 @@ RULES:
                 validated.append(d)
 
             # Validate topic alignment after normalization
+            pre_validation_count = len(validated)
             validated = validate_topic_alignment(validated, active_topics, pillar)
+            post_validation_count = len(validated)
+
+            # Log validation statistics
+            pass_rate = (post_validation_count / pre_validation_count * 100) if pre_validation_count else 0
+            logger.info(
+                f"Topic validation stats: {post_validation_count}/{pre_validation_count} passed "
+                f"({pass_rate:.1f}%) for {pillar} grade {grade_level}"
+            )
+
+            # If pass rate is low on first attempt, log WARNING with diagnostic info
+            if pass_rate < 70 and attempt == 0:
+                logger.warning(
+                    f"LOW PASS RATE ({pass_rate:.1f}%) on first attempt for {pillar}. "
+                    f"LLM may not be following topic constraints: {active_topics}"
+                )
 
             # If we lost too many questions, log error and potentially retry
             if len(validated) < PILLAR_QUESTIONS_COUNT:
@@ -677,13 +797,13 @@ RULES:
         except asyncio.TimeoutError as e:
             last_exception = e
             logger.error(
-                f"Attempt {attempt + 1}/{MAX_RETRIES + 1}: Pillar mission generation timeout (30s) for {pillar} grade {grade_level}. "
+                f"Attempt {attempt + 1}/{MAX_RETRIES + 1}: Pillar mission generation timeout (45s) for {pillar} grade {grade_level}. "
                 f"This may indicate OpenAI API slowness or complex prompt. "
                 f"Active topics: {', '.join(active_topics) if active_topics else 'None'}"
             )
             if attempt >= MAX_RETRIES:
                 raise RuntimeError(
-                    f"Mission generation timed out after 30 seconds ({MAX_RETRIES + 1} attempts). "
+                    f"Mission generation timed out after 45 seconds ({MAX_RETRIES + 1} attempts). "
                     f"Please try again or contact support if this persists."
                 )
             continue  # Retry
