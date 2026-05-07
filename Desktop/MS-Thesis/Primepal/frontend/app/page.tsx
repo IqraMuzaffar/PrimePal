@@ -59,7 +59,7 @@ export default function LandingPage() {
           PrimePal
         </AnimatedHeroH1>
 
-        <AnimatedHeroP className="font-semibold mt-4" style={{ color: '#93c5fd', fontSize: '18px' }}>
+        <AnimatedHeroP className="text-white font-semibold mt-4" style={{ fontSize: '20px' }}>
           Learn English the fun way!
         </AnimatedHeroP>
 
@@ -67,8 +67,8 @@ export default function LandingPage() {
           {pillars.map(({ icon: Icon, label }) => (
             <span
               key={label}
-              className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider"
-              style={{ color: 'rgba(147,197,253,0.7)' }}
+              className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-white"
+              style={{ opacity: 0.8 }}
             >
               <Icon size={14} strokeWidth={2.5} />
               {label}
