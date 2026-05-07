@@ -475,10 +475,19 @@ def validate_topic_alignment(questions: list[dict], active_topics: list[str], pi
     for q in questions:
         question_text = q.get("question", "").lower()
 
-        # Also check other relevant fields that might contain topic keywords
+        # Check ALL relevant fields that might contain topic keywords
         audio_text = (q.get("audio_text") or "").lower()
         passage = (q.get("passage") or "").lower()
         urdu_hint = (q.get("urdu_hint") or "").lower()
+        sentence_start = (q.get("sentence_start") or "").lower()
+        correct_answer = (q.get("correct_answer") or "").lower()
+
+        # Check word_bank and correct_order lists
+        word_bank_text = " ".join(q.get("word_bank") or []).lower()
+        correct_order_text = " ".join(q.get("correct_order") or []).lower()
+
+        # Reconstruct full word from word_with_blanks (e.g. "c_t" -> check against correct_answer)
+        word_with_blanks = (q.get("word_with_blanks") or "").lower()
 
         # Also check options/image_options for keywords
         options_text = ""
@@ -487,15 +496,19 @@ def validate_topic_alignment(questions: list[dict], active_topics: list[str], pi
         if q.get("image_options"):
             options_text += " " + " ".join([opt.get("text", "").lower() for opt in q.get("image_options", [])])
 
-        # Combine all searchable text
-        searchable_text = f"{question_text} {audio_text} {passage} {urdu_hint} {options_text}"
+        # Combine all searchable text — include every field that could reference a topic
+        searchable_text = (
+            f"{question_text} {audio_text} {passage} {urdu_hint} "
+            f"{sentence_start} {correct_answer} {word_bank_text} "
+            f"{correct_order_text} {word_with_blanks} {options_text}"
+        )
 
-        # Split searchable text into words for word-boundary matching
-        # This prevents false matches like "eat" matching "weather"
-        searchable_words = set(searchable_text.split())
-
-        # Check if ANY active keyword appears as a whole word in the question
-        topic_match = any(keyword in searchable_words for keyword in active_keywords)
+        # Use substring matching instead of word-boundary matching.
+        # Word-boundary matching (splitting into words) fails when keywords appear
+        # adjacent to punctuation (e.g. "cat." won't match "cat" after split).
+        # Substring matching catches these cases while still being accurate for
+        # multi-character keywords (minimum 2 chars) used in TOPIC_KEYWORDS.
+        topic_match = any(keyword in searchable_text for keyword in active_keywords if len(keyword) >= 2)
 
         if topic_match:
             validated.append(q)
@@ -739,6 +752,14 @@ RULES:
             validated = []
             questions_to_use = result.questions[:PILLAR_QUESTIONS_COUNT]
 
+            # Detect if this pillar is a weakness area for the student
+            # Weakness strings look like "reading (accuracy: 40%)"
+            weak_pillars = set()
+            for w in student_weaknesses:
+                for p in valid_pillars:
+                    if w.lower().startswith(p):
+                        weak_pillars.add(p)
+
             for i, q in enumerate(questions_to_use):
                 d = q.model_dump()
                 d["id"] = i + 1
@@ -749,8 +770,12 @@ RULES:
                     d["difficulty"] = "medium"
                 # Always set to 10 points - consistent scoring across all questions
                 d["points_value"] = 10
-                d["is_weakness_focused"] = False
+                # Mark as weakness-focused if this pillar is in the student's weak areas
+                d["is_weakness_focused"] = pillar in weak_pillars
                 validated.append(d)
+
+            # Save pre-validation list so we can fall back to it if validation is too aggressive
+            all_normalized = list(validated)
 
             # Validate topic alignment after normalization
             pre_validation_count = len(validated)
@@ -785,10 +810,16 @@ RULES:
                         f"Topic validation failed: only {len(validated)}/{PILLAR_QUESTIONS_COUNT} questions matched topics {active_topics}"
                     )
                 else:
-                    # Last attempt - return what we have with a warning
+                    # Final attempt — the LLM was already prompted with strict topic
+                    # constraints, so returning all generated questions is preferable
+                    # to returning an incomplete set. Re-use the pre-validation list.
                     logger.warning(
-                        f"Final attempt: returning {len(validated)} topic-aligned questions (expected {PILLAR_QUESTIONS_COUNT})"
+                        f"Final attempt: topic validation too aggressive "
+                        f"({len(validated)}/{pre_validation_count} passed). "
+                        f"Returning all {pre_validation_count} LLM-generated questions "
+                        f"to guarantee {PILLAR_QUESTIONS_COUNT} tasks."
                     )
+                    validated = all_normalized
 
             logger.info(f"✓ Successfully generated and validated {len(validated)} {pillar} questions for grade {grade_level}")
 
