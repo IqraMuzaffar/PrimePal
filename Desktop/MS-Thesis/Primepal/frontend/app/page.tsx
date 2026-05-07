@@ -78,11 +78,11 @@ export default function LandingPage() {
       </AnimatedHeroSection>
 
       {/* ── role cards ── */}
-      <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 w-full max-w-2xl relative z-10">
+      <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 w-full relative z-10" style={{ maxWidth: '800px' }}>
         {/* student */}
         <AnimatedCard xOffset={-36} delay={0.5} className="flex-1">
           <Link href="/student/play" className="block group">
-            <AnimatedCardInner className="relative bg-gradient-to-br from-amber-400 to-orange-500 rounded-[1.5rem] p-6 sm:p-7 shadow-2xl shadow-orange-600/20 border border-amber-300/30 overflow-hidden">
+            <AnimatedCardInner className="relative bg-gradient-to-br from-amber-400 to-orange-500 overflow-hidden" style={{ maxWidth: '380px', borderRadius: '24px', padding: '40px 32px', boxShadow: '0 20px 60px rgba(234,88,12,0.25)', border: '1px solid rgba(252,211,77,0.3)' }}>
               <div className="absolute -right-6 -bottom-6 text-[8rem] opacity-[0.08] leading-none select-none pointer-events-none">
                 🎮
               </div>
@@ -96,10 +96,10 @@ export default function LandingPage() {
                 </span>
               </div>
 
-              <h2 className="text-2xl sm:text-3xl font-black text-white mb-1.5 leading-tight">
+              <h2 className="font-black text-white mb-1.5 leading-tight" style={{ fontSize: '28px' }}>
                 I&apos;m a Student
               </h2>
-              <p className="text-amber-100/90 text-sm font-medium leading-relaxed">
+              <p className="font-medium leading-relaxed" style={{ color: 'rgba(254,243,199,0.9)', fontSize: '15px' }}>
                 Enter your class code and start your English adventure with fun missions and games!
               </p>
 
