@@ -26,7 +26,7 @@ from pydantic import BaseModel
 from app.api.v1.endpoints.classroom import get_active_topics
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
-from app.core.cache import cache_get, cache_set, make_cache_key, debounced_invalidate
+from app.core.cache import cache_get, cache_set, cache_delete, make_cache_key, debounced_invalidate
 from app.agents.tutor_agent.chatbot import retrieve_grade_filtered_chunks
 from app.agents.evaluator_agent.interaction_logger import log_interaction
 from app.core.config import settings
@@ -53,6 +53,12 @@ _POINTS_PER_CORRECT = 10
 # Fixed seed phrase used to retrieve representative grade-level SNC vocabulary chunks.
 # This is intentionally generic so the vector search returns a broad mix of grade content.
 _SEED_PHRASE = "vocabulary words lesson"
+
+
+async def invalidate_profile_cache(student_id: str) -> None:
+    """Invalidate student profile cache (call after points/profile changes)."""
+    cache_key = make_cache_key("student_profile", student_id)
+    await cache_delete(cache_key)
 
 
 # ---------------------------------------------------------------------------
@@ -426,7 +432,7 @@ async def complete_mission(
     background_tasks.add_task(
         debounced_invalidate,
         student_id,
-        [invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
+        [invalidate_profile_cache, invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
     )
 
     # Check and unlock any newly earned achievements
@@ -574,7 +580,7 @@ async def submit_batch(
         background_tasks.add_task(
             debounced_invalidate,
             student_id,
-            [invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
+            [invalidate_profile_cache, invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
         )
 
     return BatchSubmitResponse(
@@ -1142,7 +1148,7 @@ async def submit_speaking_answer(
     background_tasks.add_task(
         debounced_invalidate,
         student_id,
-        [invalidate_rewards_cache, invalidate_scores_cache],
+        [invalidate_profile_cache, invalidate_rewards_cache, invalidate_scores_cache],
     )
 
     return SpeakingSubmissionResponse(
