@@ -91,7 +91,7 @@ async def evaluate_interactions(
     # Step 2: Compute basic stats locally
     # ------------------------------------------------------------------
     total_interactions = len(rows)
-    mission_rows = [r for r in rows if r["interaction_type"] in ("mission_mc", "mission_fill")]
+    mission_rows = [r for r in rows if r.get("interaction_type", "").startswith("mission_")]
     chat_rows = [r for r in rows if r["interaction_type"] == "chat"]
 
     mission_count = len(mission_rows)

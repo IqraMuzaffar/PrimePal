@@ -12,6 +12,9 @@ import StreakCounter from "@/components/student/StreakCounter";
 const PREFETCH_MAP: Record<string, { queryKey: readonly string[]; url: string; staleTime: number }[]> = {
   "/student/missions": [
     { queryKey: queryKeys.missionPillar("reading"), url: "/missions/pillar?pillar=reading", staleTime: 5 * 60 * 1000 },
+    { queryKey: queryKeys.missionPillar("writing"), url: "/missions/pillar?pillar=writing", staleTime: 5 * 60 * 1000 },
+    { queryKey: queryKeys.missionPillar("listening"), url: "/missions/pillar?pillar=listening", staleTime: 5 * 60 * 1000 },
+    { queryKey: queryKeys.missionPillar("speaking"), url: "/missions/pillar?pillar=speaking", staleTime: 5 * 60 * 1000 },
   ],
   "/student/achievements": [
     { queryKey: queryKeys.achievements, url: "/achievements/me", staleTime: 5 * 60 * 1000 },

@@ -99,18 +99,20 @@ async def log_mission_results(
         time_spent = 15 - result.time_remaining
 
         # Use service role client to bypass RLS (backend write)
+        # Points: 10 if correct, 0 if incorrect (consistent with /missions/complete)
+        score = 10 if result.is_correct else 0
         response = supabase.table("student_interactions").insert({
             "student_id": student_id,
             "classroom_id": classroom_id,
             "grade_level": grade_level,
-            "interaction_type": "mission_mc",  # Assuming multiple choice; can be enhanced
+            "interaction_type": "mission_mc",
             "original_message": None,
             "translated_message": None,
             "correct": result.is_correct,
-            "time_spent": time_spent,  # Store time_spent for frustration analysis
-            "pillar": request.pillar,  # Store pillar for contextual tracking
+            "time_spent": time_spent,
+            "pillar": request.pillar,
             "context_used": False,
-            # created_at is set by the database default
+            "score": score,
         }).execute()
 
         if response.data is None:
@@ -136,8 +138,8 @@ async def log_mission_results(
         # Query last 3 mission interactions for this student (ordered by recency)
         last_interactions = supabase.table("student_interactions").select(
             "correct, time_spent"
-        ).eq("student_id", student_id).in_(
-            "interaction_type", ["mission_mc", "mission_fill"]
+        ).eq("student_id", student_id).like(
+            "interaction_type", "mission_%"
         ).order("created_at", desc=True).limit(3).execute()
 
         if last_interactions.data and len(last_interactions.data) >= 3:

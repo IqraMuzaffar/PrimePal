@@ -184,13 +184,13 @@ export default function EvaluationPage() {
             {evalType === "pre" ? "pre" : "post"}-test evaluation. Great job!
           </p>
           <button
-            onClick={() => router.push("/student/home")}
+            onClick={() => router.push("/student/missions")}
             className="bg-indigo-600 text-white px-6 py-3 rounded-xl text-sm font-bold
                        shadow-[0_4px_0_#3730a3] hover:brightness-110
                        active:translate-y-[4px] active:shadow-none
                        transition-all duration-100"
           >
-            Continue to Home
+            Continue to Missions
           </button>
         </div>
       </div>

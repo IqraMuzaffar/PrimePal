@@ -58,6 +58,11 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
     router.push("/teacher/login");
   }
 
+  // Skip layout shell for login page
+  if (pathname === '/teacher/login') {
+    return <>{children}</>;
+  }
+
   // Get page title from pathname
   const matchedTitle = Object.entries(PAGE_TITLES).find(([key]) => pathname.startsWith(key))?.[1];
   const pageTitle = matchedTitle || 'Teacher';
@@ -72,7 +77,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar pageTitle={pageTitle} userEmail={email || undefined} />
-        <main className="flex-1 overflow-auto" style={{ backgroundColor: '#f0f2f8' }}>
+        <main className="flex-1 overflow-auto" style={{ backgroundColor: '#f0f2f8', backgroundImage: 'radial-gradient(circle at 20% 0%, rgba(67,97,238,0.04) 0%, transparent 60%)' }}>
           {children}
         </main>
       </div>

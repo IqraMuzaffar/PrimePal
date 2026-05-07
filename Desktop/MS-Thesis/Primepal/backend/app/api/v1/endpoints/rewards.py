@@ -203,7 +203,12 @@ async def get_points_breakdown(
         buckets: dict[str, dict] = {}
         for r in filtered_rows:
             raw_type = r.get("interaction_type", "")
-            display = _ACTIVITY_MAP.get(raw_type, raw_type.replace("_", " ").title())
+            # All mission_* types (mission_sentence_scramble, mission_listen_and_choose, etc.)
+            # should be grouped under "Missions"
+            if raw_type.startswith("mission_"):
+                display = "Missions"
+            else:
+                display = _ACTIVITY_MAP.get(raw_type, raw_type.replace("_", " ").title())
             if display not in buckets:
                 buckets[display] = {"points": 0, "count": 0}
             buckets[display]["points"] += r.get("score") or 10

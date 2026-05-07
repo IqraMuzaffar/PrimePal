@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Search, SlidersHorizontal } from "lucide-react";
 
@@ -61,6 +61,22 @@ export default function FilterBar({
     [router, pathname, searchParams]
   );
 
+  // Local state for search input — debounced before writing to URL
+  const [localSearch, setLocalSearch] = useState(search);
+
+  // Sync local state if URL param changes externally (e.g. back button)
+  useEffect(() => {
+    setLocalSearch(search);
+  }, [search]);
+
+  // Debounce: only push search to URL 400ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      updateParams({ search: localSearch });
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [localSearch, updateParams]);
+
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-4">
       <div className="flex items-center gap-2 mb-3">
@@ -74,8 +90,8 @@ export default function FilterBar({
             <input
               type="text"
               placeholder={searchPlaceholder}
-              value={search}
-              onChange={(e) => updateParams({ search: e.target.value })}
+              value={localSearch}
+              onChange={(e) => setLocalSearch(e.target.value)}
               className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
             />
           </div>

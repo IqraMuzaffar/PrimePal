@@ -191,7 +191,7 @@ async def classroom_report(
         sid = s["id"]
         interactions = interactions_by_student.get(sid, [])
         total = len(interactions)
-        missions = [r for r in interactions if r["interaction_type"] in ("mission_mc", "mission_fill")]
+        missions = [r for r in interactions if r.get("interaction_type", "").startswith("mission_")]
         correct = sum(1 for r in missions if r.get("correct") is True)
         accuracy = round((correct / len(missions)) * 100) if missions else 0
 
@@ -628,7 +628,7 @@ async def list_all_students(
             if row.get("created_at", "") >= seven_days_ago:
                 stats[sid]["active"] = True
             continue
-        if row["interaction_type"] in ("mission_mc", "mission_fill"):
+        if row.get("interaction_type", "").startswith("mission_"):
             stats[sid]["mission_total"] += 1
             if row.get("correct") is True:
                 stats[sid]["mission_correct"] += 1
@@ -1477,7 +1477,7 @@ class TeacherDailyPlan(BaseModel):
     suggested_activities: list[SuggestedActivity]  # 3-5 activities
     student_groups: list[StudentGroup]  # 2-3 groups
     snc_references: list[str]  # curriculum references from RAG
-    generated_at: str  # ISO timestamp
+    generated_at: str = ""  # ISO timestamp — set by server, not LLM
 
 
 @router.post(

@@ -1050,7 +1050,7 @@ async def export_missions(
         query = supabase.table("student_interactions").select(
             "student_id, pillar, interaction_type, correct, score, created_at, "
             "students(student_name, classrooms(class_name, grade_level))"
-        ).in_("interaction_type", ["mission_mc", "mission_fill"])
+        ).like("interaction_type", "mission_%")
 
         if student_id:
             query = query.eq("student_id", student_id)

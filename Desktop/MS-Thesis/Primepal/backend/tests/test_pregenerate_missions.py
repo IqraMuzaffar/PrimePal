@@ -31,8 +31,8 @@ GRADE_LEVEL = 3
 PILLARS = ["reading", "writing", "listening", "speaking"]
 
 MOCK_ACTIVE_TOPICS = [
-    {"id": "t1", "name": "Animals"},
-    {"id": "t2", "name": "Colors"},
+    {"id": "t1", "topic_name": "Animals"},
+    {"id": "t2", "topic_name": "Colors"},
 ]
 
 

@@ -62,7 +62,7 @@ export default function CurriculumPage() {
 
   return (
     <div className="max-w-5xl mx-auto py-8 px-4">
-      <h1 className="text-2xl font-bold text-gray-900 mb-6">Curriculum Hub</h1>
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">Curriculum Hub</h1>
 
       {/* Grade cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">

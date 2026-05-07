@@ -21,6 +21,9 @@ interface SidebarProps {
   onLogout?: () => void;
 }
 
+const EXPANDED_W = 268;
+const COLLAPSED_W = 72;
+
 export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -44,27 +47,31 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
     <div
       className="flex flex-col relative shrink-0 h-screen select-none"
       style={{
-        width: collapsed ? 64 : 224,
+        width: collapsed ? COLLAPSED_W : EXPANDED_W,
         backgroundColor: designTokens.colors.dark,
         transition: 'width 240ms cubic-bezier(.4,0,.2,1)',
-        boxShadow: '2px 0 20px rgba(0,0,0,0.25)',
+        boxShadow: '3px 0 24px rgba(0,0,0,0.28)',
         overflow: 'hidden',
       }}
     >
       {/* ── Logo ── */}
       <div
-        className="h-16 flex items-center gap-3 shrink-0"
+        className="shrink-0 flex items-center gap-3"
         style={{
-          padding: collapsed ? '0 18px' : '0 16px',
-          borderBottom: '1px solid rgba(255,255,255,0.06)',
+          height: 72,
+          padding: collapsed ? '0 20px' : '0 20px',
+          borderBottom: '1px solid rgba(255,255,255,0.07)',
+          background: 'linear-gradient(180deg, rgba(67,97,238,0.12) 0%, transparent 100%)',
         }}
       >
         <div
-          className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-white font-extrabold text-sm"
+          className="flex items-center justify-center shrink-0 text-white font-extrabold rounded-xl"
           style={{
+            width: 36,
+            height: 36,
+            fontSize: 18,
             background: `linear-gradient(135deg, ${designTokens.colors.primary} 0%, ${designTokens.colors.primaryLight} 100%)`,
-            boxShadow: `0 4px 12px rgba(67,97,238,0.4)`,
-            transition: 'transform 150ms ease',
+            boxShadow: `0 4px 14px rgba(67,97,238,0.45)`,
           }}
         >
           P
@@ -72,41 +79,44 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
         <div
           style={{
             overflow: 'hidden',
-            width: collapsed ? 0 : 140,
+            width: collapsed ? 0 : 180,
             opacity: collapsed ? 0 : 1,
             transition: 'width 220ms cubic-bezier(.4,0,.2,1), opacity 180ms ease',
             whiteSpace: 'nowrap',
           }}
         >
-          <span className="text-white font-bold text-base tracking-tight">
+          <div className="text-white font-bold leading-tight" style={{ fontSize: 17 }}>
             PrimePal
-          </span>
+          </div>
+          <div style={{ fontSize: 11, color: '#5a7ab8', marginTop: 1, letterSpacing: '0.04em' }}>
+            Teacher Portal
+          </div>
         </div>
       </div>
 
       {/* ── Navigation ── */}
       <nav
         className="flex-1 flex flex-col justify-evenly overflow-y-auto overflow-x-hidden"
-        style={{ padding: '8px 0' }}
+        style={{ padding: '8px 10px' }}
       >
         {navItems.map((item) => {
           const active = isActive(item.href);
           const hovered = hoveredItem === item.href;
 
           return (
-            <div key={item.href} className="relative px-2" title={collapsed ? item.label : undefined}>
+            <div key={item.href} className="relative" title={collapsed ? item.label : undefined}>
               <Link
                 href={item.href}
                 onMouseEnter={() => setHoveredItem(item.href)}
                 onMouseLeave={() => setHoveredItem(null)}
                 className="flex items-center gap-3 w-full relative"
                 style={{
-                  padding: collapsed ? '10px 12px' : '10px 14px',
+                  padding: collapsed ? '11px 16px' : '11px 14px',
                   borderRadius: 10,
                   backgroundColor: active
-                    ? 'rgba(67,97,238,0.18)'
+                    ? 'rgba(67,97,238,0.20)'
                     : hovered
-                    ? 'rgba(255,255,255,0.06)'
+                    ? 'rgba(255,255,255,0.07)'
                     : 'transparent',
                   color: active ? '#a5b8ff' : hovered ? '#c8d4f0' : '#6b7fa8',
                   transition: 'background-color 160ms ease, color 160ms ease',
@@ -118,30 +128,30 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
                   style={{
                     position: 'absolute',
                     left: 0,
-                    top: '20%',
-                    height: '60%',
+                    top: '18%',
+                    height: '64%',
                     width: 3,
                     borderRadius: '0 3px 3px 0',
-                    backgroundColor: designTokens.colors.primary,
+                    backgroundColor: designTokens.colors.primaryLight,
                     opacity: active ? 1 : 0,
                     transition: 'opacity 180ms ease, transform 180ms ease',
-                    transform: active ? 'scaleY(1)' : 'scaleY(0.4)',
+                    transform: active ? 'scaleY(1)' : 'scaleY(0.3)',
                   }}
                 />
 
                 {/* Icon */}
                 <item.icon
-                  size={18}
+                  size={20}
                   strokeWidth={active ? 2.2 : 1.8}
                   className="shrink-0"
                   style={{
-                    transform: hovered && !active ? 'scale(1.12) translateX(1px)' : 'scale(1)',
-                    transition: 'transform 160ms ease, stroke-width 160ms ease',
+                    transform: hovered && !active ? 'scale(1.14) translateX(1px)' : 'scale(1)',
+                    transition: 'transform 160ms ease',
                     color: active
                       ? designTokens.colors.primaryLight
                       : hovered
                       ? '#c8d4f0'
-                      : '#5a6e94',
+                      : '#4a6080',
                   }}
                 />
 
@@ -149,7 +159,7 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
                 <div
                   style={{
                     overflow: 'hidden',
-                    width: collapsed ? 0 : 140,
+                    width: collapsed ? 0 : 180,
                     opacity: collapsed ? 0 : 1,
                     transition: 'width 220ms cubic-bezier(.4,0,.2,1), opacity 180ms ease',
                     whiteSpace: 'nowrap',
@@ -157,8 +167,8 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
                 >
                   <span
                     style={{
-                      fontSize: 13,
-                      fontWeight: active ? 600 : 400,
+                      fontSize: 18,
+                      fontWeight: active ? 700 : 500,
                       letterSpacing: active ? '0.01em' : 0,
                       transition: 'font-weight 160ms ease',
                     }}
@@ -172,8 +182,8 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
                   <div
                     style={{
                       position: 'absolute',
-                      top: 6,
-                      right: 6,
+                      top: 7,
+                      right: 7,
                       width: 5,
                       height: 5,
                       borderRadius: '50%',
@@ -190,26 +200,29 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
       {/* ── Bottom Section ── */}
       <div
         style={{
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-          padding: '8px 0 6px',
+          borderTop: '1px solid rgba(255,255,255,0.08)',
+          padding: '12px 10px 10px',
+          background: 'linear-gradient(0deg, rgba(0,0,0,0.15) 0%, transparent 100%)',
         }}
       >
         {/* User Profile */}
         <div
-          className="flex items-center gap-2.5 mx-2 mb-1 rounded-xl"
+          className="flex items-center gap-3 rounded-xl mb-3"
           style={{
-            padding: collapsed ? '8px 10px' : '8px 10px',
-            backgroundColor: 'rgba(255,255,255,0.04)',
+            padding: '12px 14px',
+            backgroundColor: 'rgba(67,97,238,0.12)',
+            border: '1px solid rgba(67,97,238,0.18)',
           }}
         >
           <div
-            className="shrink-0 flex items-center justify-center text-white font-bold text-sm rounded-full"
+            className="shrink-0 flex items-center justify-center text-white font-extrabold rounded-full"
             style={{
-              width: 32,
-              height: 32,
+              width: 40,
+              height: 40,
+              fontSize: 18,
               background: `linear-gradient(135deg, ${designTokens.colors.primary} 0%, ${designTokens.colors.primaryLight} 100%)`,
-              boxShadow: '0 2px 8px rgba(67,97,238,0.35)',
-              fontSize: 13,
+              boxShadow: '0 3px 12px rgba(67,97,238,0.5)',
+              flexShrink: 0,
             }}
           >
             {userEmail?.[0]?.toUpperCase() || 'T'}
@@ -217,37 +230,41 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
           <div
             style={{
               overflow: 'hidden',
-              width: collapsed ? 0 : 130,
+              width: collapsed ? 0 : 170,
               opacity: collapsed ? 0 : 1,
               transition: 'width 220ms cubic-bezier(.4,0,.2,1), opacity 180ms ease',
               whiteSpace: 'nowrap',
             }}
           >
             <div
-              className="font-semibold text-ellipsis overflow-hidden"
-              style={{ fontSize: 12, color: '#d0daee' }}
+              className="font-bold truncate"
+              style={{ fontSize: 16, color: '#dce8ff', letterSpacing: '-0.01em' }}
             >
-              {userEmail || 'Teacher'}
+              {userEmail?.split('@')[0] || 'Teacher'}
             </div>
-            <div style={{ fontSize: 11, color: '#4d6080', marginTop: 1 }}>{userRole}</div>
+            <div
+              style={{
+                display: 'inline-block',
+                marginTop: 3,
+                fontSize: 13,
+                fontWeight: 600,
+                color: designTokens.colors.primaryLight,
+                backgroundColor: 'rgba(67,97,238,0.25)',
+                padding: '1px 8px',
+                borderRadius: 20,
+                letterSpacing: '0.03em',
+              }}
+            >
+              {userRole}
+            </div>
           </div>
         </div>
 
         {/* Settings */}
-        <BottomButton
-          icon={Settings}
-          label="Settings"
-          collapsed={collapsed}
-        />
+        <BottomButton icon={Settings} label="Settings" collapsed={collapsed} />
 
         {/* Logout */}
-        <BottomButton
-          icon={LogOut}
-          label="Logout"
-          collapsed={collapsed}
-          onClick={onLogout}
-          danger
-        />
+        <BottomButton icon={LogOut} label="Log Out" collapsed={collapsed} onClick={onLogout} danger />
       </div>
 
       {/* ── Collapse Toggle ── */}
@@ -257,21 +274,21 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
         style={{
           position: 'absolute',
           top: '50%',
-          right: -12,
+          right: -13,
           transform: 'translateY(-50%)',
-          width: 24,
-          height: 24,
+          width: 26,
+          height: 26,
           borderRadius: '50%',
           backgroundColor: '#1a2e5a',
-          border: '1.5px solid rgba(255,255,255,0.12)',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.35)',
+          border: '1.5px solid rgba(255,255,255,0.13)',
+          boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           color: '#8896b8',
           zIndex: 30,
           cursor: 'pointer',
-          transition: 'background-color 150ms ease, color 150ms ease, transform 150ms ease',
+          transition: 'background-color 150ms ease, color 150ms ease',
         }}
         onMouseEnter={(e) => {
           (e.currentTarget as HTMLButtonElement).style.backgroundColor = designTokens.colors.primary;
@@ -283,9 +300,9 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
         }}
       >
         {collapsed ? (
-          <ChevronRight size={11} strokeWidth={2.5} />
+          <ChevronRight size={12} strokeWidth={2.5} />
         ) : (
-          <ChevronLeft size={11} strokeWidth={2.5} />
+          <ChevronLeft size={12} strokeWidth={2.5} />
         )}
       </button>
     </div>
@@ -316,35 +333,38 @@ function BottomButton({
       title={collapsed ? label : undefined}
       className="flex items-center gap-3 w-full"
       style={{
-        padding: collapsed ? '8px 18px' : '8px 18px',
+        padding: collapsed ? '11px 18px' : '11px 14px',
+        borderRadius: 10,
         color: danger
-          ? hovered ? '#f87171' : '#4d6080'
-          : hovered ? '#c8d4f0' : '#4d6080',
+          ? hovered ? '#fca5a5' : '#6b80a8'
+          : hovered ? '#dce8ff' : '#6b80a8',
         backgroundColor: hovered
-          ? danger ? 'rgba(239,68,68,0.08)' : 'rgba(255,255,255,0.05)'
+          ? danger ? 'rgba(239,68,68,0.12)' : 'rgba(255,255,255,0.08)'
           : 'transparent',
         transition: 'color 150ms ease, background-color 150ms ease',
-        borderRadius: 0,
+        marginBottom: 3,
       }}
     >
       <Icon
-        size={16}
+        size={20}
         strokeWidth={1.8}
         className="shrink-0"
         style={{
-          transform: hovered ? 'scale(1.1)' : 'scale(1)',
+          transform: hovered ? 'scale(1.12) translateX(1px)' : 'scale(1)',
           transition: 'transform 150ms ease',
         }}
       />
       <div
         style={{
           overflow: 'hidden',
-          width: collapsed ? 0 : 130,
+          width: collapsed ? 0 : 170,
           opacity: collapsed ? 0 : 1,
           transition: 'width 220ms cubic-bezier(.4,0,.2,1), opacity 180ms ease',
           whiteSpace: 'nowrap',
-          fontSize: 13,
+          fontSize: 18,
+          fontWeight: 500,
           textAlign: 'left',
+          letterSpacing: '-0.01em',
         }}
       >
         {label}

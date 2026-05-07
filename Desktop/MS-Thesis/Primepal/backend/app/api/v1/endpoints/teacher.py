@@ -88,11 +88,13 @@ def aggregate_student_stats(
     thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
 
     # Base query: fetch interactions from last 30 days
+    # Exclude chat — all mission_* types are valid regardless of naming
     query = (
         supabase.table("student_interactions")
         .select("id, student_id, classroom_id, grade_level, pillar, correct, created_at")
         .gte("created_at", thirty_days_ago)
-        .in_("interaction_type", ["mission_mc", "mission_fill", "spelling_bee"])
+        .neq("interaction_type", "chat")
+        .not_.is_("correct", "null")
     )
 
     # Apply filters
@@ -311,13 +313,14 @@ def compute_weekly_trends(
         week_start = datetime.utcnow() - timedelta(weeks=week_offset + 1)
         week_end = datetime.utcnow() - timedelta(weeks=week_offset)
 
-        # Query interactions for this week
+        # Query interactions for this week (exclude chat, only scored interactions)
         query = (
             supabase.table("student_interactions")
             .select("id, correct, created_at, classroom_id")
             .gte("created_at", week_start.isoformat())
             .lt("created_at", week_end.isoformat())
-            .in_("interaction_type", ["mission_mc", "mission_fill", "spelling_bee"])
+            .neq("interaction_type", "chat")
+            .not_.is_("correct", "null")
         )
 
         # Apply filters directly on student_interactions columns

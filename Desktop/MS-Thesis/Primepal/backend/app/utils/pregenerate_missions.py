@@ -17,7 +17,6 @@ from app.core.supabase_client import get_supabase_admin
 logger = logging.getLogger(__name__)
 
 PILLARS = ["reading", "writing", "listening", "speaking"]
-_INTER_CALL_DELAY_S = 1
 
 
 def _build_generic_cache_key(
@@ -68,25 +67,15 @@ async def pregenerate_pillar_missions(classroom_id: str) -> None:
         ",".join(sorted(active_topic_names)).encode()
     ).hexdigest()[:12]
 
-    # Step 4: Generate for each pillar
-    generated = []
-    skipped = []
-    failed = []
-    attempts = 0
-
-    for idx, pillar in enumerate(PILLARS):
+    # Step 4: Generate for each pillar IN PARALLEL (not sequentially)
+    async def _generate_one(pillar: str) -> tuple[str, str]:
+        """Generate one pillar and return (pillar, status)."""
         cache_key = _build_generic_cache_key(classroom_id, pillar, topics_hash)
 
         # Check if already cached
         existing = await cache_get(cache_key)
         if existing is not None:
-            skipped.append(pillar)
-            continue
-
-        # Sleep between LLM call attempts (skip first)
-        if attempts > 0:
-            await asyncio.sleep(_INTER_CALL_DELAY_S)
-        attempts += 1
+            return (pillar, "skipped")
 
         try:
             missions = await generate_pillar_missions(
@@ -118,7 +107,7 @@ async def pregenerate_pillar_missions(classroom_id: str) -> None:
             }
 
             await cache_set(cache_key, response_dict, ttl=3600)
-            generated.append(pillar)
+            return (pillar, "generated")
 
         except Exception:
             logger.exception(
@@ -126,7 +115,14 @@ async def pregenerate_pillar_missions(classroom_id: str) -> None:
                 pillar,
                 classroom_id,
             )
-            failed.append(pillar)
+            return (pillar, "failed")
+
+    # Launch all 4 pillars concurrently — ~4x faster than sequential
+    results = await asyncio.gather(*[_generate_one(p) for p in PILLARS])
+
+    generated = [p for p, s in results if s == "generated"]
+    skipped = [p for p, s in results if s == "skipped"]
+    failed = [p for p, s in results if s == "failed"]
 
     # Step 5: Log summary
     logger.info(

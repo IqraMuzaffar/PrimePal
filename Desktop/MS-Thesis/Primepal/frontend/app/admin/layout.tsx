@@ -111,7 +111,7 @@ export default function AdminLayout({
       />
       <div className="flex-1 flex flex-col overflow-hidden">
         <TopBar pageTitle={pageTitle} userEmail={adminName} />
-        <main className="flex-1 overflow-auto" style={{ backgroundColor: '#f0f2f8' }}>
+        <main className="flex-1 overflow-auto" style={{ backgroundColor: '#0e1525' }}>
           {children}
         </main>
       </div>

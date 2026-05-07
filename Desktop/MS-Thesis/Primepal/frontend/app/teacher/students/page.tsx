@@ -114,7 +114,7 @@ function StudentsContent() {
         {/* Header */}
         <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
               <GraduationCap className="w-6 h-6 text-indigo-600" />
               Student Directory
             </h1>
@@ -237,7 +237,7 @@ function StudentsContent() {
                         {s.student_name[0]}
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900 text-sm">{s.student_name}</p>
+                        <p className="font-semibold text-gray-900 text-base">{s.student_name}</p>
                         <p className="text-xs text-gray-400">{s.roll_number ? `#${s.roll_number}` : "No roll no."}</p>
                       </div>
                     </div>
@@ -254,13 +254,13 @@ function StudentsContent() {
 
                     {/* Points */}
                     <div className="text-center">
-                      <p className="font-bold text-gray-900 text-sm">{s.total_points}</p>
+                      <p className="font-bold text-gray-900 text-base">{s.total_points}</p>
                       <p className="text-xs text-gray-400">{s.total_interactions} q&apos;s</p>
                     </div>
 
                     {/* Accuracy */}
                     <div className="text-center">
-                      <p className={`font-bold text-sm ${accuracyColor(s.mission_accuracy_pct)}`}>
+                      <p className={`font-bold text-base ${accuracyColor(s.mission_accuracy_pct)}`}>
                         {s.total_interactions === 0 ? "—" : `${s.mission_accuracy_pct}%`}
                       </p>
                       <p className="text-xs text-gray-400">accuracy</p>
@@ -422,7 +422,7 @@ export default function StudentsPage() {
       <div className="bg-gray-50 min-h-full">
         <main className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
               <GraduationCap className="w-6 h-6 text-indigo-600" />
               Student Directory
             </h1>

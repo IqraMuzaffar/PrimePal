@@ -135,7 +135,7 @@ function DashboardContent() {
         {/* Skill Breakdown */}
         {!loading && skillAccuracy && (
           <div className="mb-8">
-            <h2 className="text-lg font-bold text-gray-900 mb-4">Skill Breakdown</h2>
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Skill Breakdown</h2>
 
             {/* NEW: Skill cards with data-driven approach */}
             <div className={
@@ -194,7 +194,7 @@ function DashboardContent() {
         {/* Quick Access Section */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-bold text-gray-900">Your Classrooms</h2>
+            <h2 className="text-xl font-bold text-gray-900">Your Classrooms</h2>
             <Link
               href="/teacher/classroom"
               className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
@@ -242,7 +242,7 @@ function DashboardContent() {
                       Gr {c.grade_level}
                     </span>
                   </div>
-                  <h3 className="font-semibold text-gray-900 text-sm truncate group-hover:text-indigo-600 transition-colors">
+                  <h3 className="font-semibold text-gray-900 text-base truncate group-hover:text-indigo-600 transition-colors">
                     {c.class_name}
                   </h3>
                   <p className="text-xs text-gray-500 mt-2">Code: <span className="font-mono font-bold text-gray-700">{c.class_code}</span></p>
@@ -254,7 +254,7 @@ function DashboardContent() {
 
         {/* Quick Links */}
         <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-2xl border border-indigo-200 p-6">
-          <h3 className="font-bold text-gray-900 mb-4">Quick Actions</h3>
+          <h3 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <Link
               href="/teacher/analytics"
