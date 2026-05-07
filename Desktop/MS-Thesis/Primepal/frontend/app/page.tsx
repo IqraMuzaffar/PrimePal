@@ -55,7 +55,7 @@ export default function LandingPage() {
           <span className="text-7xl leading-none">⭐</span>
         </AnimatedHeroItem>
 
-        <AnimatedHeroH1 className="font-black text-white tracking-tight leading-none" style={{ fontSize: '96px', letterSpacing: '-0.02em' }}>
+        <AnimatedHeroH1 className="font-black text-white tracking-tight leading-none" style={{ fontSize: '120px', letterSpacing: '-0.02em' }}>
           PrimePal
         </AnimatedHeroH1>
 
@@ -82,12 +82,12 @@ export default function LandingPage() {
         {/* student */}
         <AnimatedCard xOffset={-36} delay={0.5} className="flex-1">
           <Link href="/student/play" className="block group">
-            <AnimatedCardInner className="relative bg-gradient-to-br from-amber-400 to-orange-500 overflow-hidden" style={{ maxWidth: '400px', borderRadius: '80px', padding: '48px 40px', boxShadow: '0 24px 72px rgba(234,88,12,0.4)', border: '3px solid rgba(252,211,77,0.5)' }}>
+            <AnimatedCardInner className="relative bg-gradient-to-br from-amber-400 to-orange-500 overflow-hidden" style={{ maxWidth: '420px', borderRadius: '100px', padding: '56px 48px', boxShadow: '0 24px 72px rgba(234,88,12,0.4)', border: '3px solid rgba(252,211,77,0.5)' }}>
               <div className="absolute -right-6 -bottom-6 text-[8rem] opacity-[0.08] leading-none select-none pointer-events-none">
                 🎮
               </div>
 
-              <div className="flex items-center gap-4 mb-6">
+              <div className="flex items-center gap-4 mb-8">
                 <div className="bg-white/25 backdrop-blur-sm p-3 rounded-2xl shadow-lg">
                   <Gamepad2 size={32} className="text-white" strokeWidth={2.5} />
                 </div>
@@ -96,14 +96,14 @@ export default function LandingPage() {
                 </span>
               </div>
 
-              <h2 className="font-black text-white mb-3 leading-tight" style={{ fontSize: '32px' }}>
+              <h2 className="font-black text-white mb-4 leading-tight" style={{ fontSize: '36px' }}>
                 I&apos;m a Student
               </h2>
-              <p className="font-medium leading-relaxed text-white" style={{ fontSize: '16px', lineHeight: '1.6' }}>
+              <p className="font-medium leading-relaxed text-white mb-10" style={{ fontSize: '17px', lineHeight: '1.7' }}>
                 Enter your class code and start your English adventure with fun missions and games!
               </p>
 
-              <div className="mt-8 inline-flex items-center gap-3 text-white font-bold text-base px-6 py-3 bg-white/15 rounded-full backdrop-blur-sm group-hover:bg-white/25 transition-all duration-300 group-hover:gap-4 shadow-lg">
+              <div className="inline-flex items-center gap-3 text-white font-bold text-base px-6 py-3 bg-white/15 rounded-full backdrop-blur-sm group-hover:bg-white/25 transition-all duration-300 group-hover:gap-4 shadow-lg">
                 <span>Enter Class Code</span>
                 <span className="text-xl transition-transform duration-300 group-hover:translate-x-1">→</span>
               </div>
@@ -114,12 +114,12 @@ export default function LandingPage() {
         {/* teacher */}
         <AnimatedCard xOffset={36} delay={0.6} className="flex-1">
           <Link href="/teacher/login" className="block group">
-            <AnimatedCardInner className="relative bg-gradient-to-br from-green-500 to-emerald-600 overflow-hidden" style={{ maxWidth: '400px', borderRadius: '80px', padding: '48px 40px', boxShadow: '0 24px 72px rgba(5,150,105,0.4)', border: '3px solid rgba(110,231,183,0.5)' }}>
+            <AnimatedCardInner className="relative bg-gradient-to-br from-green-500 to-emerald-600 overflow-hidden" style={{ maxWidth: '420px', borderRadius: '100px', padding: '56px 48px', boxShadow: '0 24px 72px rgba(5,150,105,0.4)', border: '3px solid rgba(110,231,183,0.5)' }}>
               <div className="absolute -right-6 -bottom-6 text-[8rem] opacity-[0.08] leading-none select-none pointer-events-none">
                 📊
               </div>
 
-              <div className="flex items-center gap-4 mb-6">
+              <div className="flex items-center gap-4 mb-8">
                 <div className="bg-white/25 backdrop-blur-sm p-3 rounded-2xl shadow-lg">
                   <GraduationCap size={32} className="text-white" strokeWidth={2.5} />
                 </div>
@@ -128,14 +128,14 @@ export default function LandingPage() {
                 </span>
               </div>
 
-              <h2 className="font-black text-white mb-3 leading-tight" style={{ fontSize: '32px' }}>
+              <h2 className="font-black text-white mb-4 leading-tight" style={{ fontSize: '36px' }}>
                 I&apos;m a Teacher
               </h2>
-              <p className="font-medium leading-relaxed text-white" style={{ fontSize: '16px', lineHeight: '1.6' }}>
+              <p className="font-medium leading-relaxed text-white mb-10" style={{ fontSize: '17px', lineHeight: '1.7' }}>
                 Manage classrooms, track student progress, and view AI-powered insights across all four skills.
               </p>
 
-              <div className="mt-8 inline-flex items-center gap-3 text-white font-bold text-base px-6 py-3 bg-white/15 rounded-full backdrop-blur-sm group-hover:bg-white/25 transition-all duration-300 group-hover:gap-4 shadow-lg">
+              <div className="inline-flex items-center gap-3 text-white font-bold text-base px-6 py-3 bg-white/15 rounded-full backdrop-blur-sm group-hover:bg-white/25 transition-all duration-300 group-hover:gap-4 shadow-lg">
                 <span>Sign In</span>
                 <span className="text-xl transition-transform duration-300 group-hover:translate-x-1">→</span>
               </div>
