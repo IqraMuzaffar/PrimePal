@@ -42,6 +42,7 @@ export default function LandingPage() {
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute top-[15%] left-[20%] w-[28rem] h-[28rem] rounded-full blur-[100px]" style={{ background: 'radial-gradient(circle, rgba(67,97,238,0.15) 0%, transparent 70%)' }} />
         <div className="absolute bottom-[10%] right-[15%] w-[34rem] h-[34rem] rounded-full blur-[120px]" style={{ background: 'radial-gradient(circle, rgba(124,158,255,0.1) 0%, transparent 70%)' }} />
+        {/* Third blob hidden to reduce visual clutter - preserved for potential future use */}
         <div className="absolute top-[60%] left-[55%] w-[20rem] h-[20rem] rounded-full blur-[80px]" style={{ display: 'none' }} />
       </div>
 
