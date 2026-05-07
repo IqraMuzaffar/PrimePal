@@ -40,9 +40,9 @@ export default function LandingPage() {
     <div className="h-screen relative overflow-hidden flex flex-col items-center justify-center px-4 selection:bg-white/20" style={{ background: 'linear-gradient(145deg, #0b1535 0%, #0f1e4a 45%, #162660 100%)' }}>
       {/* ── ambient background ── */}
       <div className="pointer-events-none absolute inset-0">
-        <div className="absolute top-[15%] left-[20%] w-[28rem] h-[28rem] bg-indigo-400/15 rounded-full blur-[100px]" />
-        <div className="absolute bottom-[10%] right-[15%] w-[34rem] h-[34rem] bg-violet-400/15 rounded-full blur-[120px]" />
-        <div className="absolute top-[60%] left-[55%] w-[20rem] h-[20rem] bg-fuchsia-400/10 rounded-full blur-[80px]" />
+        <div className="absolute top-[15%] left-[20%] w-[28rem] h-[28rem] rounded-full blur-[100px]" style={{ background: 'radial-gradient(circle, rgba(67,97,238,0.15) 0%, transparent 70%)' }} />
+        <div className="absolute bottom-[10%] right-[15%] w-[34rem] h-[34rem] rounded-full blur-[120px]" style={{ background: 'radial-gradient(circle, rgba(124,158,255,0.1) 0%, transparent 70%)' }} />
+        <div className="absolute top-[60%] left-[55%] w-[20rem] h-[20rem] rounded-full blur-[80px]" style={{ display: 'none' }} />
       </div>
 
       {/* ── floating emoji ── */}
