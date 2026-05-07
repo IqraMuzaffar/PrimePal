@@ -37,7 +37,7 @@ const pillars = [
 
 export default function LandingPage() {
   return (
-    <div className="h-screen bg-gradient-to-br from-indigo-600 via-violet-600 to-purple-700 relative overflow-hidden flex flex-col items-center justify-center px-4 selection:bg-white/20">
+    <div className="h-screen relative overflow-hidden flex flex-col items-center justify-center px-4 selection:bg-white/20" style={{ background: 'linear-gradient(145deg, #0b1535 0%, #0f1e4a 45%, #162660 100%)' }}>
       {/* ── ambient background ── */}
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute top-[15%] left-[20%] w-[28rem] h-[28rem] bg-indigo-400/15 rounded-full blur-[100px]" />
