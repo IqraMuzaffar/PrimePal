@@ -64,15 +64,6 @@ const ACTIVITY_CARDS = [
     shadow: "shadow-[0_6px_0_#064e3b,0_8px_24px_rgba(6,78,59,0.35)]",
     wide: true,
   },
-  {
-    href: "/student/speaking",
-    icon: "🎤",
-    title: "Speaking Practice",
-    sub: "Talk to PrimePal — it listens!",
-    gradient: "from-rose-700 to-rose-500",
-    shadow: "shadow-[0_6px_0_#881337,0_8px_24px_rgba(136,19,55,0.35)]",
-    wide: true,
-  },
 ];
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
