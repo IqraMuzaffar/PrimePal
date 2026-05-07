@@ -100,10 +100,6 @@ export default function ChatPage() {
     setPhase("thinking");
 
     const tutorMsgId = nextId.current++;
-    setMessages((prev) => [
-      ...prev,
-      { id: tutorMsgId, role: "tutor", text: "" },
-    ]);
 
     const BASE_URL =
       process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
@@ -153,13 +149,20 @@ export default function ChatPage() {
             const data = JSON.parse(line.slice(6));
             if (data.type === "token") {
               setPhase("streaming");
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === tutorMsgId
-                    ? { ...msg, text: msg.text + data.content }
-                    : msg
-                )
-              );
+              setMessages((prev) => {
+                const existing = prev.find((msg) => msg.id === tutorMsgId);
+                if (existing) {
+                  // Update existing message
+                  return prev.map((msg) =>
+                    msg.id === tutorMsgId
+                      ? { ...msg, text: msg.text + data.content }
+                      : msg
+                  );
+                } else {
+                  // Create new tutor message on first token
+                  return [...prev, { id: tutorMsgId, role: "tutor", text: data.content }];
+                }
+              });
             } else if (data.type === "error") {
               setMessages((prev) =>
                 prev.map((msg) =>
