@@ -406,6 +406,11 @@ export default function AdminLoginPage() {
           </form>
         )}
       </div>
+      <p className="text-center mt-5" style={{ fontSize: 14, color: '#8896b8' }}>
+        <a href="/" style={{ color: '#6b7fa3', textDecoration: 'none' }} onMouseOver={(e) => (e.currentTarget.style.textDecoration = 'underline')} onMouseOut={(e) => (e.currentTarget.style.textDecoration = 'none')}>
+          ← Back to Home
+        </a>
+      </p>
     </div>
   );
 }
