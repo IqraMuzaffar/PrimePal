@@ -830,43 +830,33 @@ RULES:
 
             # Validate topic alignment after normalization
             pre_validation_count = len(validated)
-            validated = validate_topic_alignment(validated, active_topics, pillar)
-            post_validation_count = len(validated)
+            topic_aligned = validate_topic_alignment(validated, active_topics, pillar)
+            post_validation_count = len(topic_aligned)
 
-            # Log validation statistics
             pass_rate = (post_validation_count / pre_validation_count * 100) if pre_validation_count else 0
             logger.info(
                 f"Topic validation stats: {post_validation_count}/{pre_validation_count} passed "
                 f"({pass_rate:.1f}%) for {pillar} grade {grade_level}"
             )
 
-            # M4: If pass rate < 70%, return None so caller fills from bank
-            if pass_rate < 70:
-                logger.warning(
-                    f"LOW PASS RATE ({pass_rate:.1f}%) for {pillar}. "
-                    f"LLM did not follow topic constraints: {active_topics}. "
-                    f"Returning None so caller can fill entirely from bank."
-                )
-                if attempt < MAX_RETRIES:
-                    raise ValueError(
-                        f"Topic validation failed: only {post_validation_count}/{pre_validation_count} "
-                        f"questions matched topics {active_topics}"
-                    )
-                else:
-                    # M4: Final attempt with low pass rate — signal caller to use bank
-                    logger.warning(
-                        f"Final attempt: topic validation too aggressive. "
-                        f"Returning validated subset ({post_validation_count} questions) "
-                        f"and letting caller fill remainder from bank."
-                    )
-                    return validated
-
-            # If we lost questions but pass rate >= 70%, return what we have
-            # The caller will fill the gap from bank
-            if len(validated) < target:
+            # ALWAYS return exactly `target` questions.
+            # Strategy: topic-aligned first, then fill with non-aligned (still valid structure).
+            # A slightly off-topic question is better than a missing question.
+            if post_validation_count >= target:
+                validated = topic_aligned[:target]
+            else:
+                # Start with topic-aligned questions
+                validated = list(topic_aligned)
+                # Fill remaining from non-aligned questions (they have correct structure)
+                aligned_ids = {id(q) for q in topic_aligned}
+                for q in all_normalized:
+                    if len(validated) >= target:
+                        break
+                    if id(q) not in aligned_ids:
+                        validated.append(q)
                 logger.info(
-                    f"Returning {len(validated)}/{target} validated LLM questions. "
-                    f"Caller will fill {target - len(validated)} from bank."
+                    f"Filled {len(validated)}/{target} questions: "
+                    f"{post_validation_count} topic-aligned + {len(validated) - post_validation_count} structural-only"
                 )
 
             logger.info(f"Successfully generated and validated {len(validated)} {pillar} questions for grade {grade_level}")
