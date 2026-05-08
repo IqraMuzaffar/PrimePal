@@ -176,19 +176,24 @@ async def _fill_slot(
             questions = await generate_pillar_missions(
                 pillar=pillar,
                 grade_level=grade_level,
-                active_topics=[topic],  # Single topic for focused generation
+                active_topics=[topic],
                 student_id="bank_population",
                 student_weaknesses=[],
                 is_frustrated=False,
                 performance_profile=None,
+                count=LLM_BATCH_SIZE,  # Generate 10 per batch for efficiency
             )
             if questions:
-                # Validate topic alignment before storing
-                validated = validate_topic_alignment(questions, [topic], pillar)
-                all_generated.extend(validated)
+                # Skip topic validation for bank population — the LLM was
+                # already prompted with the specific topic, and questions are
+                # stored BY topic in the bank. Re-validating rejects valid
+                # questions for topics not in TOPIC_KEYWORDS (e.g. "Verbs",
+                # "Sight Words", "Punctuation").
+                valid_questions = [q for q in questions if isinstance(q, dict) and q.get("question")]
+                all_generated.extend(valid_questions)
                 logger.info(
-                    "question_bank: batch %d/%d — %d generated, %d validated for (%d, %s, %s)",
-                    batch_idx + 1, batches_needed, len(questions), len(validated),
+                    "question_bank: batch %d/%d — %d generated, %d valid for (%d, %s, %s)",
+                    batch_idx + 1, batches_needed, len(questions), len(valid_questions),
                     grade_level, pillar, topic,
                 )
 
