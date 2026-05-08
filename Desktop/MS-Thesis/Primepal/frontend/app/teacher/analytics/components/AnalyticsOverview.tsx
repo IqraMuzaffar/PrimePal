@@ -22,8 +22,8 @@ export default function AnalyticsOverview({ stats, pillar }: AnalyticsOverviewPr
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           value={stats.total_students}
-          label="Total Students"
-          subtitle="With recorded activity"
+          label="Active Learners"
+          subtitle="Students who completed missions"
           icon={Users}
           iconColor={designTokens.colors.primary}
           iconBg={designTokens.colors.primaryBg}
