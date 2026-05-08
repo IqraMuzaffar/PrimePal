@@ -162,6 +162,54 @@ def normalize_correct_answer(question: dict) -> dict:
             if question["audio_text"]:
                 logger.info(f"Auto-filled audio_text for {tt}: '{question['audio_text'][:40]}'")
 
+    # Fix sentence_scramble / guided_translation issues
+    if tt == "sentence_scramble":
+        # 1. Question should be generic instruction, not contain the scrambled words
+        question["question"] = "Put the words in the correct order"
+
+        # 2. Ensure word_bank and correct_order have same words
+        wb = question.get("word_bank") or []
+        co = question.get("correct_order") or []
+        ca = question.get("correct_answer", "")
+
+        # If correct_order is empty but correct_answer exists, derive it
+        if not co and ca:
+            question["correct_order"] = ca.split()
+            co = question["correct_order"]
+
+        # If word_bank is empty but correct_order exists, scramble it
+        if not wb and co:
+            import random
+            shuffled = list(co)
+            random.shuffle(shuffled)
+            # Make sure it's actually scrambled
+            if shuffled == co and len(co) > 1:
+                shuffled[0], shuffled[-1] = shuffled[-1], shuffled[0]
+            question["word_bank"] = shuffled
+
+        # Ensure correct_answer matches correct_order
+        if co and not ca:
+            question["correct_answer"] = " ".join(co)
+
+    elif tt == "guided_translation":
+        # Ensure word_bank and correct_order consistency
+        wb = question.get("word_bank") or []
+        co = question.get("correct_order") or []
+        ca = question.get("correct_answer", "")
+        if not co and ca:
+            question["correct_order"] = ca.split()
+        if not wb and question.get("correct_order"):
+            import random
+            shuffled = list(question["correct_order"])
+            random.shuffle(shuffled)
+            question["word_bank"] = shuffled
+        if question.get("correct_order") and not ca:
+            question["correct_answer"] = " ".join(question["correct_order"])
+
+    elif tt == "missing_letter":
+        # Ensure question is generic
+        question["question"] = "Fill in the missing letter(s)"
+
     return question
 
 

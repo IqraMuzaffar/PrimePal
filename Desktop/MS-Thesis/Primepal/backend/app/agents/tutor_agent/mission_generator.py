@@ -282,9 +282,9 @@ TASK TYPE FIELD REQUIREMENTS:
         ],
         "field_instructions": """
 TASK TYPE FIELD REQUIREMENTS:
-- sentence_scramble: Set question ("Put the words in the correct order"), word_bank (list of scrambled words), correct_order (list of words in correct order), correct_answer (the full correct sentence as string).
-- missing_letter: Set question ("Fill in the missing letter(s)"), word_with_blanks (e.g. "c_t"), letter_options (6-8 single letters including correct ones), correct_answer (the complete word, e.g. "cat").
-- guided_translation: Set question (an Urdu sentence to translate), word_bank (English words to choose from, scrambled), correct_order (English words in correct order), correct_answer (the full English sentence as string).""",
+- sentence_scramble: Set question to EXACTLY "Put the words in the correct order" (do NOT include the scrambled words in the question field — they go ONLY in word_bank). Set word_bank (list of 4-6 scrambled words like ["is","the","cat","sleeping"]), correct_order (same words in correct order like ["the","cat","is","sleeping"]), correct_answer (the full correct sentence as string like "the cat is sleeping"). IMPORTANT: word_bank and correct_order must have the SAME words, just in different order. The sentence must be grammatically correct and grade-appropriate.
+- missing_letter: Set question to EXACTLY "Fill in the missing letter(s)". Set word_with_blanks (e.g. "c_t"), letter_options (6-8 single letters including the correct ones), correct_answer (the complete word, e.g. "cat"). The word must be grade-appropriate vocabulary.
+- guided_translation: Set question to an Urdu sentence that the student must translate to English (e.g. "بلی سو رہی ہے"). Set word_bank (scrambled English words like ["is","cat","the","sleeping"]), correct_order (English words in correct order like ["the","cat","is","sleeping"]), correct_answer (the full English sentence like "the cat is sleeping"). word_bank and correct_order must have the SAME words.""",
     },
     "listening": {
         "task_types": [
