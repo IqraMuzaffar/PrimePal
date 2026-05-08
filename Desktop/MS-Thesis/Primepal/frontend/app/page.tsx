@@ -143,30 +143,37 @@ export default function LandingPage() {
         </AnimatedHeroSection>
 
         {/* ── pillar cards ── */}
-        <AnimatedHeroItem className="flex items-center justify-center gap-3 sm:gap-4 mb-10 relative z-10">
-          {pillarData.map(({ icon: Icon, label, desc }) => (
-            <div
-              key={label}
-              className="flex items-center gap-2.5 sm:gap-3 px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl transition-all hover:-translate-y-1 hover:shadow-lg"
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.10)",
-              }}
-            >
-              <span className="text-2xl sm:text-3xl">
-                {label === "Reading" ? "📖" : label === "Writing" ? "✏️" : label === "Listening" ? "🎧" : "🎤"}
-              </span>
-              <div className="flex flex-col">
-                <span className="text-white text-sm sm:text-base font-bold leading-tight">{label}</span>
+        <AnimatedHeroItem className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-10 relative z-10 w-full" style={{ maxWidth: "720px" }}>
+          {pillarData.map(({ label, desc }, i) => {
+            const emojis: Record<string, string> = { Reading: "📖", Writing: "✏️", Listening: "🎧", Speaking: "🎤" };
+            const glows: Record<string, string> = {
+              Reading: "rgba(59,130,246,0.25)", Writing: "rgba(16,185,129,0.25)",
+              Listening: "rgba(245,158,11,0.25)", Speaking: "rgba(244,63,94,0.25)",
+            };
+            return (
+              <div
+                key={label}
+                className="flex flex-col items-center gap-2 px-4 py-4 rounded-2xl transition-all duration-300 hover:-translate-y-1.5 hover:scale-105 cursor-default"
+                style={{
+                  background: "rgba(255,255,255,0.07)",
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  boxShadow: `0 8px 24px ${glows[label]}`,
+                  animationDelay: `${i * 100}ms`,
+                }}
+              >
+                <span className="text-3xl sm:text-4xl drop-shadow-md" style={{ filter: "drop-shadow(0 2px 8px rgba(0,0,0,0.3))" }}>
+                  {emojis[label]}
+                </span>
+                <span className="text-white text-sm sm:text-base font-extrabold leading-tight">{label}</span>
                 <span
-                  className="text-[11px] sm:text-xs font-semibold leading-tight hidden sm:block"
-                  style={{ color: "rgba(255,255,255,0.45)" }}
+                  className="text-[10px] sm:text-xs font-semibold leading-tight text-center"
+                  style={{ color: "rgba(255,255,255,0.5)" }}
                 >
                   {desc}
                 </span>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </AnimatedHeroItem>
 
         {/* ── role cards ── */}
