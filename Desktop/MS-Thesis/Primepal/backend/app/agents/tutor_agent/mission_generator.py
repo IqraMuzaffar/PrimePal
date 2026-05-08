@@ -555,16 +555,19 @@ async def generate_pillar_missions(
     is_frustrated: bool = False,
     performance_profile: dict | None = None,
     context_chunks: list[dict] | None = None,
+    count: int | None = None,
 ) -> list[dict]:
     """
-    Generate *LLM_QUESTIONS_COUNT* (5) personalized pillar questions via LLM.
+    Generate personalized pillar questions via LLM.
 
-    The caller (endpoint) is responsible for merging these with bank questions
-    to reach PILLAR_QUESTIONS_COUNT (10). This function no longer generates
-    all 10 -- that responsibility is split between bank + LLM.
+    Args:
+        count: Number of questions to generate. Defaults to target (5).
+               When bank is empty, caller passes 10 so LLM generates all.
 
-    M1: Timeout reduced from 45s to 20s (only 5 questions now).
+    The caller merges these with bank questions to reach PILLAR_QUESTIONS_COUNT (10).
     """
+    target = count if count is not None else LLM_QUESTIONS_COUNT
+
     valid_pillars = ["reading", "writing", "listening", "speaking"]
     if pillar not in valid_pillars:
         raise ValueError(f"Invalid pillar: {pillar}. Must be one of {valid_pillars}")
@@ -572,28 +575,23 @@ async def generate_pillar_missions(
     config = PILLAR_TASK_CONFIGS[pillar]
     topic_text = ", ".join(active_topics) if active_topics else "General English skills"
 
-    # Retry configuration — only 1 retry (not 2) to avoid 60s+ cascades
+    # Retry configuration — only 1 retry to avoid cascades
     MAX_RETRIES = 1
-    RETRY_DELAY_BASE = 0.5  # seconds
+    RETRY_DELAY_BASE = 0.5
 
-    # Build task distribution for 5 questions (halved from original 10)
-    # Take roughly half of each task type, minimum 1
+    # Scale timeout based on question count (2s per question + 10s base)
+    effective_timeout = min(10.0 + target * 2.0, 45.0)
+    effective_request_timeout = effective_timeout - 2.0
+
+    # Build task distribution proportional to target count
     task_distribution_lines = []
-    remaining = LLM_QUESTIONS_COUNT
-    for i, (task_type, original_count) in enumerate(config["task_types"]):
-        if i == len(config["task_types"]) - 1:
-            count = remaining  # Last type gets whatever is left
-        else:
-            count = max(1, original_count // 2)
-            remaining -= count
-    # Re-iterate with corrected counts
-    task_distribution_lines = []
-    remaining = LLM_QUESTIONS_COUNT
+    raw_total = sum(c for _, c in config["task_types"])
+    remaining = target
     for i, (task_type, original_count) in enumerate(config["task_types"]):
         if i == len(config["task_types"]) - 1:
             alloc = remaining
         else:
-            alloc = max(1, original_count // 2)
+            alloc = max(1, round(original_count * target / raw_total))
             remaining -= alloc
         task_distribution_lines.append(f"  - {alloc} questions of type '{task_type}'")
     task_distribution_str = "\n".join(task_distribution_lines)
@@ -619,7 +617,7 @@ async def generate_pillar_missions(
     # Build adaptive difficulty section from performance profile
     adaptive_section = ""
     # ALL questions worth 10 points each for consistent scoring
-    difficulty_dist_str = f"""  - {LLM_QUESTIONS_COUNT} questions with difficulty "medium" (points_value: 10)"""
+    difficulty_dist_str = f"""  - {target} questions with difficulty "medium" (points_value: 10)"""
 
     if performance_profile and not is_frustrated:
         overall_acc = performance_profile.get("overall_accuracy", 0)
@@ -683,9 +681,9 @@ Use vocabulary and concepts from this SNC curriculum context when creating quest
     system_prompt = f"""\
 You are an ESL mission designer for Pakistani primary school Grade {grade_level} students.
 
-⚠️ CRITICAL REQUIREMENT: Generate EXACTLY {LLM_QUESTIONS_COUNT} questions. Not {LLM_QUESTIONS_COUNT - 1}, not {LLM_QUESTIONS_COUNT + 1} — EXACTLY {LLM_QUESTIONS_COUNT}.
-⚠️ MANDATORY: You MUST generate EXACTLY {LLM_QUESTIONS_COUNT} questions for the {pillar} pillar.
-⚠️ VERIFICATION: Before responding, count your questions to ensure you have EXACTLY {LLM_QUESTIONS_COUNT}.
+⚠️ CRITICAL REQUIREMENT: Generate EXACTLY {target} questions. Not {target - 1}, not {target + 1} — EXACTLY {target}.
+⚠️ MANDATORY: You MUST generate EXACTLY {target} questions for the {pillar} pillar.
+⚠️ VERIFICATION: Before responding, count your questions to ensure you have EXACTLY {target}.
 
 Use ONLY vocabulary appropriate for Grade {grade_level}.
 
@@ -709,13 +707,13 @@ Examples of UNACCEPTABLE questions (will be REJECTED):
 TASK TYPE DISTRIBUTION (you MUST follow this exactly):
 {task_distribution_str}
 
-DIFFICULTY DISTRIBUTION across all {LLM_QUESTIONS_COUNT} questions:
+DIFFICULTY DISTRIBUTION across all {target} questions:
 {difficulty_dist_str}
 
 {config["field_instructions"]}
 
 EVERY question MUST have these fields:
-- id (1-{LLM_QUESTIONS_COUNT}), task_type, pillar ("{pillar}"), question, difficulty, points_value, correct_answer, emoji_hint, urdu_hint
+- id (1-{target}), task_type, pillar ("{pillar}"), question, difficulty, points_value, correct_answer, emoji_hint, urdu_hint
 
 RULES:
 1. Use age-appropriate vocabulary for Grade {grade_level} Pakistani students.
@@ -727,7 +725,7 @@ RULES:
 7. URDU_HINT: Add an urdu_hint field with the Urdu translation of the key vocabulary or sentence. Use simple Urdu appropriate for Grade {grade_level}. For example: "The cat is sleeping" → "بلی سو رہی ہے".
 {weakness_context}{confidence_override}{adaptive_section}{curriculum_context}"""
 
-    user_message = f"Generate {LLM_QUESTIONS_COUNT} {pillar} questions for Grade {grade_level} on topics: {topic_text}."
+    user_message = f"Generate {target} {pillar} questions for Grade {grade_level} on topics: {topic_text}."
 
     # Retry loop for better reliability
     last_exception = None
@@ -742,8 +740,8 @@ RULES:
                 model=settings.CHAT_MODEL,
                 temperature=0.7,
                 openai_api_key=settings.OPENAI_API_KEY,
-                max_retries=1,  # Reduced from 3 — outer loop handles retries
-                timeout=LLM_PILLAR_REQUEST_TIMEOUT,
+                max_retries=1,
+                timeout=effective_request_timeout,
             ).with_structured_output(PillarMissions)
 
             prompt = ChatPromptTemplate.from_messages([
@@ -754,12 +752,12 @@ RULES:
             chain = prompt | llm
 
             # M1: Only generating 5 questions now — timeout reduced accordingly
-            logger.info(f"Starting {pillar} mission generation for grade {grade_level} (expecting {LLM_QUESTIONS_COUNT} questions)")
+            logger.info(f"Starting {pillar} mission generation for grade {grade_level} (expecting {target} questions)")
             start_time = asyncio.get_event_loop().time()
 
             result: PillarMissions | None = await asyncio.wait_for(
                 chain.ainvoke({}),
-                timeout=LLM_PILLAR_TIMEOUT,  # M1: 20s instead of 45s
+                timeout=effective_timeout,
             )
 
             elapsed_time = asyncio.get_event_loop().time() - start_time
@@ -780,15 +778,15 @@ RULES:
                     f"Rejecting empty result."
                 )
                 raise ValueError("LLM returned 0 questions.")
-            if questions_returned < LLM_QUESTIONS_COUNT:
+            if questions_returned < target:
                 logger.warning(
-                    f"LLM generated {questions_returned}/{LLM_QUESTIONS_COUNT} for {pillar} grade {grade_level}. "
+                    f"LLM generated {questions_returned}/{target} for {pillar} grade {grade_level}. "
                     f"Accepting partial — bank will fill the rest."
                 )
 
             # Normalize and validate
             validated = []
-            questions_to_use = result.questions[:LLM_QUESTIONS_COUNT]
+            questions_to_use = result.questions[:target]
 
             # Detect if this pillar is a weakness area for the student
             # H3: weakness data may be structured dicts or legacy strings
@@ -856,10 +854,10 @@ RULES:
 
             # If we lost questions but pass rate >= 70%, return what we have
             # The caller will fill the gap from bank
-            if len(validated) < LLM_QUESTIONS_COUNT:
+            if len(validated) < target:
                 logger.info(
-                    f"Returning {len(validated)}/{LLM_QUESTIONS_COUNT} validated LLM questions. "
-                    f"Caller will fill {LLM_QUESTIONS_COUNT - len(validated)} from bank."
+                    f"Returning {len(validated)}/{target} validated LLM questions. "
+                    f"Caller will fill {target - len(validated)} from bank."
                 )
 
             logger.info(f"Successfully generated and validated {len(validated)} {pillar} questions for grade {grade_level}")

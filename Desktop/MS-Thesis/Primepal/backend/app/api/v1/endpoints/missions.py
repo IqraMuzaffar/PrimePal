@@ -998,27 +998,34 @@ async def get_pillar_missions(
         logger.info(f"RAG cache hit for grade {grade_level}, topics {topics_hash}: {len(context_chunks)} chunks")
 
     # ------------------------------------------------------------------
-    # Step 4: Parallel — bank pull (instant) + LLM generation (5 questions)
-    # If is_frustrated=true, generates Confidence Builder questions
+    # Step 4a: Pull from bank first (instant) to know how many LLM needs
     # ------------------------------------------------------------------
-    async def _pull_bank():
-        """Pull BANK_QUESTIONS_COUNT questions from question_bank (instant)."""
-        try:
-            return await pull_from_bank(
-                grade_level=grade_level,
-                pillar=pillar,
-                topics=active_topic_names,
-                count=BANK_QUESTIONS_COUNT,
-                classroom_id=classroom_id,
-            )
-        except Exception as exc:
-            logger.warning("Bank pull failed, will rely on LLM: %s", exc)
-            return []
+    try:
+        bank_questions = await pull_from_bank(
+            grade_level=grade_level,
+            pillar=pillar,
+            topics=active_topic_names,
+            count=BANK_QUESTIONS_COUNT,
+            classroom_id=classroom_id,
+        )
+    except Exception as exc:
+        logger.warning("Bank pull failed, LLM will generate all %d: %s", PILLAR_QUESTIONS_COUNT, exc)
+        bank_questions = []
 
-    async def _generate_llm():
-        """Generate LLM_QUESTIONS_COUNT personalized questions via LLM."""
+    # How many does LLM need to generate? (10 - bank_count)
+    llm_needed = PILLAR_QUESTIONS_COUNT - len(bank_questions)
+    logger.info(
+        "Bank provided %d questions for %s. LLM will generate %d.",
+        len(bank_questions), pillar, llm_needed,
+    )
+
+    # ------------------------------------------------------------------
+    # Step 4b: Generate remaining questions via LLM
+    # ------------------------------------------------------------------
+    llm_questions = None
+    if llm_needed > 0:
         try:
-            return await generate_pillar_missions(
+            llm_questions = await generate_pillar_missions(
                 pillar=pillar,
                 grade_level=grade_level,
                 active_topics=active_topic_names,
@@ -1027,18 +1034,14 @@ async def get_pillar_missions(
                 is_frustrated=is_frustrated,
                 performance_profile=performance_profile,
                 context_chunks=context_chunks,
+                count=llm_needed,
             )
         except Exception as exc:
             logger.error(
                 "LLM pillar generation failed for student %s pillar %s: %s",
                 student_id, pillar, exc, exc_info=True,
             )
-            return None  # Signal failure — bank will fill all 10
-
-    # Run bank pull and LLM generation in parallel
-    bank_questions, llm_questions = await asyncio.gather(
-        _pull_bank(), _generate_llm()
-    )
+            llm_questions = None
 
     log_suffix = " (Confidence Builder)" if is_frustrated else ""
 
