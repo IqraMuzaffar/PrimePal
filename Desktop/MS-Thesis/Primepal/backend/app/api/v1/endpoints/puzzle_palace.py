@@ -143,6 +143,9 @@ async def get_puzzle_palace_rooms(
             len(context_chunks),
             grade_level,
         )
+        # retrieve_grade_filtered_chunks returns list[str], but
+        # generate_pillar_missions expects list[dict] with "content" key
+        context_chunks = [{"content": c} for c in context_chunks]
     except Exception as exc:
         logger.warning(
             "Puzzle Palace RAG retrieval failed, continuing without context: %s", exc
@@ -152,10 +155,11 @@ async def get_puzzle_palace_rooms(
     # ------------------------------------------------------------------
     # Step 5: Generate reading and writing questions in parallel
     # ------------------------------------------------------------------
-    # Reading rooms need: fill_blank_word_bank (2), odd_one_out (2), passage_true_false (2) = 6
-    # Writing rooms need: sentence_scramble (2), missing_letter (2) = 4
-    reading_count = 6  # rooms 1, 3, 5
-    writing_count = 4  # rooms 2, 4
+    # Request extra questions so LLM task-type variety is more likely to cover all rooms.
+    # Reading rooms need 6 (3 types x 2), writing rooms need 4 (2 types x 2).
+    # Over-request to ensure coverage.
+    reading_count = 9   # need 6, request 9 for task-type variety
+    writing_count = 6   # need 4, request 6 for task-type variety
 
     async def gen_reading():
         try:
@@ -201,58 +205,55 @@ async def get_puzzle_palace_rooms(
 
     # ------------------------------------------------------------------
     # Step 6: Distribute questions into rooms (2 per room)
+    # Two-pass allocation: exact task_type matches first, then fill gaps.
     # ------------------------------------------------------------------
+    used_ids: set[int] = set()
+    room_assignments: list[list[dict]] = [[] for _ in ROOMS]
+
+    def _get_tt(q: dict) -> str:
+        return q.get("task_type", q.get("type", ""))
+
+    # Pass 1: assign exact task_type matches (up to 2 per room)
+    for idx, (_, task_type, pillar) in enumerate(ROOMS):
+        pool = reading_qs if pillar == "reading" else writing_qs
+        for q in pool:
+            if id(q) in used_ids:
+                continue
+            if _get_tt(q) == task_type and len(room_assignments[idx]) < 2:
+                room_assignments[idx].append(q)
+                used_ids.add(id(q))
+
+    # Pass 2: fill any rooms that still have < 2 questions from same-pillar pool
+    for idx, (_, task_type, pillar) in enumerate(ROOMS):
+        if len(room_assignments[idx]) >= 2:
+            continue
+        pool = reading_qs if pillar == "reading" else writing_qs
+        for q in pool:
+            if id(q) in used_ids:
+                continue
+            if len(room_assignments[idx]) >= 2:
+                break
+            room_assignments[idx].append(q)
+            used_ids.add(id(q))
+
+    # Build room output
     rooms: list[RoomOut] = []
     global_id = 1
 
-    for room_idx, (room_name, task_type, pillar) in enumerate(ROOMS, start=1):
-        # Pick from the appropriate pool
-        pool = reading_qs if pillar == "reading" else writing_qs
-
-        # Try to find questions matching the exact task_type first
-        exact_match = [q for q in pool if q.get("task_type", q.get("type")) == task_type]
-        others = [q for q in pool if q.get("task_type", q.get("type")) != task_type]
-
-        room_questions_raw: list[dict] = []
-
-        # Take up to 2 exact-match questions
-        for q in exact_match[:2]:
-            room_questions_raw.append(q)
-            pool.remove(q)
-
-        # Fall back to any remaining questions from the pool if not enough
-        if len(room_questions_raw) < 2:
-            needed = 2 - len(room_questions_raw)
-            for q in others[:needed]:
-                # Override task_type to match the room
-                q["task_type"] = task_type
-                room_questions_raw.append(q)
-                pool.remove(q)
-
-        # If still short, take whatever is left in the pool
-        if len(room_questions_raw) < 2:
-            needed = 2 - len(room_questions_raw)
-            remaining = pool[:needed]
-            for q in remaining:
-                q["task_type"] = task_type
-                room_questions_raw.append(q)
-                pool.remove(q)
-
-        # Assign sequential IDs and ensure pillar/task_type are set
-        for q in room_questions_raw:
+    for idx, (room_name, task_type, pillar) in enumerate(ROOMS):
+        for q in room_assignments[idx]:
             q["id"] = global_id
             q["pillar"] = pillar
             q["task_type"] = task_type
             global_id += 1
 
-        room_out = RoomOut(
-            room_number=room_idx,
+        rooms.append(RoomOut(
+            room_number=idx + 1,
             room_name=room_name,
             task_type=task_type,
             pillar=pillar,
-            questions=[_strip_answer(q) for q in room_questions_raw],
-        )
-        rooms.append(room_out)
+            questions=[_strip_answer(q) for q in room_assignments[idx]],
+        ))
 
     response = PuzzlePalaceResponse(rooms=rooms, topic=topic_label)
 
