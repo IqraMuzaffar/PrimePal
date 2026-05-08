@@ -76,6 +76,92 @@ TASK_TYPES_WITH_IMAGE_OPTIONS = {
 # Similarity threshold for de-duplication (0.0 – 1.0)
 DEDUP_SIMILARITY_THRESHOLD = 0.98  # Only catch near-exact duplicates (same sentence)
 
+# Task types where correct_answer must be an option ID ("a","b","c","d")
+OPTION_ID_ANSWER_TYPES = {
+    "sentence_picture_match", "odd_one_out", "fill_blank_word_bank",
+    "listen_and_choose", "simon_says",
+}
+
+# Valid option IDs
+VALID_OPTION_IDS = {"a", "b", "c", "d"}
+
+
+# ---------------------------------------------------------------------------
+# 0. Normalize correct_answer — repair LLM format mismatches
+# ---------------------------------------------------------------------------
+
+def normalize_correct_answer(question: dict) -> dict:
+    """
+    Fix correct_answer format mismatches from LLM output.
+
+    For option-based tasks: if correct_answer is the option TEXT instead
+    of the option ID, look it up and replace with the ID.
+
+    For passage_true_false: lowercase "True"/"False"/"TRUE" to "true"/"false".
+
+    For text-based tasks: strip whitespace.
+
+    Returns the same dict (mutated in place).
+    """
+    tt = question.get("task_type", "")
+    answer = question.get("correct_answer", "")
+    if not answer:
+        return question
+
+    answer_str = str(answer).strip()
+
+    if tt in OPTION_ID_ANSWER_TYPES:
+        # Check if correct_answer is already a valid option ID
+        if answer_str.lower() in VALID_OPTION_IDS:
+            question["correct_answer"] = answer_str.lower()
+            return question
+
+        # Not a valid ID — try to find the matching option by text
+        options_field = "image_options" if tt in ("sentence_picture_match", "listen_and_choose") else "options"
+        options = question.get(options_field) or []
+
+        matched_id = None
+        answer_lower = answer_str.lower()
+        for opt in options:
+            opt_text = (opt.get("text") or "").strip().lower()
+            opt_emoji = (opt.get("emoji") or "").strip()
+            if opt_text == answer_lower or opt_emoji == answer_str:
+                matched_id = opt.get("id", "").lower()
+                break
+
+        if matched_id and matched_id in VALID_OPTION_IDS:
+            logger.info(
+                f"Normalized correct_answer: '{answer_str}' → '{matched_id}' "
+                f"(task_type={tt}, question={question.get('question', '')[:40]})"
+            )
+            question["correct_answer"] = matched_id
+        else:
+            # Can't resolve — log warning, leave as-is (validator will catch it)
+            logger.warning(
+                f"Cannot normalize correct_answer '{answer_str}' for {tt}. "
+                f"Options: {[o.get('text') for o in options]}"
+            )
+
+    elif tt == "passage_true_false":
+        # Normalize to lowercase "true" or "false"
+        if answer_str.lower() in ("true", "false"):
+            question["correct_answer"] = answer_str.lower()
+        else:
+            logger.warning(f"Invalid passage_true_false answer: '{answer_str}'")
+
+    else:
+        # Text-based tasks — just trim
+        question["correct_answer"] = answer_str
+
+    return question
+
+
+def normalize_all_questions(questions: list[dict]) -> list[dict]:
+    """Run normalize_correct_answer on every question in the list."""
+    for q in questions:
+        normalize_correct_answer(q)
+    return questions
+
 
 # ---------------------------------------------------------------------------
 # Validated result container
@@ -188,6 +274,28 @@ def validate_questions(
         # Check 5: correct_answer non-empty
         if not _field_is_present(q, "correct_answer"):
             q_issues.append(f"Q{qid}: missing correct_answer")
+
+        # Check 5b: correct_answer format matches task_type
+        ca = str(q.get("correct_answer", "")).strip().lower()
+        if ca and tt in OPTION_ID_ANSWER_TYPES:
+            if ca not in VALID_OPTION_IDS:
+                q_issues.append(
+                    f"Q{qid}: correct_answer '{ca}' is not a valid option ID (a/b/c/d) for {tt}"
+                )
+        if ca and tt == "passage_true_false":
+            if ca not in ("true", "false"):
+                q_issues.append(
+                    f"Q{qid}: correct_answer '{ca}' must be 'true' or 'false' for passage_true_false"
+                )
+
+        # Check 5c: correct_order consistency for scramble/translation
+        if tt in ("sentence_scramble", "guided_translation"):
+            wb = q.get("word_bank") or []
+            co = q.get("correct_order") or []
+            if wb and co and len(wb) != len(co):
+                q_issues.append(
+                    f"Q{qid}: word_bank length ({len(wb)}) != correct_order length ({len(co)})"
+                )
 
         # Check 3: required fields for this task_type
         extra_fields = TASK_TYPE_REQUIRED_FIELDS.get(tt, [])

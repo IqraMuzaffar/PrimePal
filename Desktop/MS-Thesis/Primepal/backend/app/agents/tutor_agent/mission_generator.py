@@ -814,6 +814,10 @@ RULES:
                 d["source"] = "llm"  # Tag source for merge tracking
                 validated.append(d)
 
+            # Normalize correct_answer format (repair LLM mismatches)
+            from app.agents.tutor_agent.question_validator import normalize_all_questions
+            normalize_all_questions(validated)
+
             # Save pre-validation list for fallback
             all_normalized = list(validated)
 

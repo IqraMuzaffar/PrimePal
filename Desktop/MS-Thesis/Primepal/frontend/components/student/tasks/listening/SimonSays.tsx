@@ -13,14 +13,22 @@ export default function SimonSays({ question, onAnswer, showFeedback, disabled }
   const handleTap = (id: string) => {
     if (disabled || showFeedback) return;
     setSelected(id);
-    // Case-insensitive comparison and trim whitespace
-    const isCorrect = id.toLowerCase().trim() === (question.correct_answer ?? '').toLowerCase().trim();
-    onAnswer(id, isCorrect);
+    const ca = (question.correct_answer ?? '').toLowerCase().trim();
+    const idMatch = id.toLowerCase().trim() === ca;
+    const opt = options.find(o => o.id === id);
+    const textMatch = opt ? opt.text.toLowerCase().trim() === ca : false;
+    onAnswer(id, idMatch || textMatch);
+  };
+
+  const isCorrectOption = (id: string) => {
+    const ca = (question.correct_answer ?? '').toLowerCase().trim();
+    const opt = options.find(o => o.id === id);
+    return id.toLowerCase().trim() === ca || (opt ? opt.text.toLowerCase().trim() === ca : false);
   };
 
   const getButtonClass = (id: string) => {
     if (showFeedback) {
-      if (id === question.correct_answer) return 'bg-green-100 border-green-500 text-green-800';
+      if (isCorrectOption(id)) return 'bg-green-100 border-green-500 text-green-800';
       if (id === selected) return 'bg-red-100 border-red-500 text-red-800';
     }
     if (id === selected) return 'bg-indigo-100 border-indigo-500 text-indigo-800';
@@ -46,8 +54,8 @@ export default function SimonSays({ question, onAnswer, showFeedback, disabled }
             className={`p-4 rounded-xl border-2 font-semibold text-sm transition-all ${getButtonClass(opt.id)} disabled:cursor-not-allowed flex items-center justify-center gap-2`}
           >
             {opt.text}
-            {showFeedback && opt.id === question.correct_answer && <Check size={16} className="text-green-600" />}
-            {showFeedback && opt.id === selected && opt.id !== question.correct_answer && <X size={16} className="text-red-600" />}
+            {showFeedback && isCorrectOption(opt.id) && <Check size={16} className="text-green-600" />}
+            {showFeedback && opt.id === selected && !isCorrectOption(opt.id) && <X size={16} className="text-red-600" />}
           </motion.button>
         ))}
       </div>
