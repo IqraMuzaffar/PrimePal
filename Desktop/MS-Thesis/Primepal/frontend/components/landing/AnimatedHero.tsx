@@ -81,12 +81,14 @@ export function AnimatedHeroSection({ children }: { children: React.ReactNode })
 export function AnimatedHeroItem({
   children,
   className,
+  style,
 }: {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
-    <motion.div variants={stagger.item} className={className}>
+    <motion.div variants={stagger.item} className={className} style={style}>
       {children}
     </motion.div>
   );
@@ -97,12 +99,14 @@ export function AnimatedHeroItem({
 export function AnimatedHeroH1({
   children,
   className,
+  style,
 }: {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
-    <motion.h1 variants={stagger.item} className={className}>
+    <motion.h1 variants={stagger.item} className={className} style={style}>
       {children}
     </motion.h1>
   );
@@ -113,12 +117,14 @@ export function AnimatedHeroH1({
 export function AnimatedHeroP({
   children,
   className,
+  style,
 }: {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
-    <motion.p variants={stagger.item} className={className}>
+    <motion.p variants={stagger.item} className={className} style={style}>
       {children}
     </motion.p>
   );
@@ -146,15 +152,18 @@ export function AnimatedCard({ xOffset, delay, children, className }: AnimatedCa
 export function AnimatedCardInner({
   children,
   className,
+  style,
 }: {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
     <motion.div
       whileHover={{ scale: 1.03, y: -5 }}
       whileTap={{ scale: 0.97 }}
       className={className}
+      style={style}
     >
       {children}
     </motion.div>
@@ -166,9 +175,11 @@ export function AnimatedCardInner({
 export function AnimatedFooter({
   children,
   className,
+  style,
 }: {
   children: React.ReactNode;
   className?: string;
+  style?: React.CSSProperties;
 }) {
   return (
     <motion.p
@@ -176,6 +187,7 @@ export function AnimatedFooter({
       animate={{ opacity: 1 }}
       transition={{ delay: 1.2, duration: 0.6 }}
       className={className}
+      style={style}
     >
       {children}
     </motion.p>

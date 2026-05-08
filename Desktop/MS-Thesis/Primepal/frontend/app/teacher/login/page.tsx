@@ -219,6 +219,17 @@ export default function TeacherLoginPage() {
             Enter your class code here
           </a>
         </p>
+
+        {/* Back to home */}
+        <p className="text-center mt-3" style={{ fontSize: 13, color: '#b0bcd5' }}>
+          <a
+            href="/"
+            className="font-medium hover:underline"
+            style={{ color: '#9aa8c9' }}
+          >
+            ← Back to Home
+          </a>
+        </p>
       </div>
     </div>
   );
