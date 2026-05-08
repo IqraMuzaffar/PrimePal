@@ -35,8 +35,13 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 MAX_WEAKNESS_ITEMS = 5
 PILLAR_QUESTIONS_COUNT = 10
+LLM_QUESTIONS_COUNT = 5          # NEW: LLM now generates only 5 (bank provides the other 5)
+BANK_QUESTIONS_COUNT = 5         # NEW: question bank provides 5 instant questions
 MULTIPLE_CHOICE_OPTIONS = 4
 DAILY_QUESTIONS_COUNT = 3
+DAILY_MISSIONS_COUNT = 3         # C1: Exact daily mission count validation
+LLM_PILLAR_TIMEOUT = 20.0       # M1: Reduced from 45s — only generating 5 questions now
+LLM_PILLAR_REQUEST_TIMEOUT = 18.0  # M1: LLM client timeout (slightly under asyncio timeout)
 
 
 # ---------------------------------------------------------------------------
@@ -551,6 +556,15 @@ async def generate_pillar_missions(
     performance_profile: dict | None = None,
     context_chunks: list[dict] | None = None,
 ) -> list[dict]:
+    """
+    Generate *LLM_QUESTIONS_COUNT* (5) personalized pillar questions via LLM.
+
+    The caller (endpoint) is responsible for merging these with bank questions
+    to reach PILLAR_QUESTIONS_COUNT (10). This function no longer generates
+    all 10 -- that responsibility is split between bank + LLM.
+
+    M1: Timeout reduced from 45s to 20s (only 5 questions now).
+    """
     valid_pillars = ["reading", "writing", "listening", "speaking"]
     if pillar not in valid_pillars:
         raise ValueError(f"Invalid pillar: {pillar}. Must be one of {valid_pillars}")
@@ -562,25 +576,50 @@ async def generate_pillar_missions(
     MAX_RETRIES = 2
     RETRY_DELAY_BASE = 1.0  # seconds (reduced for faster retries)
 
-    # Build task distribution string
+    # Build task distribution for 5 questions (halved from original 10)
+    # Take roughly half of each task type, minimum 1
     task_distribution_lines = []
-    for task_type, count in config["task_types"]:
-        task_distribution_lines.append(f"  - {count} questions of type '{task_type}'")
+    remaining = LLM_QUESTIONS_COUNT
+    for i, (task_type, original_count) in enumerate(config["task_types"]):
+        if i == len(config["task_types"]) - 1:
+            count = remaining  # Last type gets whatever is left
+        else:
+            count = max(1, original_count // 2)
+            remaining -= count
+    # Re-iterate with corrected counts
+    task_distribution_lines = []
+    remaining = LLM_QUESTIONS_COUNT
+    for i, (task_type, original_count) in enumerate(config["task_types"]):
+        if i == len(config["task_types"]) - 1:
+            alloc = remaining
+        else:
+            alloc = max(1, original_count // 2)
+            remaining -= alloc
+        task_distribution_lines.append(f"  - {alloc} questions of type '{task_type}'")
     task_distribution_str = "\n".join(task_distribution_lines)
 
-    # Build weakness context
+    # Build weakness context — H3: structured data instead of formatted strings
     weakness_context = ""
     if student_weaknesses and not is_frustrated:
         limited = student_weaknesses[:MAX_WEAKNESS_ITEMS]
+        # H3: student_weaknesses now contains structured dicts or legacy strings
+        weakness_lines = []
+        for w in limited:
+            if isinstance(w, dict):
+                weakness_lines.append(
+                    f"- {w['pillar']} (accuracy: {w['accuracy']}%, attempts: {w['total']})"
+                )
+            else:
+                weakness_lines.append(f"- {w}")
         weakness_context = (
-            "\n\nSTUDENT'S RECENT WEAK AREAS (create 3-4 questions targeting these):\n"
-            + "\n".join([f"- {w}" for w in limited])
+            "\n\nSTUDENT'S RECENT WEAK AREAS (create 2-3 questions targeting these):\n"
+            + "\n".join(weakness_lines)
         )
 
     # Build adaptive difficulty section from performance profile
     adaptive_section = ""
     # ALL questions worth 10 points each for consistent scoring
-    difficulty_dist_str = """  - 10 questions with difficulty "medium" (points_value: 10)"""
+    difficulty_dist_str = f"""  - {LLM_QUESTIONS_COUNT} questions with difficulty "medium" (points_value: 10)"""
 
     if performance_profile and not is_frustrated:
         overall_acc = performance_profile.get("overall_accuracy", 0)
@@ -617,9 +656,6 @@ ADAPTIVE DIFFICULTY RULES:
 - For mastered topics (accuracy > 90%, 5+ attempts): minimal repetition, introduce new related concepts
 - Mix: ~40% weak topic reinforcement, ~40% current topics, ~20% strong topics at higher complexity"""
 
-        # Keep all questions at 10 points - adaptive difficulty no longer changes point values
-        # (Difficulty can still vary in question complexity, but all worth 10 points)
-
     confidence_override = ""
     if is_frustrated:
         confidence_override = f"""
@@ -647,10 +683,9 @@ Use vocabulary and concepts from this SNC curriculum context when creating quest
     system_prompt = f"""\
 You are an ESL mission designer for Pakistani primary school Grade {grade_level} students.
 
-⚠️ CRITICAL REQUIREMENT: Generate EXACTLY 10 questions. Not 9, not 11 — EXACTLY 10.
-⚠️ MANDATORY: You MUST generate EXACTLY 10 questions for the {pillar} pillar.
-⚠️ VERIFICATION: Before responding, count your questions to ensure you have EXACTLY 10.
-⚠️ CONSEQUENCE: Responses with incorrect question counts (9, 11, etc.) will be REJECTED.
+⚠️ CRITICAL REQUIREMENT: Generate EXACTLY {LLM_QUESTIONS_COUNT} questions. Not {LLM_QUESTIONS_COUNT - 1}, not {LLM_QUESTIONS_COUNT + 1} — EXACTLY {LLM_QUESTIONS_COUNT}.
+⚠️ MANDATORY: You MUST generate EXACTLY {LLM_QUESTIONS_COUNT} questions for the {pillar} pillar.
+⚠️ VERIFICATION: Before responding, count your questions to ensure you have EXACTLY {LLM_QUESTIONS_COUNT}.
 
 Use ONLY vocabulary appropriate for Grade {grade_level}.
 
@@ -674,13 +709,13 @@ Examples of UNACCEPTABLE questions (will be REJECTED):
 TASK TYPE DISTRIBUTION (you MUST follow this exactly):
 {task_distribution_str}
 
-DIFFICULTY DISTRIBUTION across all 10 questions:
+DIFFICULTY DISTRIBUTION across all {LLM_QUESTIONS_COUNT} questions:
 {difficulty_dist_str}
 
 {config["field_instructions"]}
 
 EVERY question MUST have these fields:
-- id (1-10), task_type, pillar ("{pillar}"), question, difficulty, points_value, correct_answer, emoji_hint, urdu_hint
+- id (1-{LLM_QUESTIONS_COUNT}), task_type, pillar ("{pillar}"), question, difficulty, points_value, correct_answer, emoji_hint, urdu_hint
 
 RULES:
 1. Use age-appropriate vocabulary for Grade {grade_level} Pakistani students.
@@ -692,7 +727,7 @@ RULES:
 7. URDU_HINT: Add an urdu_hint field with the Urdu translation of the key vocabulary or sentence. Use simple Urdu appropriate for Grade {grade_level}. For example: "The cat is sleeping" → "بلی سو رہی ہے".
 {weakness_context}{confidence_override}{adaptive_section}{curriculum_context}"""
 
-    user_message = f"Generate 10 {pillar} questions for Grade {grade_level} on topics: {topic_text}."
+    user_message = f"Generate {LLM_QUESTIONS_COUNT} {pillar} questions for Grade {grade_level} on topics: {topic_text}."
 
     # Retry loop for better reliability
     last_exception = None
@@ -707,8 +742,8 @@ RULES:
                 model=settings.CHAT_MODEL,
                 temperature=0.7,
                 openai_api_key=settings.OPENAI_API_KEY,
-                max_retries=3,  # Increased from 2 for better reliability
-                timeout=40.0,  # Increased to 40s for reliable 10-question generation
+                max_retries=3,
+                timeout=LLM_PILLAR_REQUEST_TIMEOUT,  # M1: reduced from 40s
             ).with_structured_output(PillarMissions)
 
             prompt = ChatPromptTemplate.from_messages([
@@ -718,13 +753,13 @@ RULES:
 
             chain = prompt | llm
 
-            # Pillar missions need more time: 10 questions vs 3 for daily missions
-            logger.info(f"Starting {pillar} mission generation for grade {grade_level} (expecting 10 questions)")
+            # M1: Only generating 5 questions now — timeout reduced accordingly
+            logger.info(f"Starting {pillar} mission generation for grade {grade_level} (expecting {LLM_QUESTIONS_COUNT} questions)")
             start_time = asyncio.get_event_loop().time()
 
             result: PillarMissions | None = await asyncio.wait_for(
                 chain.ainvoke({}),
-                timeout=45.0,  # Increased to 45s for reliable 10-question generation
+                timeout=LLM_PILLAR_TIMEOUT,  # M1: 20s instead of 45s
             )
 
             elapsed_time = asyncio.get_event_loop().time() - start_time
@@ -734,31 +769,33 @@ RULES:
                 logger.error(f"LLM returned empty result for {pillar} grade {grade_level}")
                 raise ValueError("LLM returned empty result")
 
-            # CRITICAL: Require exactly 10 questions - reject partial results
             questions_returned = len(result.questions)
             logger.info(f"LLM returned {questions_returned} questions for {pillar} grade {grade_level}")
 
-            if questions_returned < PILLAR_QUESTIONS_COUNT:
+            if questions_returned < LLM_QUESTIONS_COUNT:
                 logger.error(
-                    f"LLM generated only {questions_returned}/{PILLAR_QUESTIONS_COUNT} questions for {pillar} grade {grade_level}. "
-                    f"Rejecting partial result to prevent caching incomplete question sets."
+                    f"LLM generated only {questions_returned}/{LLM_QUESTIONS_COUNT} questions for {pillar} grade {grade_level}. "
+                    f"Rejecting partial result."
                 )
                 raise ValueError(
-                    f"LLM returned only {questions_returned}/{PILLAR_QUESTIONS_COUNT} questions. "
+                    f"LLM returned only {questions_returned}/{LLM_QUESTIONS_COUNT} questions. "
                     f"This indicates a timeout or generation issue. Please retry."
                 )
 
-            # Normalize and validate - require full set of questions
+            # Normalize and validate
             validated = []
-            questions_to_use = result.questions[:PILLAR_QUESTIONS_COUNT]
+            questions_to_use = result.questions[:LLM_QUESTIONS_COUNT]
 
             # Detect if this pillar is a weakness area for the student
-            # Weakness strings look like "reading (accuracy: 40%)"
+            # H3: weakness data may be structured dicts or legacy strings
             weak_pillars = set()
             for w in student_weaknesses:
-                for p in valid_pillars:
-                    if w.lower().startswith(p):
-                        weak_pillars.add(p)
+                if isinstance(w, dict):
+                    weak_pillars.add(w["pillar"])
+                else:
+                    for p in valid_pillars:
+                        if w.lower().startswith(p):
+                            weak_pillars.add(p)
 
             for i, q in enumerate(questions_to_use):
                 d = q.model_dump()
@@ -768,13 +805,12 @@ RULES:
                     d["task_type"] = "multiple_choice"
                 if not d.get("difficulty"):
                     d["difficulty"] = "medium"
-                # Always set to 10 points - consistent scoring across all questions
                 d["points_value"] = 10
-                # Mark as weakness-focused if this pillar is in the student's weak areas
                 d["is_weakness_focused"] = pillar in weak_pillars
+                d["source"] = "llm"  # Tag source for merge tracking
                 validated.append(d)
 
-            # Save pre-validation list so we can fall back to it if validation is too aggressive
+            # Save pre-validation list for fallback
             all_normalized = list(validated)
 
             # Validate topic alignment after normalization
@@ -789,58 +825,53 @@ RULES:
                 f"({pass_rate:.1f}%) for {pillar} grade {grade_level}"
             )
 
-            # If pass rate is low on first attempt, log WARNING with diagnostic info
-            if pass_rate < 70 and attempt == 0:
+            # M4: If pass rate < 70%, return None so caller fills from bank
+            if pass_rate < 70:
                 logger.warning(
-                    f"LOW PASS RATE ({pass_rate:.1f}%) on first attempt for {pillar}. "
-                    f"LLM may not be following topic constraints: {active_topics}"
+                    f"LOW PASS RATE ({pass_rate:.1f}%) for {pillar}. "
+                    f"LLM did not follow topic constraints: {active_topics}. "
+                    f"Returning None so caller can fill entirely from bank."
                 )
-
-            # If we lost too many questions, log error and potentially retry
-            if len(validated) < PILLAR_QUESTIONS_COUNT:
-                logger.error(
-                    f"Topic validation rejected too many questions ({len(validated)}/{PILLAR_QUESTIONS_COUNT}) for {pillar}. "
-                    f"Active topics: {active_topics}. "
-                    f"This indicates LLM did not follow topic constraints. "
-                    f"Attempt {attempt + 1}/{MAX_RETRIES + 1}."
-                )
-                # Treat this as a generation failure and retry if attempts remain
                 if attempt < MAX_RETRIES:
                     raise ValueError(
-                        f"Topic validation failed: only {len(validated)}/{PILLAR_QUESTIONS_COUNT} questions matched topics {active_topics}"
+                        f"Topic validation failed: only {post_validation_count}/{pre_validation_count} "
+                        f"questions matched topics {active_topics}"
                     )
                 else:
-                    # Final attempt — the LLM was already prompted with strict topic
-                    # constraints, so returning all generated questions is preferable
-                    # to returning an incomplete set. Re-use the pre-validation list.
+                    # M4: Final attempt with low pass rate — signal caller to use bank
                     logger.warning(
-                        f"Final attempt: topic validation too aggressive "
-                        f"({len(validated)}/{pre_validation_count} passed). "
-                        f"Returning all {pre_validation_count} LLM-generated questions "
-                        f"to guarantee {PILLAR_QUESTIONS_COUNT} tasks."
+                        f"Final attempt: topic validation too aggressive. "
+                        f"Returning validated subset ({post_validation_count} questions) "
+                        f"and letting caller fill remainder from bank."
                     )
-                    validated = all_normalized
+                    return validated
 
-            logger.info(f"✓ Successfully generated and validated {len(validated)} {pillar} questions for grade {grade_level}")
+            # If we lost questions but pass rate >= 70%, return what we have
+            # The caller will fill the gap from bank
+            if len(validated) < LLM_QUESTIONS_COUNT:
+                logger.info(
+                    f"Returning {len(validated)}/{LLM_QUESTIONS_COUNT} validated LLM questions. "
+                    f"Caller will fill {LLM_QUESTIONS_COUNT - len(validated)} from bank."
+                )
 
+            logger.info(f"Successfully generated and validated {len(validated)} {pillar} questions for grade {grade_level}")
             return validated
 
         except asyncio.TimeoutError as e:
             last_exception = e
             logger.error(
-                f"Attempt {attempt + 1}/{MAX_RETRIES + 1}: Pillar mission generation timeout (45s) for {pillar} grade {grade_level}. "
-                f"This may indicate OpenAI API slowness or complex prompt. "
+                f"Attempt {attempt + 1}/{MAX_RETRIES + 1}: Pillar mission generation timeout "
+                f"({LLM_PILLAR_TIMEOUT}s) for {pillar} grade {grade_level}. "
                 f"Active topics: {', '.join(active_topics) if active_topics else 'None'}"
             )
             if attempt >= MAX_RETRIES:
                 raise RuntimeError(
-                    f"Mission generation timed out after 45 seconds ({MAX_RETRIES + 1} attempts). "
+                    f"Mission generation timed out after {LLM_PILLAR_TIMEOUT}s ({MAX_RETRIES + 1} attempts). "
                     f"Please try again or contact support if this persists."
                 )
             continue  # Retry
 
         except ValueError as e:
-            # ValueError raised when LLM returns incomplete results - retry
             last_exception = e
             logger.error(f"Attempt {attempt + 1}/{MAX_RETRIES + 1}: Incomplete result from LLM: {e}")
             if attempt >= MAX_RETRIES:

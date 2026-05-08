@@ -90,7 +90,6 @@ export const queryKeys = {
   achievements: ["achievements"] as const,
   spellingWords: ["spellingWords"] as const,
   storyTime: ["storyTime"] as const,
-  speakingPrompts: ["speakingPrompts"] as const,
   evalStatus: ["evalStatus"] as const,
   evalQuestions: (type: string) => ["evalQuestions", type] as const,
   missionPillar: (pillar: string) => ["missionPillar", pillar] as const,
@@ -157,18 +156,6 @@ interface StoryData {
   questions: ComprehensionQuestion[];
 }
 
-interface SpeakingPrompt {
-  id: number;
-  prompt: string;
-  hint: string;
-}
-
-interface PromptsData {
-  prompts: SpeakingPrompt[];
-  topic: string;
-  week_number: number;
-}
-
 interface EvalStatus {
   needs_pre_test: boolean;
   needs_post_test: boolean;
@@ -200,14 +187,6 @@ export function useStoryTime() {
   return useQuery({
     queryKey: queryKeys.storyTime,
     queryFn: () => studentFetch<StoryData>("/story-time/story"),
-    staleTime: 10 * 60 * 1000,
-  });
-}
-
-export function useSpeakingPrompts() {
-  return useQuery({
-    queryKey: queryKeys.speakingPrompts,
-    queryFn: () => studentFetch<PromptsData>("/speaking/prompts"),
     staleTime: 10 * 60 * 1000,
   });
 }

@@ -136,8 +136,8 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
               key={i}
               className={`w-14 h-16 rounded-2xl border-[3px] flex items-center justify-center text-2xl font-baloo font-extrabold transition-all duration-150 ${
                 i < digits.length
-                  ? "border-amber-500 bg-amber-50 text-amber-800 shadow-[0_3px_0_#fde68a]"
-                  : "border-amber-200 bg-white text-transparent shadow-[0_3px_0_#e5e7eb]"
+                  ? "border-violet-400 bg-violet-50 text-violet-800 shadow-[0_3px_0_#ddd6fe]"
+                  : "border-slate-200 bg-white text-transparent shadow-[0_3px_0_#e5e7eb]"
               }`}
             >
               {digits[i] ? "●" : ""}
@@ -180,8 +180,8 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
                 key="back"
                 onClick={onBack}
                 disabled={loading}
-                className="h-14 rounded-2xl bg-amber-100 text-amber-700 font-baloo font-bold text-sm
-                           shadow-[0_4px_0_#fde68a] hover:brightness-95
+                className="h-14 rounded-2xl bg-white border-2 border-slate-200 hover:bg-violet-50 active:bg-violet-100 text-slate-700 font-baloo font-bold text-sm
+                           shadow-[0_4px_0_#cbd5e1]
                            active:translate-y-[4px] active:shadow-none
                            disabled:opacity-50 disabled:cursor-not-allowed
                            transition-all duration-75"
@@ -197,8 +197,8 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
                 key="backspace"
                 onClick={backspace}
                 disabled={loading}
-                className="h-14 rounded-2xl bg-amber-100 text-amber-700 font-semibold
-                           shadow-[0_4px_0_#fde68a] hover:brightness-95
+                className="h-14 rounded-2xl bg-white border-2 border-slate-200 hover:bg-violet-50 active:bg-violet-100 text-slate-700 font-semibold
+                           shadow-[0_4px_0_#cbd5e1]
                            active:translate-y-[4px] active:shadow-none
                            disabled:opacity-50 disabled:cursor-not-allowed
                            transition-all duration-75 flex items-center justify-center"
@@ -213,8 +213,8 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
               key={key}
               onClick={() => pressDigit(key)}
               disabled={loading || digits.length >= 4}
-              className="h-14 rounded-2xl bg-gradient-to-b from-amber-800 to-amber-950 text-white font-baloo font-extrabold text-xl
-                         shadow-[0_4px_0_#78350f] hover:brightness-110
+              className="h-14 rounded-2xl bg-white border-2 border-slate-200 hover:bg-violet-50 active:bg-violet-100 font-baloo font-extrabold text-xl text-slate-800
+                         shadow-[0_4px_0_#cbd5e1]
                          active:translate-y-[4px] active:shadow-none
                          disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0
                          transition-all duration-75"
@@ -229,10 +229,10 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
       <button
         onClick={() => submitPin(digits.join(""))}
         disabled={digits.length !== 4 || loading}
-        className="w-full h-14 rounded-2xl bg-gradient-to-r from-emerald-700 to-emerald-500 text-white font-baloo font-extrabold text-lg
-                   shadow-[0_6px_0_#064e3b,0_10px_24px_rgba(5,150,105,0.3)]
+        className="w-full h-14 rounded-2xl bg-gradient-to-br from-violet-400 to-violet-500 text-white font-baloo font-extrabold text-lg
+                   shadow-[0_6px_0_#5b21b6,0_8px_18px_rgba(124,58,237,0.3)]
                    hover:brightness-110
-                   active:translate-y-[4px] active:shadow-[0_2px_0_#064e3b]
+                   active:translate-y-1 active:shadow-[0_2px_0_#5b21b6]
                    disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0 disabled:brightness-100
                    transition-all duration-75"
         aria-label="Enter classroom"

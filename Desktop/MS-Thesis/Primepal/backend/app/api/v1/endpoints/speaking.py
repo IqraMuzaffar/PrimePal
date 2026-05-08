@@ -183,10 +183,9 @@ Return ONLY valid JSON (no markdown):
 
         response_text = response.choices[0].message.content.strip()
 
-        if response_text.startswith("```"):
-            response_text = response_text.split("```")[1]
-            if response_text.startswith("json"):
-                response_text = response_text[4:]
+        # C2: Line-based markdown stripping (replaces fragile split("```"))
+        from app.utils.markdown_parser import strip_markdown_code_block
+        response_text = strip_markdown_code_block(response_text)
 
         data = json.loads(response_text)
 
@@ -338,10 +337,9 @@ Keep the feedback encouraging, short (1-2 sentences), and suitable for a young c
 
         response_text = response.choices[0].message.content.strip()
 
-        if response_text.startswith("```"):
-            response_text = response_text.split("```")[1]
-            if response_text.startswith("json"):
-                response_text = response_text[4:]
+        # C2: Line-based markdown stripping (replaces fragile split("```"))
+        from app.utils.markdown_parser import strip_markdown_code_block
+        response_text = strip_markdown_code_block(response_text)
 
         eval_data = json.loads(response_text)
         score: int = eval_data.get("score", 0)

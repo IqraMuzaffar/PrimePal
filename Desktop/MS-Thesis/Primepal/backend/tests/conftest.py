@@ -11,7 +11,22 @@ os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://user:pass@localhost:5432/test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
-os.environ.setdefault("OPENAI_API_KEY", "test-openai-key")
+
+# For E2E tests that need real OpenAI API, use actual key from .env file
+# Only set test key if OPENAI_API_KEY is not already set in environment
+if "OPENAI_API_KEY" not in os.environ:
+    # Load from .env file if exists
+    env_file = os.path.join(os.path.dirname(__file__), "..", ".env")
+    if os.path.exists(env_file):
+        with open(env_file) as f:
+            for line in f:
+                if line.startswith("OPENAI_API_KEY="):
+                    key = line.strip().split("=", 1)[1]
+                    os.environ["OPENAI_API_KEY"] = key
+                    break
+    else:
+        # Fallback to test key for unit tests
+        os.environ.setdefault("OPENAI_API_KEY", "test-openai-key")
 
 import pytest
 from httpx import ASGITransport, AsyncClient

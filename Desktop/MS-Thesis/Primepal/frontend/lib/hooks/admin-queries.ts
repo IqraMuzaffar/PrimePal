@@ -43,6 +43,13 @@ export interface AdminBook {
   created_at: string;
 }
 
+export interface AdminTopic {
+  id: number;
+  grade_level: number;
+  skill: string;
+  topic_name: string;
+}
+
 export interface EvalResult {
   student_id: string;
   student_name: string | null;
@@ -64,6 +71,7 @@ export const adminQueryKeys = {
   students: ["admin", "students"] as const,
   books: ["admin", "books"] as const,
   evalResults: ["admin", "evalResults"] as const,
+  topics: (grade?: number) => ["admin", "topics", grade] as const,
 };
 
 // ── Queries ───────────────────────────────────────────────────────────────────
@@ -229,6 +237,52 @@ export function useTriggerPostTest() {
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: adminQueryKeys.evalResults });
+    },
+  });
+}
+
+// ── Admin Topics ─────────────────────────────────────────────────────────────
+
+export function useAdminTopics(gradeLevel?: number) {
+  return useQuery({
+    queryKey: adminQueryKeys.topics(gradeLevel),
+    queryFn: () => {
+      const params = gradeLevel ? `?grade_level=${gradeLevel}` : "";
+      return adminFetch<AdminTopic[]>(`/admin/topics${params}`);
+    },
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useCreateAdminTopic() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { grade_level: number; skill: string; topic_name: string }) =>
+      adminMutate<AdminTopic>("/admin/topics", body),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "topics"] });
+    },
+  });
+}
+
+export function useUpdateAdminTopic() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, body }: { id: number; body: { topic_name?: string; skill?: string } }) =>
+      adminMutate<AdminTopic>(`/admin/topics/${id}`, body, "PUT"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "topics"] });
+    },
+  });
+}
+
+export function useDeleteAdminTopic() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) =>
+      adminMutate<{ deleted: boolean }>(`/admin/topics/${id}`, {}, "DELETE"),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["admin", "topics"] });
     },
   });
 }

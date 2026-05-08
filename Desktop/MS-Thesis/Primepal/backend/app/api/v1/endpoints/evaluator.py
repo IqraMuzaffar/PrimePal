@@ -255,20 +255,21 @@ async def get_teacher_report(
     )
     students = stu_res.data or []
 
-    # 3. Fetch all interactions for these students
+    # 3. Fetch mission interactions for these students
     student_ids = [s["id"] for s in students]
     if student_ids:
         int_res = (
             supabase.table("student_interactions")
-            .select("student_id, correct")
+            .select("student_id, correct, interaction_type")
             .in_("student_id", student_ids)
+            .like("interaction_type", "mission_%")
             .limit(10000).execute()
         )
         interactions = int_res.data or []
     else:
         interactions = []
 
-    # 4. Aggregate interaction stats per student
+    # 4. Aggregate mission interaction stats per student
     from collections import defaultdict
     stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
     for row in interactions:
@@ -379,8 +380,9 @@ async def get_dashboard_stats(
         student_ids = [s["id"] for s in students]
         int_query = (
             supabase.table("student_interactions")
-            .select("student_id, correct")
+            .select("student_id, correct, interaction_type")
             .in_("student_id", student_ids)
+            .like("interaction_type", "mission_%")
         )
         if pillar:
             int_query = int_query.eq("pillar", pillar)
@@ -394,12 +396,13 @@ async def get_dashboard_stats(
         else:
             avg_accuracy = 0.0
 
-        # Active this week: distinct students with any interaction in last 7 days
+        # Active this week: distinct students with any mission interaction in last 7 days
         seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
         week_query = (
             supabase.table("student_interactions")
             .select("student_id")
             .in_("student_id", student_ids)
+            .like("interaction_type", "mission_%")
             .gte("created_at", seven_days_ago)
         )
         if pillar:
@@ -486,13 +489,14 @@ async def get_skill_accuracy(
 
     int_res = (
         supabase.table("student_interactions")
-        .select("student_id, pillar, correct, created_at")
+        .select("student_id, pillar, correct, created_at, interaction_type")
         .in_("student_id", student_ids)
+        .like("interaction_type", "mission_%")
         .limit(10000).execute()
     )
     interactions = int_res.data or []
 
-    # Aggregate per pillar
+    # Aggregate per pillar (mission interactions only)
     pillar_stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
     today_start = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0).isoformat()
     active_today_ids: set[str] = set()
@@ -622,18 +626,17 @@ async def list_all_students(
     stats: dict[str, dict] = defaultdict(lambda: {"total": 0, "mission_total": 0, "mission_correct": 0, "active": False})
     for row in all_interactions:
         sid = row["student_id"]
-        stats[sid]["total"] += 1
-        # When pillar filter is set, only count matching interactions for accuracy
+        # Active-this-week check applies regardless of pillar filter
+        if row.get("created_at", "") >= seven_days_ago:
+            stats[sid]["active"] = True
+        # When pillar filter is set, only count matching interactions for totals and accuracy
         if pillar and row.get("pillar") != pillar:
-            if row.get("created_at", "") >= seven_days_ago:
-                stats[sid]["active"] = True
             continue
+        stats[sid]["total"] += 1
         if row.get("interaction_type", "").startswith("mission_"):
             stats[sid]["mission_total"] += 1
             if row.get("correct") is True:
                 stats[sid]["mission_correct"] += 1
-        if row.get("created_at", "") >= seven_days_ago:
-            stats[sid]["active"] = True
 
     # 5. Build result
     result: list[StudentWithStats] = []
@@ -1109,14 +1112,15 @@ async def export_grade_csv(
         )
         student_rows = stu_resp.data or []
 
-    # 3. Fetch interactions
+    # 3. Fetch mission interactions only
     student_ids = [s["id"] for s in student_rows]
     interactions: list[dict] = []
     if student_ids:
         int_resp = (
             supabase.table("student_interactions")
-            .select("student_id, correct, pillar")
+            .select("student_id, correct, pillar, interaction_type")
             .in_("student_id", student_ids)
+            .like("interaction_type", "mission_%")
             .limit(10000).execute()
         )
         interactions = int_resp.data or []
@@ -1256,7 +1260,7 @@ async def get_grade_overview(
     # 3. Count active today and idle students
     now = datetime.now(timezone.utc)
     today_str = now.strftime("%Y-%m-%d")
-    two_days_ago_str = (now - timedelta(hours=48)).strftime("%Y-%m-%d")
+    two_days_ago_str = (now - timedelta(days=2)).strftime("%Y-%m-%d")
 
     active_today = 0
     idle_count = 0
@@ -1411,8 +1415,12 @@ async def get_weekly_trend(
         if not created:
             continue
         try:
-            dt = datetime.fromisoformat(created.replace("Z", "+00:00"))
-        except (ValueError, AttributeError):
+            # Handle multiple timestamp formats: "Z" suffix, "+00:00", or naive
+            cleaned = created.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(cleaned)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+        except (ValueError, AttributeError, TypeError):
             continue
         delta_days = (dt - earliest_start).days
         week_idx = delta_days // 7
@@ -1551,6 +1559,7 @@ async def generate_daily_plan(
         supabase_admin_client.table("student_interactions")
         .select("student_id, pillar, correct, interaction_type")
         .in_("student_id", student_ids)
+        .like("interaction_type", "mission_%")
         .gte("created_at", seven_days_ago)
         .limit(10000)
         .execute()

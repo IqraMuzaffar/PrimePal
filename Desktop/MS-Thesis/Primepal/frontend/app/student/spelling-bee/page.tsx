@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "@/lib/api";
 import { useSpellingWords, queryKeys } from "@/lib/hooks/queries";
+import PageHero from "@/components/student/PageHero";
 
 type GameState = "loading" | "playing" | "result" | "finished";
 
@@ -158,7 +159,7 @@ export default function SpellingBeePage() {
 
   if (gameState === "loading") {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-amber-50 to-yellow-50">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <div className="text-5xl mb-4">🐝</div>
           <p className="text-gray-600 font-semibold">Loading your words...</p>
@@ -169,7 +170,7 @@ export default function SpellingBeePage() {
 
   if (error) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-amber-50 to-yellow-50 px-4">
+      <div className="flex items-center justify-center min-h-screen px-4">
         <div className="bg-white rounded-2xl border border-red-200 p-8 max-w-sm text-center">
           <p className="text-red-600 font-semibold mb-4">{error}</p>
           <button
@@ -188,11 +189,11 @@ export default function SpellingBeePage() {
 
   if (gameState === "finished") {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-amber-50 to-yellow-50 px-4">
+      <div className="flex items-center justify-center min-h-screen px-4">
         <motion.div
           initial={{ scale: 0.8, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          className="bg-white rounded-3xl shadow-2xl border-4 border-amber-300 p-8 max-w-md text-center"
+          className="bg-white rounded-3xl shadow-[0_24px_48px_rgba(0,0,0,0.18)] border-4 border-amber-300 p-8 max-w-md text-center"
         >
           <div className="text-6xl mb-4">🐝</div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
@@ -238,33 +239,27 @@ export default function SpellingBeePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-amber-50 to-yellow-50 pb-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-amber-400 to-yellow-400 text-white p-4">
-        <div className="max-w-2xl mx-auto">
-          <button
-            onClick={() => router.push("/student/home")}
-            className="flex items-center gap-2 text-sm font-semibold mb-4 hover:opacity-80 transition-opacity"
-          >
-            <ArrowLeft size={16} />
-            Back
-          </button>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">🐝 Spelling Bee</h1>
-              <p className="text-sm text-white/80">{topic}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-white/80">Score</p>
-              <p className="text-3xl font-bold">{score.totalPoints}</p>
-            </div>
-          </div>
+    <div className="min-h-screen pb-6">
+      {/* Hero */}
+      <PageHero label="SPELLING BEE" name="Buzz Buzz!" subtitle="You have 30 seconds. Listen, then spell." mascot="🐝" />
+
+      {/* Sub-header: back + score chip */}
+      <div className="max-w-3xl mx-auto px-4 pt-4 flex items-center justify-between">
+        <button
+          onClick={() => router.push("/student/home")}
+          className="flex items-center gap-2 text-sm font-semibold text-gray-600 hover:opacity-80 transition-opacity"
+        >
+          <ArrowLeft size={16} />
+          Back
+        </button>
+        <div className="bg-gradient-to-br from-amber-200 to-amber-300 text-amber-900 px-4 py-2 rounded-2xl font-baloo font-extrabold">
+          ⭐ {score.totalPoints}
         </div>
       </div>
 
       {/* Progress bar */}
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-2xl mx-auto px-4 py-4">
+      <div className="bg-white border-b border-gray-200 mt-3">
+        <div className="max-w-3xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between mb-2">
             <p className="text-sm font-semibold text-gray-700">
               Word {currentWordIndex + 1} of {words.length}
@@ -281,45 +276,47 @@ export default function SpellingBeePage() {
       </div>
 
       {/* Game area */}
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="max-w-3xl mx-auto px-4 py-8">
         <motion.div
           key={currentWordIndex}
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="space-y-6"
         >
-          {/* Word display (hidden until revealed) */}
-          <div className="text-center">
-            <p className="text-sm font-semibold text-gray-600 mb-2 uppercase tracking-widest">
-              Hear & Spell
-            </p>
-            <div className="text-6xl font-bold text-gray-300 tracking-widest">
-              {currentWord.word
-                .split("")
-                .map((_, _i) => "_")
-                .join(" ")}
+          {/* Word/blanks card */}
+          <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
+            {/* Word display (hidden until revealed) */}
+            <div className="text-center mb-6">
+              <p className="text-sm font-semibold text-gray-600 mb-2 uppercase tracking-widest">
+                Hear & Spell
+              </p>
+              <div className="text-3xl sm:text-4xl font-bold text-gray-300 tracking-widest">
+                {currentWord.word
+                  .split("")
+                  .map((_, _i) => "_")
+                  .join(" ")}
+              </div>
             </div>
-          </div>
 
-          {/* Emoji hint */}
-          <div className="text-center">
-            <p className="text-sm font-semibold text-gray-600 mb-2">Hint</p>
-            <div className="text-6xl">{currentWord.emoji}</div>
+            {/* Emoji hint */}
+            <div className="text-center">
+              <p className="text-sm font-semibold text-gray-600 mb-2">Hint</p>
+              <div className="text-6xl">{currentWord.emoji}</div>
+            </div>
           </div>
 
           {/* Speak button */}
           <div className="flex justify-center">
             <motion.button
               whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileTap={{ scale: 0.95, translateY: "4px" }}
               onClick={() => speakWord(currentWord.word)}
               disabled={isSpeaking}
               className={[
-                "flex items-center gap-2 px-6 py-3 rounded-xl font-semibold text-white",
-                "transition-all",
+                "flex items-center gap-2 px-6 py-4 rounded-2xl font-baloo font-extrabold text-lg transition-all",
                 isSpeaking
-                  ? "bg-gray-400 cursor-not-allowed"
-                  : "bg-blue-500 hover:bg-blue-600 active:bg-blue-700",
+                  ? "bg-gray-300 text-gray-500 cursor-not-allowed shadow-none"
+                  : "bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-[0_6px_0_#b45309,0_8px_18px_rgba(245,158,11,0.3)] active:translate-y-1 active:shadow-[0_2px_0_#b45309]",
               ].join(" ")}
             >
               <Volume2 size={20} />
@@ -341,11 +338,11 @@ export default function SpellingBeePage() {
               autoFocus
               placeholder="Type here..."
               className={[
-                "w-full px-4 py-3 rounded-xl border-2 text-lg font-semibold",
+                "w-full rounded-2xl border-2 border-amber-200 px-4 py-3 text-lg font-baloo font-extrabold",
                 "focus:outline-none focus:ring-2 focus:ring-amber-400 transition-all",
                 gameState === "playing"
-                  ? "border-gray-300 bg-white text-gray-900"
-                  : "border-gray-200 bg-gray-100 text-gray-500 cursor-not-allowed",
+                  ? "bg-white text-gray-900"
+                  : "bg-gray-100 text-gray-500 cursor-not-allowed",
               ].join(" ")}
             />
           </div>
@@ -372,17 +369,15 @@ export default function SpellingBeePage() {
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               className={[
-                "p-4 rounded-xl text-center font-semibold text-white",
-                resultMessage.includes("Perfect")
-                  ? "bg-green-500"
-                  : resultMessage.includes("Great")
-                  ? "bg-green-500"
-                  : "bg-red-500",
+                "bg-white rounded-3xl p-6 shadow-[0_24px_48px_rgba(0,0,0,0.18)] text-center font-baloo font-extrabold text-lg",
+                resultMessage.includes("Perfect") || resultMessage.includes("Great")
+                  ? "text-green-700"
+                  : "text-red-600",
               ].join(" ")}
             >
               {resultMessage}
               {pointsAwarded > 0 && (
-                <p className="text-sm mt-2">+{pointsAwarded} stars</p>
+                <p className="text-sm font-semibold mt-2 text-gray-500">+{pointsAwarded} stars</p>
               )}
             </motion.div>
           )}

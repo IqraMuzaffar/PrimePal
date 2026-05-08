@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useAchievements, type AchievementProgress } from "@/lib/hooks/queries";
+import PageHero from "@/components/student/PageHero";
+import SectionHeading from "@/components/student/SectionHeading";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -68,14 +70,10 @@ function AchievementCard({ achievement }: { achievement: Achievement }) {
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className={[
-          "flex flex-col items-center gap-2 p-4 rounded-2xl border-2 shadow-md",
-          style.border,
-          style.bg,
-        ].join(" ")}
+        className="bg-white rounded-3xl p-5 border-2 border-amber-200 shadow-[0_8px_24px_rgba(251,191,36,0.12)] flex flex-col items-center gap-2 transition-transform duration-200 hover:-translate-y-1"
       >
-        <span className="text-4xl">{achievement.icon}</span>
-        <p className="text-sm font-extrabold text-slate-800 text-center leading-tight">
+        <span className="text-5xl sm:text-6xl">{achievement.icon}</span>
+        <p className="font-baloo font-extrabold text-base text-center">
           {achievement.name}
         </p>
         <p className="text-xs text-slate-500 text-center leading-tight">
@@ -109,10 +107,10 @@ function AchievementCard({ achievement }: { achievement: Achievement }) {
     <motion.div
       initial={{ opacity: 0, scale: 0.9 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="flex flex-col items-center gap-2 p-4 rounded-2xl border-2 border-slate-200 bg-slate-50 opacity-60"
+      className="bg-slate-50 rounded-3xl p-5 border-2 border-slate-200 opacity-70 flex flex-col items-center gap-2"
     >
-      <span className="text-4xl grayscale">{achievement.icon}</span>
-      <p className="text-sm font-bold text-slate-400 text-center leading-tight">
+      <span className="text-5xl sm:text-6xl grayscale">{achievement.icon}</span>
+      <p className="font-baloo font-extrabold text-base text-center text-slate-400">
         {achievement.name}
       </p>
       <p className="text-xs text-slate-400 text-center leading-tight">
@@ -126,7 +124,7 @@ function AchievementCard({ achievement }: { achievement: Achievement }) {
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-        <p className="text-[10px] text-slate-400 text-center mt-1 font-semibold">
+        <p className="bg-slate-200 text-slate-600 px-2.5 py-0.5 rounded-full text-xs font-baloo font-extrabold text-center mt-1 inline-block">
           {achievement.current_progress} / {achievement.threshold_value}
         </p>
       </div>
@@ -150,16 +148,11 @@ export default function AchievementsPage() {
   }
 
   return (
-    <div className="max-w-md mx-auto space-y-6 pb-10">
-      <div className="text-center">
-        <h1 className="text-2xl font-extrabold text-slate-800">Your Badges</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Complete missions and earn points to unlock badges!
-        </p>
-      </div>
+    <div className="space-y-6 pb-10">
+      <PageHero label="YOUR BADGES" name="Trophy Cabinet" subtitle="Collect them all!" mascot="🏆" />
 
       {loading ? (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <AchievementSkeleton key={i} />
           ))}
@@ -169,10 +162,8 @@ export default function AchievementsPage() {
           {/* Unlocked achievements */}
           {unlocked.length > 0 && (
             <section>
-              <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3">
-                Earned ({unlocked.length})
-              </h2>
-              <div className="grid grid-cols-2 gap-3">
+              <SectionHeading icon="✨" title="Earned" tone="amber" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                 {unlocked.map((a) => (
                   <AchievementCard key={a.id} achievement={a} />
                 ))}
@@ -183,10 +174,8 @@ export default function AchievementsPage() {
           {/* Locked achievements */}
           {locked.length > 0 && (
             <section>
-              <h2 className="text-xs font-extrabold text-slate-400 uppercase tracking-wider mb-3">
-                Keep Going! ({locked.length} left)
-              </h2>
-              <div className="grid grid-cols-2 gap-3">
+              <SectionHeading icon="🔒" title="Coming Up" tone="violet" />
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                 {locked.map((a) => (
                   <AchievementCard key={a.id} achievement={a} />
                 ))}

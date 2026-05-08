@@ -208,7 +208,7 @@ export default function EvaluationPage() {
   const allAnswered = questions.every((q) => answers.has(q.id));
 
   return (
-    <div className="max-w-lg mx-auto py-6">
+    <div className="max-w-3xl mx-auto py-6">
       {/* Progress bar */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-2">
@@ -219,9 +219,9 @@ export default function EvaluationPage() {
             Question {currentIdx + 1} of {questions.length}
           </span>
         </div>
-        <div className="w-full bg-slate-200 rounded-full h-2.5">
+        <div className="w-full h-3 rounded-full bg-violet-100 overflow-hidden">
           <div
-            className="bg-indigo-600 h-2.5 rounded-full transition-all duration-300"
+            className="bg-gradient-to-r from-violet-400 to-pink-400 h-full rounded-full transition-all duration-500"
             style={{
               width: `${((currentIdx + 1) / questions.length) * 100}%`,
             }}
@@ -230,15 +230,11 @@ export default function EvaluationPage() {
       </div>
 
       {/* Question card */}
-      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
         {/* Section badge */}
         <div className="flex items-center gap-2 mb-4">
           <span
-            className={`text-xs font-bold px-2.5 py-1 rounded-full ${
-              currentQuestion.section === "psychometric"
-                ? "bg-purple-100 text-purple-700"
-                : "bg-blue-100 text-blue-700"
-            }`}
+            className="inline-flex items-center gap-1.5 bg-gradient-to-br from-violet-200 to-violet-300 text-violet-900 px-3 py-1 rounded-full text-xs font-baloo font-extrabold"
           >
             {currentQuestion.section === "psychometric"
               ? "How You Feel"
@@ -250,7 +246,7 @@ export default function EvaluationPage() {
         </div>
 
         {/* Question text */}
-        <h2 className="text-lg font-bold text-slate-800 mb-2">
+        <h2 className="text-xl sm:text-2xl font-baloo font-extrabold text-slate-900 leading-snug mb-2">
           {currentQuestion.question_text}
         </h2>
         {currentQuestion.question_text_ur && (
@@ -316,14 +312,14 @@ export default function EvaluationPage() {
                         : undefined
                     )
                   }
-                  className={`flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all duration-150 min-w-[90px] ${
+                  className={`flex flex-col items-center gap-1.5 p-4 rounded-2xl border-2 transition-all duration-150 min-w-[90px] ${
                     isSelected
-                      ? "border-indigo-500 bg-indigo-50 shadow-md scale-105"
-                      : "border-slate-200 bg-white hover:border-indigo-300 hover:bg-indigo-50"
+                      ? "border-violet-500 bg-violet-50 shadow-md scale-105"
+                      : "border-slate-200 bg-white hover:border-violet-300 hover:bg-violet-50 active:translate-y-1"
                   }`}
                 >
-                  <span className="text-4xl">{opt.emoji}</span>
-                  <span className="text-sm font-medium text-slate-700">
+                  <span className="text-4xl sm:text-5xl">{opt.emoji}</span>
+                  <span className="font-baloo font-extrabold text-sm text-slate-700">
                     {opt.label}
                   </span>
                 </button>
@@ -352,7 +348,7 @@ export default function EvaluationPage() {
         <button
           onClick={goPrev}
           disabled={currentIdx === 0}
-          className="px-4 py-2 rounded-xl text-sm font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+          className="bg-slate-200 text-slate-700 shadow-[0_3px_0_#94a3b8] rounded-2xl px-5 py-3 font-baloo font-extrabold disabled:opacity-30 disabled:cursor-not-allowed"
         >
           Back
         </button>
@@ -361,9 +357,8 @@ export default function EvaluationPage() {
           <button
             onClick={handleSubmit}
             disabled={!allAnswered || submitting}
-            className="px-6 py-2.5 rounded-xl text-sm font-bold bg-emerald-600 text-white
-                       shadow-[0_3px_0_#047857] hover:brightness-110
-                       active:translate-y-[3px] active:shadow-none
+            className="bg-gradient-to-br from-emerald-400 to-emerald-500 text-white shadow-[0_3px_0_#065f46] rounded-2xl px-5 py-3 font-baloo font-extrabold
+                       hover:brightness-110 active:translate-y-[3px] active:shadow-none
                        transition-all duration-100
                        disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:active:translate-y-0"
           >
@@ -373,9 +368,8 @@ export default function EvaluationPage() {
           <button
             onClick={goNext}
             disabled={!selectedAnswer}
-            className="px-6 py-2.5 rounded-xl text-sm font-bold bg-indigo-600 text-white
-                       shadow-[0_3px_0_#3730a3] hover:brightness-110
-                       active:translate-y-[3px] active:shadow-none
+            className="bg-gradient-to-br from-violet-400 to-violet-500 text-white shadow-[0_3px_0_#5b21b6] rounded-2xl px-5 py-3 font-baloo font-extrabold
+                       hover:brightness-110 active:translate-y-[3px] active:shadow-none
                        transition-all duration-100
                        disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none disabled:active:translate-y-0"
           >

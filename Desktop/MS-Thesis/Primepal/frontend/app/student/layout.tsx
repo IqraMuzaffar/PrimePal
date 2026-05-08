@@ -72,22 +72,22 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="min-h-screen bg-cream font-nunito">
+    <div className="min-h-screen bg-student-bg font-nunito">
       <OfflineBanner />
 
       {/* ── Navbar ── */}
-      <nav className="sticky top-0 z-50 bg-amber-950 shadow-[0_3px_16px_rgba(0,0,0,0.25)]">
-        <div className="flex items-center justify-between px-4 lg:px-6 h-14 max-w-5xl mx-auto">
+      <nav className="sticky top-0 z-50 bg-white border-b border-slate-100 shadow-[0_2px_12px_rgba(15,23,42,0.04)]">
+        <div className="flex items-center gap-6 px-4 lg:px-6 min-h-[72px] sm:min-h-[88px] max-w-6xl mx-auto">
           {/* Logo */}
-          <Link href="/student/home" className="flex items-center gap-2 shrink-0">
-            <span className="text-2xl animate-floatUp">⭐</span>
-            <span className="font-baloo font-extrabold text-xl text-amber-50 tracking-tight hidden sm:inline">
+          <Link href="/student/home" className="flex items-center gap-2.5 shrink-0">
+            <span className="text-3xl sm:text-4xl animate-spinSlow">⭐</span>
+            <span className="font-baloo font-extrabold text-xl sm:text-2xl text-slate-900 tracking-tight hidden sm:inline">
               PrimePal
             </span>
           </Link>
 
-          {/* Desktop nav */}
-          <div className="hidden md:flex items-center gap-1">
+          {/* Desktop nav (centered) */}
+          <div className="hidden md:flex items-center gap-1.5 flex-1 justify-center">
             {NAV_LINKS.map(({ href, label, icon }) => {
               const active = pathname === href || pathname.startsWith(href + "/");
               return (
@@ -97,13 +97,22 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
                   onMouseEnter={() => handlePrefetch(href)}
                   onFocus={() => handlePrefetch(href)}
                   className={[
-                    "flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-sm font-baloo font-bold transition-all duration-150",
+                    "flex items-center gap-2 px-4 lg:px-5 py-3 rounded-2xl",
+                    "font-baloo font-extrabold text-base lg:text-lg",
+                    "transition-all duration-150",
                     active
-                      ? "bg-amber-400 text-amber-950 shadow-[0_3px_10px_rgba(251,191,36,0.4)]"
-                      : "text-amber-100/90 hover:bg-white/10",
+                      ? "bg-pill-active text-pink-900 shadow-[0_4px_14px_rgba(236,72,153,0.18)]"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-50 hover:-translate-y-0.5",
                   ].join(" ")}
                 >
-                  <span className="text-base">{icon}</span>
+                  <span
+                    className={[
+                      "text-xl lg:text-2xl",
+                      active ? "animate-bounceSoft" : "",
+                    ].join(" ")}
+                  >
+                    {icon}
+                  </span>
                   <span>{label}</span>
                 </Link>
               );
@@ -114,8 +123,8 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2 shrink-0">
             {loading && (
               <div className="flex items-center gap-2 animate-pulse">
-                <div className="w-8 h-8 rounded-full bg-white/20" />
-                <div className="h-5 w-14 rounded-full bg-white/20" />
+                <div className="w-9 h-9 rounded-2xl bg-slate-200" />
+                <div className="h-9 w-16 rounded-2xl bg-slate-200" />
               </div>
             )}
 
@@ -125,17 +134,19 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
                   currentStreak={streak?.current_streak ?? 0}
                   longestStreak={streak?.longest_streak ?? 0}
                 />
-                <div className="flex items-center gap-1.5 bg-white/12 border border-amber-400/40 rounded-full px-3 py-1">
-                  <span className="text-sm">⭐</span>
-                  <span className="font-baloo font-bold text-sm text-amber-50">{profile.points}</span>
+                <div className="flex items-center gap-1.5 bg-gradient-to-br from-amber-200 to-amber-300 rounded-2xl px-3 lg:px-4 py-2.5 shadow-[0_4px_10px_rgba(245,158,11,0.15)]">
+                  <span className="text-base lg:text-lg">⭐</span>
+                  <span className="font-baloo font-extrabold text-sm lg:text-base text-amber-900">
+                    {profile.points}
+                  </span>
                 </div>
               </>
             )}
 
             <button
               onClick={handleLogout}
-              className="bg-amber-400/20 border border-amber-400/30 text-amber-50 text-xs font-baloo font-bold px-3 py-1.5 rounded-full
-                         hover:bg-amber-400/30 transition-all duration-150"
+              className="bg-gradient-to-br from-red-200 to-red-300 text-red-900 text-xs lg:text-sm font-baloo font-extrabold px-3 lg:px-4 py-2.5 rounded-2xl
+                         hover:from-red-300 hover:to-red-400 transition-all duration-150 shadow-[0_4px_10px_rgba(239,68,68,0.15)]"
               aria-label="Logout"
             >
               Out 👋
@@ -147,16 +158,16 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
               className="md:hidden flex flex-col gap-1 p-1.5 ml-1"
               aria-label="Toggle menu"
             >
-              <span className="w-5 h-0.5 bg-amber-100 rounded-full" />
-              <span className="w-5 h-0.5 bg-amber-100 rounded-full" />
-              <span className="w-5 h-0.5 bg-amber-100 rounded-full" />
+              <span className="w-5 h-0.5 bg-slate-700 rounded-full" />
+              <span className="w-5 h-0.5 bg-slate-700 rounded-full" />
+              <span className="w-5 h-0.5 bg-slate-700 rounded-full" />
             </button>
           </div>
         </div>
 
         {/* Mobile nav dropdown */}
         {mobileOpen && (
-          <div className="md:hidden bg-amber-900/95 border-t border-amber-800 px-4 pb-3 pt-2">
+          <div className="md:hidden bg-white border-t border-slate-100 px-4 pb-3 pt-2">
             <div className="flex flex-wrap gap-2">
               {NAV_LINKS.map(({ href, label, icon }) => {
                 const active = pathname === href || pathname.startsWith(href + "/");
@@ -166,10 +177,10 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
                     href={href}
                     onClick={() => setMobileOpen(false)}
                     className={[
-                      "flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-baloo font-bold transition-all",
+                      "flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-baloo font-extrabold transition-all",
                       active
-                        ? "bg-amber-400 text-amber-950"
-                        : "text-amber-100 hover:bg-white/10",
+                        ? "bg-pill-active text-pink-900"
+                        : "text-slate-700 hover:bg-slate-50",
                     ].join(" ")}
                   >
                     <span>{icon}</span>
@@ -183,7 +194,9 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
       </nav>
 
       {/* ── Main content ── */}
-      <main className="px-4 lg:px-6 py-6 max-w-5xl mx-auto">{children}</main>
+      <main className="px-4 sm:px-6 lg:px-10 py-6 sm:py-8 max-w-6xl mx-auto">
+        {children}
+      </main>
     </div>
   );
 }

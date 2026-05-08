@@ -100,10 +100,6 @@ export default function ChatPage() {
     setPhase("thinking");
 
     const tutorMsgId = nextId.current++;
-    setMessages((prev) => [
-      ...prev,
-      { id: tutorMsgId, role: "tutor", text: "" },
-    ]);
 
     const BASE_URL =
       process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
@@ -153,13 +149,20 @@ export default function ChatPage() {
             const data = JSON.parse(line.slice(6));
             if (data.type === "token") {
               setPhase("streaming");
-              setMessages((prev) =>
-                prev.map((msg) =>
-                  msg.id === tutorMsgId
-                    ? { ...msg, text: msg.text + data.content }
-                    : msg
-                )
-              );
+              setMessages((prev) => {
+                const existing = prev.find((msg) => msg.id === tutorMsgId);
+                if (existing) {
+                  // Update existing message
+                  return prev.map((msg) =>
+                    msg.id === tutorMsgId
+                      ? { ...msg, text: msg.text + data.content }
+                      : msg
+                  );
+                } else {
+                  // Create new tutor message on first token
+                  return [...prev, { id: tutorMsgId, role: "tutor", text: data.content }];
+                }
+              });
             } else if (data.type === "error") {
               setMessages((prev) =>
                 prev.map((msg) =>
@@ -244,13 +247,16 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100vh-64px)] bg-yellow-50">
+    <div className="flex flex-col h-[calc(100vh-72px)] sm:h-[calc(100vh-88px)] bg-student-bg">
       {/* Header */}
-      <div className="py-3 px-4 border-b border-yellow-200 flex items-center gap-2">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-orange-400 flex items-center justify-center text-white text-sm font-bold shadow-sm">
-          P
+      <div className="flex items-center gap-3 px-4 sm:px-6 py-4 bg-white border-b border-slate-100">
+        <div className="w-12 h-12 rounded-2xl bg-card-pink flex items-center justify-center text-2xl shadow-[0_4px_12px_rgba(236,72,153,0.25)]">
+          🌟
         </div>
-        <span className="text-lg font-bold text-gray-700">Chat with PrimePal</span>
+        <div>
+          <p className="font-baloo font-extrabold text-lg text-slate-900">PrimePal</p>
+          <p className="font-nunito font-semibold text-xs text-slate-500">Your English Tutor</p>
+        </div>
       </div>
 
       {/* Message list */}
@@ -278,8 +284,8 @@ export default function ChatPage() {
             <div
               className={
                 msg.role === "tutor"
-                  ? "bg-white border-2 border-yellow-200 rounded-2xl rounded-tl-sm px-4 py-3 max-w-[85%] self-start shadow-sm text-base leading-relaxed text-gray-800"
-                  : "bg-orange-400 text-white rounded-2xl rounded-tr-sm px-4 py-3 max-w-[85%] self-end shadow-sm text-base leading-relaxed"
+                  ? "bg-white border border-violet-100 text-slate-900 rounded-3xl rounded-tl-md px-4 py-3 shadow-[0_2px_8px_rgba(15,23,42,0.04)] max-w-[85%] self-start text-sm sm:text-base font-nunito font-semibold leading-relaxed"
+                  : "bg-gradient-to-br from-pink-200 to-pink-300 text-pink-950 rounded-3xl rounded-tr-md px-4 py-3 max-w-[85%] self-end text-sm sm:text-base font-nunito font-semibold leading-relaxed"
               }
             >
               {msg.role === "tutor" ? (
@@ -350,7 +356,7 @@ export default function ChatPage() {
       </div>
 
       {/* Input area */}
-      <div className="border-t border-yellow-200 bg-white px-4 py-3 flex gap-2 items-end">
+      <div className="px-4 sm:px-6 py-4 bg-white border-t border-slate-100 flex gap-2 items-end">
         <textarea
           ref={textareaRef}
           rows={1}
@@ -359,7 +365,7 @@ export default function ChatPage() {
           onKeyDown={handleKeyDown}
           disabled={phase !== "idle"}
           placeholder="Ask me anything in English or Roman Urdu!"
-          className="flex-1 resize-none rounded-2xl border-2 border-yellow-300 px-4 py-2 text-base focus:outline-none focus:border-orange-400 disabled:opacity-50 transition-all leading-6"
+          className="flex-1 resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm sm:text-base focus:outline-none focus:border-pink-400 disabled:opacity-50 transition-all leading-6"
           style={{ minHeight: "40px", maxHeight: "88px" }}
           aria-label="Chat message input"
         />
@@ -368,7 +374,7 @@ export default function ChatPage() {
           disabled={phase !== "idle" || input.trim().length === 0}
           whileHover={phase === "idle" && input.trim().length > 0 ? { scale: 1.05 } : undefined}
           whileTap={phase === "idle" && input.trim().length > 0 ? { scale: 0.95 } : undefined}
-          className="bg-orange-500 hover:bg-orange-600 text-white font-bold px-5 py-2 rounded-2xl disabled:opacity-50 transition-all whitespace-nowrap"
+          className="rounded-2xl bg-card-pink text-white px-5 py-3 font-baloo font-extrabold shadow-[0_6px_14px_rgba(219,39,119,0.25)] disabled:opacity-50 transition-all whitespace-nowrap"
           aria-label="Send message"
         >
           {phase !== "idle" ? (

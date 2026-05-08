@@ -4,6 +4,8 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Target, Star, CheckCircle } from "lucide-react";
 import { useMyScores } from "@/lib/hooks/queries";
+import PageHero from "@/components/student/PageHero";
+import SectionHeading from "@/components/student/SectionHeading";
 
 // ── Pillar Config ────────────────────────────────────────────────────────────
 
@@ -69,17 +71,15 @@ export default function ScoresPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">
-          My Scores 📊
-        </h1>
+      {/* Hero */}
+      <PageHero label="MY SCORES" name="Your Progress" subtitle="See how far you've come!" mascot="📊" />
 
-        {/* Date filter */}
+      {/* Time filter */}
+      <div className="flex justify-end">
         <select
           value={timeRange}
           onChange={(e) => setTimeRange(e.target.value)}
-          className="px-4 py-2 rounded-xl border-2 border-slate-200 bg-white font-semibold text-sm
+          className="bg-white rounded-2xl border-2 border-slate-200 px-4 py-2 font-baloo font-extrabold text-sm
                      focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-indigo-400
                      transition-all"
         >
@@ -116,6 +116,9 @@ export default function ScoresPage() {
             </div>
           ) : (
             <>
+              {/* At a Glance */}
+              <SectionHeading icon="📈" title="At a Glance" tone="blue" />
+
               {/* Stats Cards */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {/* Total Questions */}
@@ -123,11 +126,11 @@ export default function ScoresPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0 }}
-                  className="bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl shadow-lg p-6 text-white"
+                  className="bg-white rounded-3xl p-6 border-2 border-slate-100 shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition-transform duration-200 hover:-translate-y-1"
                 >
-                  <Target className="w-12 h-12 mb-3 opacity-90" />
-                  <p className="text-4xl font-extrabold mb-1">{formatNumber(data.total_questions)}</p>
-                  <p className="text-sm font-semibold opacity-90">Total Questions</p>
+                  <Target className="w-12 h-12 mb-3 text-indigo-500" />
+                  <p className="text-4xl sm:text-5xl font-baloo font-extrabold text-slate-900 mb-1">{formatNumber(data.total_questions)}</p>
+                  <p className="text-sm font-semibold text-slate-500">Total Questions</p>
                 </motion.div>
 
                 {/* Stars Earned */}
@@ -135,11 +138,11 @@ export default function ScoresPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl shadow-lg p-6 text-white"
+                  className="bg-white rounded-3xl p-6 border-2 border-slate-100 shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition-transform duration-200 hover:-translate-y-1"
                 >
-                  <Star className="w-12 h-12 mb-3 opacity-90 fill-current" />
-                  <p className="text-4xl font-extrabold mb-1">{formatNumber(data.total_points)}</p>
-                  <p className="text-sm font-semibold opacity-90">Stars Earned</p>
+                  <Star className="w-12 h-12 mb-3 text-amber-400 fill-current" />
+                  <p className="text-4xl sm:text-5xl font-baloo font-extrabold text-slate-900 mb-1">{formatNumber(data.total_points)}</p>
+                  <p className="text-sm font-semibold text-slate-500">Stars Earned</p>
                 </motion.div>
 
                 {/* Accuracy */}
@@ -147,59 +150,63 @@ export default function ScoresPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className={`bg-gradient-to-br ${getAccuracyBg(data.overall_accuracy_pct)} rounded-2xl shadow-lg p-6 text-white`}
+                  className="bg-white rounded-3xl p-6 border-2 border-slate-100 shadow-[0_8px_24px_rgba(15,23,42,0.06)] transition-transform duration-200 hover:-translate-y-1"
                 >
-                  <CheckCircle className="w-12 h-12 mb-3 opacity-90" />
-                  <p className="text-4xl font-extrabold mb-1">{data.overall_accuracy_pct}%</p>
-                  <p className="text-sm font-semibold opacity-90">Accuracy</p>
+                  <CheckCircle className={`w-12 h-12 mb-3 ${getAccuracyColor(data.overall_accuracy_pct)}`} />
+                  <p className={`text-4xl sm:text-5xl font-baloo font-extrabold text-slate-900 mb-1`}>{data.overall_accuracy_pct}%</p>
+                  <p className="text-sm font-semibold text-slate-500">Accuracy</p>
                 </motion.div>
               </div>
 
-              {/* Pillar Breakdown */}
+              {/* By Pillar */}
+              <SectionHeading icon="🎯" title="By Pillar" tone="violet" />
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3 }}
-                className="bg-white rounded-2xl border-2 border-slate-200 shadow-sm p-6"
               >
-                <h2 className="text-xl font-extrabold text-slate-800 mb-4">
-                  My Skills
-                </h2>
+                {data.pillar_scores.map((pillar) => {
+                  const config = PILLAR_CONFIG[pillar.pillar];
+                  if (!config) return null;
 
-                <div className="space-y-3">
-                  {data.pillar_scores.map((pillar) => {
-                    const config = PILLAR_CONFIG[pillar.pillar];
-                    if (!config) return null;
+                  const borderColor =
+                    pillar.pillar === "reading"
+                      ? "border-l-blue-400"
+                      : pillar.pillar === "writing"
+                      ? "border-l-violet-400"
+                      : pillar.pillar === "listening"
+                      ? "border-l-cyan-400"
+                      : "border-l-rose-400";
 
-                    return (
-                      <div
-                        key={pillar.pillar}
-                        className={`rounded-xl border-2 p-4 transition-all hover:shadow-md ${config.bg}`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="text-3xl">{config.icon}</span>
-                            <div>
-                              <p className={`font-extrabold text-lg ${config.color}`}>
-                                {config.label}
-                              </p>
-                              <p className="text-sm text-slate-600 font-medium">
-                                {pillar.correct} / {pillar.total} correct
-                              </p>
-                            </div>
-                          </div>
-
-                          <div className="text-right">
-                            <p className={`text-2xl font-extrabold ${getAccuracyColor(pillar.accuracy_pct)}`}>
-                              {pillar.accuracy_pct}%
+                  return (
+                    <div
+                      key={pillar.pillar}
+                      className={`bg-white border-l-4 ${borderColor} rounded-2xl px-5 py-4 mb-3 shadow-[0_4px_12px_rgba(15,23,42,0.04)] transition-all hover:shadow-md`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <span className="text-3xl">{config.icon}</span>
+                          <div>
+                            <p className={`font-extrabold text-lg ${config.color}`}>
+                              {config.label}
                             </p>
-                            <p className="text-xs text-slate-500 font-semibold">Accuracy</p>
+                            <p className="text-sm text-slate-600 font-medium">
+                              {pillar.correct} / {pillar.total} correct
+                            </p>
                           </div>
                         </div>
+
+                        <div className="text-right">
+                          <p className={`text-2xl font-extrabold ${getAccuracyColor(pillar.accuracy_pct)}`}>
+                            {pillar.accuracy_pct}%
+                          </p>
+                          <p className="text-xs text-slate-500 font-semibold">Accuracy</p>
+                        </div>
                       </div>
-                    );
-                  })}
-                </div>
+                    </div>
+                  );
+                })}
               </motion.div>
             </>
           )}

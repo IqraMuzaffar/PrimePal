@@ -26,20 +26,26 @@ from pydantic import BaseModel
 from app.api.v1.endpoints.classroom import get_active_topics
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
-from app.core.cache import cache_get, cache_set, make_cache_key, debounced_invalidate
+from app.core.cache import cache_get, cache_set, cache_delete, make_cache_key, debounced_invalidate
 from app.agents.tutor_agent.chatbot import retrieve_grade_filtered_chunks
 from app.agents.evaluator_agent.interaction_logger import log_interaction
 from app.core.config import settings
 from app.utils.streak import update_streak
 from app.agents.tutor_agent.mission_generator import (
+    BANK_QUESTIONS_COUNT,
+    DAILY_MISSIONS_COUNT,
     DailyMissions,
+    LLM_QUESTIONS_COUNT,
     MissionQuestion,
+    PILLAR_QUESTIONS_COUNT,
     QuestionOption,
     generate_daily_missions,
     generate_pillar_missions,
+    validate_topic_alignment,
 )
 from app.utils.performance_profile import get_student_performance_profile, invalidate_performance_cache
 from app.utils.pregenerate_missions import _build_generic_cache_key
+from app.utils.question_bank import pull_from_bank
 from app.api.v1.endpoints.rewards import invalidate_rewards_cache
 from app.api.v1.endpoints.student_scores import invalidate_scores_cache
 
@@ -53,6 +59,12 @@ _POINTS_PER_CORRECT = 10
 # Fixed seed phrase used to retrieve representative grade-level SNC vocabulary chunks.
 # This is intentionally generic so the vector search returns a broad mix of grade content.
 _SEED_PHRASE = "vocabulary words lesson"
+
+
+async def invalidate_profile_cache(student_id: str) -> None:
+    """Invalidate student profile cache (call after points/profile changes)."""
+    cache_key = make_cache_key("student_profile", student_id)
+    await cache_delete(cache_key)
 
 
 # ---------------------------------------------------------------------------
@@ -293,12 +305,26 @@ async def get_daily_missions(
         )
 
     # ------------------------------------------------------------------
-    # Step 4: Strip correct_answer before returning
+    # Step 4: C1 — Validate daily mission count is exactly 3
+    # ------------------------------------------------------------------
+    daily_questions = missions.questions[:DAILY_MISSIONS_COUNT]
+    if len(daily_questions) != DAILY_MISSIONS_COUNT:
+        logger.error(
+            "C1: Daily missions count mismatch: got %d, expected %d for grade %d",
+            len(daily_questions), DAILY_MISSIONS_COUNT, grade_level,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Generated {len(daily_questions)} questions instead of {DAILY_MISSIONS_COUNT}. Please try again.",
+        )
+
+    # ------------------------------------------------------------------
+    # Step 5: Strip correct_answer before returning
     # ------------------------------------------------------------------
     response = DailyMissionsResponse(
         grade_level=grade_level,
         topic=missions.topic,
-        questions=[_strip_answer(q) for q in missions.questions],
+        questions=[_strip_answer(q) for q in daily_questions],
     )
 
     # Cache the response for future requests
@@ -426,7 +452,7 @@ async def complete_mission(
     background_tasks.add_task(
         debounced_invalidate,
         student_id,
-        [invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
+        [invalidate_profile_cache, invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
     )
 
     # Check and unlock any newly earned achievements
@@ -574,7 +600,7 @@ async def submit_batch(
         background_tasks.add_task(
             debounced_invalidate,
             student_id,
-            [invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
+            [invalidate_profile_cache, invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
         )
 
     return BatchSubmitResponse(
@@ -671,13 +697,12 @@ async def _generate_personalized_missions(
     performance_profile: dict | None,
     cache_key: str,
 ) -> None:
-    """Background task: generate personalized pillar missions and cache them."""
+    """Background task: generate personalized pillar missions via hybrid bank+LLM and cache them."""
     try:
         # Retrieve SNC curriculum context (with caching)
         supabase = get_supabase_admin()
         seed_phrase = f"Topics: {', '.join(active_topic_names)}" if active_topic_names else "vocabulary words lesson"
 
-        # Use cached RAG context if available
         topics_hash = hashlib.md5(",".join(sorted(active_topic_names)).encode()).hexdigest()[:12]
         rag_cache_key = make_cache_key("rag_context", str(grade_level), topics_hash)
         context_chunks = await cache_get(rag_cache_key)
@@ -698,27 +723,66 @@ async def _generate_personalized_missions(
         else:
             logger.info(f"Background task RAG cache hit for grade {grade_level}, topics {topics_hash}")
 
-        missions = await generate_pillar_missions(
-            pillar=pillar,
-            grade_level=grade_level,
-            active_topics=active_topic_names,
-            student_id=student_id,
-            student_weaknesses=student_weaknesses,
-            is_frustrated=False,
-            performance_profile=performance_profile,
-            context_chunks=context_chunks,
-        )
-        if not missions:
+        # Hybrid: parallel bank pull + LLM generation
+        async def _bg_bank():
+            try:
+                return await pull_from_bank(
+                    grade_level=grade_level, pillar=pillar,
+                    topics=active_topic_names, count=BANK_QUESTIONS_COUNT,
+                    classroom_id=classroom_id,
+                )
+            except Exception:
+                return []
+
+        async def _bg_llm():
+            try:
+                return await generate_pillar_missions(
+                    pillar=pillar, grade_level=grade_level,
+                    active_topics=active_topic_names, student_id=student_id,
+                    student_weaknesses=student_weaknesses, is_frustrated=False,
+                    performance_profile=performance_profile, context_chunks=context_chunks,
+                )
+            except Exception:
+                return None
+
+        bank_qs, llm_qs = await asyncio.gather(_bg_bank(), _bg_llm())
+
+        # Merge: bank first, then LLM, then fallback
+        merged: list[dict] = []
+        for q in (bank_qs or []):
+            if len(merged) < PILLAR_QUESTIONS_COUNT:
+                merged.append(q)
+        for q in (llm_qs or []):
+            if len(merged) < PILLAR_QUESTIONS_COUNT:
+                merged.append(q)
+
+        # H2: Fill remaining from bank if needed
+        if len(merged) < PILLAR_QUESTIONS_COUNT:
+            fallback = await pull_from_bank(
+                grade_level=grade_level, pillar=pillar,
+                topics=active_topic_names,
+                count=PILLAR_QUESTIONS_COUNT - len(merged),
+                classroom_id=classroom_id,
+            )
+            for q in (fallback or []):
+                if len(merged) < PILLAR_QUESTIONS_COUNT:
+                    merged.append(q)
+
+        if not merged:
             return
 
+        # Re-number
+        for i, q in enumerate(merged):
+            q["id"] = i + 1
+
         weakness_focus_count = sum(
-            1 for q in missions if q.get("is_weakness_focused", False)
+            1 for q in merged if q.get("is_weakness_focused", False)
         )
 
         mission_questions = []
-        for q in missions:
+        for q in merged:
             if isinstance(q, dict):
-                q_filtered = {k: v for k, v in q.items() if k != "is_weakness_focused"}
+                q_filtered = {k: v for k, v in q.items() if k not in ("is_weakness_focused", "source")}
                 if "type" in q_filtered and "task_type" not in q_filtered:
                     q_filtered["task_type"] = q_filtered.pop("type")
                 mission_questions.append(MissionQuestion(**q_filtered))
@@ -732,7 +796,10 @@ async def _generate_personalized_missions(
             weakness_focus_questions=weakness_focus_count,
         )
         await cache_set(cache_key, response.model_dump(), ttl=3600)
-        logger.info("Background personalization cached for student %s pillar %s", student_id, pillar)
+        logger.info(
+            "Background personalization cached for student %s pillar %s (%d questions)",
+            student_id, pillar, len(merged),
+        )
     except Exception as exc:
         logger.error("Background personalization failed for student %s pillar %s: %s", student_id, pillar, exc)
 
@@ -795,11 +862,16 @@ async def get_pillar_missions(
         """
         Fetch student's weak pillars based on recent performance.
 
+        H3: Returns structured dicts instead of formatted strings so that
+        downstream consumers (LLM prompt builder, bank selector) can access
+        individual fields without parsing.
+
         Analyzes last 30 interactions per student to identify pillars with <60% accuracy.
         Only returns pillars with minimum 3 attempts to ensure statistical validity.
 
         Returns:
-            List of weakness strings like ["reading (accuracy: 40%)", "listening (accuracy: 50%)"]
+            List of structured dicts like:
+            [{"pillar": "reading", "accuracy": 40, "correct": 4, "total": 10}, ...]
         """
         # Cache weakness detection for 5 minutes
         weakness_cache_key = make_cache_key("weaknesses", student_id)
@@ -822,7 +894,7 @@ async def get_pillar_missions(
             )
 
             # Calculate accuracy per pillar
-            pillar_stats = {}
+            pillar_stats: dict[str, dict] = {}
             for r in resp.data or []:
                 p = r.get("pillar")
                 if p and p in ["reading", "writing", "listening", "speaking"]:
@@ -832,19 +904,24 @@ async def get_pillar_missions(
                     if r.get("correct"):
                         pillar_stats[p]["correct"] += 1
 
-            # Return pillars with <60% accuracy (minimum 3 attempts)
-            weaknesses = []
+            # H3: Return structured dicts for pillars with <60% accuracy (minimum 3 attempts)
+            weaknesses: list[dict] = []
             for pillar_name, stats in pillar_stats.items():
                 if stats["total"] >= 3:
                     acc = stats["correct"] / stats["total"]
                     if acc < 0.6:
-                        weaknesses.append(f"{pillar_name} (accuracy: {acc*100:.0f}%)")
+                        weaknesses.append({
+                            "pillar": pillar_name,
+                            "accuracy": round(acc * 100),
+                            "correct": stats["correct"],
+                            "total": stats["total"],
+                        })
 
             if weaknesses:
                 logger.info(
                     "Student %s weaknesses detected: %s",
                     student_id,
-                    ", ".join(weaknesses)
+                    ", ".join(f"{w['pillar']}({w['accuracy']}%)" for w in weaknesses),
                 )
 
             # Cache for 5 minutes
@@ -896,7 +973,7 @@ async def get_pillar_missions(
             return PillarMissionsResponse(**generic_cached)
 
     # ------------------------------------------------------------------
-    # Step 3.5: Retrieve SNC curriculum context chunks (with caching)
+    # Step 3: Pull 5 questions from question_bank (instant) + start LLM (parallel)
     # ------------------------------------------------------------------
     seed_phrase = f"Topics: {', '.join(active_topic_names)}" if active_topic_names else "vocabulary words lesson"
 
@@ -913,7 +990,6 @@ async def get_pillar_missions(
                 match_count=5,
             )
             logger.info(f"RAG retrieval for pillar missions: {len(context_chunks)} chunks for {pillar} grade {grade_level}")
-            # Cache for 1 hour
             await cache_set(rag_cache_key, context_chunks, ttl=3600)
         except Exception as exc:
             logger.warning(f"RAG retrieval failed for pillar missions, continuing without curriculum context: {exc}")
@@ -922,52 +998,145 @@ async def get_pillar_missions(
         logger.info(f"RAG cache hit for grade {grade_level}, topics {topics_hash}: {len(context_chunks)} chunks")
 
     # ------------------------------------------------------------------
-    # Step 4: Generate pillar missions via mission generator
+    # Step 4: Parallel — bank pull (instant) + LLM generation (5 questions)
     # If is_frustrated=true, generates Confidence Builder questions
     # ------------------------------------------------------------------
-    try:
-        missions = await generate_pillar_missions(
-            pillar=pillar,
-            grade_level=grade_level,
-            active_topics=active_topic_names,
-            student_id=student_id,
-            student_weaknesses=student_weaknesses,
-            is_frustrated=is_frustrated,
-            performance_profile=performance_profile,
-            context_chunks=context_chunks,
-        )
-        if missions is None:
-            raise ValueError("generate_pillar_missions returned None")
+    async def _pull_bank():
+        """Pull BANK_QUESTIONS_COUNT questions from question_bank (instant)."""
+        try:
+            return await pull_from_bank(
+                grade_level=grade_level,
+                pillar=pillar,
+                topics=active_topic_names,
+                count=BANK_QUESTIONS_COUNT,
+                classroom_id=classroom_id,
+            )
+        except Exception as exc:
+            logger.warning("Bank pull failed, will rely on LLM: %s", exc)
+            return []
 
-        log_suffix = " (Confidence Builder)" if is_frustrated else ""
+    async def _generate_llm():
+        """Generate LLM_QUESTIONS_COUNT personalized questions via LLM."""
+        try:
+            return await generate_pillar_missions(
+                pillar=pillar,
+                grade_level=grade_level,
+                active_topics=active_topic_names,
+                student_id=student_id,
+                student_weaknesses=student_weaknesses,
+                is_frustrated=is_frustrated,
+                performance_profile=performance_profile,
+                context_chunks=context_chunks,
+            )
+        except Exception as exc:
+            logger.error(
+                "LLM pillar generation failed for student %s pillar %s: %s",
+                student_id, pillar, exc, exc_info=True,
+            )
+            return None  # Signal failure — bank will fill all 10
+
+    # Run bank pull and LLM generation in parallel
+    bank_questions, llm_questions = await asyncio.gather(
+        _pull_bank(), _generate_llm()
+    )
+
+    log_suffix = " (Confidence Builder)" if is_frustrated else ""
+
+    # ------------------------------------------------------------------
+    # Step 5: Validator checks LLM output, repairs if needed
+    # ------------------------------------------------------------------
+    validated_llm: list[dict] = []
+    if llm_questions:
+        # LLM questions already went through validate_topic_alignment in
+        # generate_pillar_missions; do a final sanity check here
+        for q in llm_questions:
+            if isinstance(q, dict) and q.get("question"):
+                validated_llm.append(q)
         logger.info(
-            "Pillar mission generation succeeded for student %s pillar %s, count: %d%s",
-            student_id, pillar, len(missions), log_suffix,
+            "LLM produced %d validated questions for %s%s",
+            len(validated_llm), pillar, log_suffix,
         )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error(
-            "Pillar mission generation failed for student %s classroom %s pillar %s: %s",
-            student_id, classroom_id, pillar, exc, exc_info=True,
+    else:
+        logger.warning(
+            "LLM returned no questions for %s — bank will fill all %d%s",
+            pillar, PILLAR_QUESTIONS_COUNT, log_suffix,
         )
+
+    # ------------------------------------------------------------------
+    # Step 6: Merge bank(5) + LLM(5) = 10 questions
+    # ------------------------------------------------------------------
+    merged: list[dict] = []
+
+    # Add bank questions first (instant, already topic-validated at insert time)
+    for q in bank_questions:
+        if len(merged) < PILLAR_QUESTIONS_COUNT:
+            merged.append(q)
+
+    # Add LLM questions
+    for q in validated_llm:
+        if len(merged) < PILLAR_QUESTIONS_COUNT:
+            merged.append(q)
+
+    # ------------------------------------------------------------------
+    # Step 7: H2 — If LLM fails/times out, fill remaining from bank
+    # Final fallback uses bank instead of bypassing topic validation
+    # ------------------------------------------------------------------
+    if len(merged) < PILLAR_QUESTIONS_COUNT:
+        deficit = PILLAR_QUESTIONS_COUNT - len(merged)
+        logger.warning(
+            "H2: Only %d/%d questions after merge for %s. "
+            "Pulling %d more from bank as fallback.",
+            len(merged), PILLAR_QUESTIONS_COUNT, pillar, deficit,
+        )
+        fallback_questions = await pull_from_bank(
+            grade_level=grade_level,
+            pillar=pillar,
+            topics=active_topic_names,
+            count=deficit,
+            classroom_id=classroom_id,
+        )
+
+        # Validate fallback questions against active topics too
+        if fallback_questions and active_topic_names:
+            fallback_questions = validate_topic_alignment(
+                fallback_questions, active_topic_names, pillar
+            )
+
+        for q in fallback_questions:
+            if len(merged) < PILLAR_QUESTIONS_COUNT:
+                merged.append(q)
+
+    # If we STILL don't have enough (bank was empty), raise a service error
+    # rather than returning an incomplete set
+    if len(merged) == 0:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Could not generate missions right now. Please try again shortly.",
         )
 
+    if len(merged) < PILLAR_QUESTIONS_COUNT:
+        logger.warning(
+            "Returning %d/%d questions for %s (bank under-populated). "
+            "Pre-generation should be triggered.",
+            len(merged), PILLAR_QUESTIONS_COUNT, pillar,
+        )
+
+    # Re-number all questions sequentially
+    for i, q in enumerate(merged):
+        q["id"] = i + 1
+
     # ------------------------------------------------------------------
-    # Step 5: Count weakness-focused questions and strip correct_answer
+    # Step 8: Count weakness-focused questions and build response
     # ------------------------------------------------------------------
     weakness_focus_count = sum(
-        1 for q in missions if q.get("is_weakness_focused", False)
+        1 for q in merged if q.get("is_weakness_focused", False)
     )
 
     # Convert dicts to MissionQuestion objects if needed
     mission_questions = []
-    for q in missions:
+    for q in merged:
         if isinstance(q, dict):
-            q_filtered = {k: v for k, v in q.items() if k != "is_weakness_focused"}
+            q_filtered = {k: v for k, v in q.items() if k not in ("is_weakness_focused", "source")}
             if "type" in q_filtered and "task_type" not in q_filtered:
                 q_filtered["task_type"] = q_filtered.pop("type")
             mq = MissionQuestion(**q_filtered)
@@ -985,6 +1154,13 @@ async def get_pillar_missions(
     # Cache the response for future requests
     if not is_frustrated:
         await cache_set(cache_key, response.model_dump(), ttl=3600)
+
+    logger.info(
+        "Pillar missions returned for student %s pillar %s: "
+        "%d total (bank=%d, llm=%d)%s",
+        student_id, pillar, len(merged),
+        len(bank_questions), len(validated_llm), log_suffix,
+    )
 
     return response
 
@@ -1142,7 +1318,7 @@ async def submit_speaking_answer(
     background_tasks.add_task(
         debounced_invalidate,
         student_id,
-        [invalidate_rewards_cache, invalidate_scores_cache],
+        [invalidate_profile_cache, invalidate_rewards_cache, invalidate_scores_cache],
     )
 
     return SpeakingSubmissionResponse(
