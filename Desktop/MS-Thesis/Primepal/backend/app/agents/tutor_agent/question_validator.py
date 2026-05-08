@@ -111,36 +111,31 @@ def normalize_correct_answer(question: dict) -> dict:
     answer_str = str(answer).strip()
 
     if tt in OPTION_ID_ANSWER_TYPES:
-        # Check if correct_answer is already a valid option ID
         if answer_str.lower() in VALID_OPTION_IDS:
             question["correct_answer"] = answer_str.lower()
-            return question
-
-        # Not a valid ID — try to find the matching option by text
-        options_field = "image_options" if tt in ("sentence_picture_match", "listen_and_choose") else "options"
-        options = question.get(options_field) or []
-
-        matched_id = None
-        answer_lower = answer_str.lower()
-        for opt in options:
-            opt_text = (opt.get("text") or "").strip().lower()
-            opt_emoji = (opt.get("emoji") or "").strip()
-            if opt_text == answer_lower or opt_emoji == answer_str:
-                matched_id = opt.get("id", "").lower()
-                break
-
-        if matched_id and matched_id in VALID_OPTION_IDS:
-            logger.info(
-                f"Normalized correct_answer: '{answer_str}' → '{matched_id}' "
-                f"(task_type={tt}, question={question.get('question', '')[:40]})"
-            )
-            question["correct_answer"] = matched_id
         else:
-            # Can't resolve — log warning, leave as-is (validator will catch it)
-            logger.warning(
-                f"Cannot normalize correct_answer '{answer_str}' for {tt}. "
-                f"Options: {[o.get('text') for o in options]}"
-            )
+            # Not a valid ID — try to find the matching option by text
+            options_field = "image_options" if tt in ("sentence_picture_match", "listen_and_choose") else "options"
+            options = question.get(options_field) or []
+            matched_id = None
+            answer_lower = answer_str.lower()
+            for opt in options:
+                opt_text = (opt.get("text") or "").strip().lower()
+                opt_emoji = (opt.get("emoji") or "").strip()
+                if opt_text == answer_lower or opt_emoji == answer_str:
+                    matched_id = opt.get("id", "").lower()
+                    break
+            if matched_id and matched_id in VALID_OPTION_IDS:
+                logger.info(
+                    f"Normalized correct_answer: '{answer_str}' -> '{matched_id}' "
+                    f"(task_type={tt}, question={question.get('question', '')[:40]})"
+                )
+                question["correct_answer"] = matched_id
+            else:
+                logger.warning(
+                    f"Cannot normalize correct_answer '{answer_str}' for {tt}. "
+                    f"Options: {[o.get('text') for o in options]}"
+                )
 
     elif tt == "passage_true_false":
         # Normalize to lowercase "true" or "false"
@@ -152,6 +147,20 @@ def normalize_correct_answer(question: dict) -> dict:
     else:
         # Text-based tasks — just trim
         question["correct_answer"] = answer_str
+
+    # Auto-fill audio_text for listening/speaking tasks if missing
+    tt = question.get("task_type", "")
+    if tt in ("listen_and_choose", "simon_says", "listen_and_spell", "repeat_after_me"):
+        if not question.get("audio_text"):
+            # Use the question text or correct_answer as audio_text fallback
+            if tt == "repeat_after_me":
+                question["audio_text"] = question.get("correct_answer", question.get("question", ""))
+            elif tt == "listen_and_spell":
+                question["audio_text"] = question.get("correct_answer", "")
+            else:
+                question["audio_text"] = question.get("question", "")
+            if question["audio_text"]:
+                logger.info(f"Auto-filled audio_text for {tt}: '{question['audio_text'][:40]}'")
 
     return question
 

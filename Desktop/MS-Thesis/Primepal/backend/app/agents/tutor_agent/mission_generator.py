@@ -477,7 +477,16 @@ def validate_topic_alignment(questions: list[dict], active_topics: list[str], pi
     validated = []
     rejected = []
 
+    # Task types exempt from topic validation — these are action/instruction-based
+    # and don't need to reference topic vocabulary directly
+    TOPIC_EXEMPT_TYPES = {"simon_says", "repeat_after_me", "finish_the_sentence"}
+
     for q in questions:
+        # Exempt certain task types from topic validation
+        if q.get("task_type") in TOPIC_EXEMPT_TYPES:
+            validated.append(q)
+            continue
+
         question_text = q.get("question", "").lower()
 
         # Check ALL relevant fields that might contain topic keywords

@@ -1124,7 +1124,9 @@ async def get_pillar_missions(
             len(merged), PILLAR_QUESTIONS_COUNT, pillar,
         )
 
-    # Re-number all questions sequentially
+    # Re-number all questions and normalize answers/audio_text
+    from app.agents.tutor_agent.question_validator import normalize_all_questions
+    normalize_all_questions(merged)
     for i, q in enumerate(merged):
         q["id"] = i + 1
 
