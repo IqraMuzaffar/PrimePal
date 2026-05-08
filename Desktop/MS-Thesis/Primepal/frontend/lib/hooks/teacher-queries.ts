@@ -207,20 +207,13 @@ export function useSaveTopics() {
   });
 }
 
-export function useTeacherStudents(params: {
-  gradeLevel?: number;
-  pillar?: string;
-  search?: string;
-}) {
-  const qs = new URLSearchParams();
-  if (params.gradeLevel) qs.set("grade_level", String(params.gradeLevel));
-  if (params.pillar) qs.set("pillar", params.pillar);
-  if (params.search) qs.set("search", params.search);
-  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+// Always fetches the full unfiltered dataset — filtering is done client-side.
+// This means filter changes never trigger a network request.
+export function useTeacherStudents() {
   return useQuery({
-    queryKey: teacherQueryKeys.students(suffix),
+    queryKey: teacherQueryKeys.students(""),
     queryFn: () =>
-      teacherFetch<{ students: StudentRow[] }>(`/evaluator/students${suffix}`),
+      teacherFetch<{ students: StudentRow[] }>(`/evaluator/students`),
     staleTime: 2 * 60 * 1000,
   });
 }

@@ -50,9 +50,28 @@ function StudentsContent() {
     isLoading: loading,
     error: fetchError,
     refetch,
-  } = useTeacherStudents({ gradeLevel, pillar, search });
+  } = useTeacherStudents();
 
-  const students = studentsData?.students ?? [];
+  // Client-side filtering for instant filter changes
+  const allStudents = studentsData?.students ?? [];
+  const students = allStudents.filter(s => {
+    // Grade filter
+    if (gradeLevel && s.grade_level !== gradeLevel) return false;
+
+    // Pillar filter - we don't have pillar-specific data per student in this view
+    // So pillar filter is ignored here (it's more relevant for analytics)
+
+    // Search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      const matchName = s.student_name.toLowerCase().includes(searchLower);
+      const matchRoll = s.roll_number?.toLowerCase().includes(searchLower);
+      if (!matchName && !matchRoll) return false;
+    }
+
+    return true;
+  });
+
   const error = fetchError instanceof Error ? fetchError.message : null;
 
   async function savePin(studentId: string, pin: string) {
@@ -81,17 +100,12 @@ function StudentsContent() {
     setDeleting(studentId);
     setRemoveError(null);
     try {
-      const qs = new URLSearchParams();
-      if (gradeLevel) qs.set("grade_level", String(gradeLevel));
-      if (pillar) qs.set("pillar", pillar);
-      if (search) qs.set("search", search);
-      const suffix = qs.toString() ? `?${qs.toString()}` : "";
       await teacherMutate(
         `/classroom/${filterClassroom}/students/${studentId}`,
         {},
         "DELETE"
       );
-      queryClient.invalidateQueries({ queryKey: teacherQueryKeys.students(suffix) });
+      queryClient.invalidateQueries({ queryKey: teacherQueryKeys.students("") });
       setDeleting(null);
     } catch (err) {
       setRemoveError(err instanceof Error ? err.message : "Failed to remove student");
@@ -119,7 +133,7 @@ function StudentsContent() {
               Student Directory
             </h1>
             <p className="text-gray-500 text-sm mt-1">
-              {loading ? "Loading..." : error ? "Failed to load" : `${students.length} students across all classrooms`}
+              {loading ? "Loading..." : error ? "Failed to load" : `${allStudents.length} students across all classrooms${students.length !== allStudents.length ? ` (${students.length} shown)` : ""}`}
             </p>
           </div>
           {error && (
