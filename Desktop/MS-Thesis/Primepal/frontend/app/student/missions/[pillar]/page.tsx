@@ -73,7 +73,7 @@ export default function PillarMissionPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="min-h-screen flex items-center justify-center bg-student-bg">
         <div className="text-center">
           <div className="text-4xl mb-4">⏳</div>
           <p className="text-gray-600 text-lg">Loading questions...</p>
@@ -84,7 +84,7 @@ export default function PillarMissionPage() {
 
   if (error || questions.length === 0) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="min-h-screen flex items-center justify-center bg-student-bg">
         <div className="text-center">
           <p className="text-red-600 text-lg mb-4">{error || 'No questions available'}</p>
           <button onClick={() => router.back()} className="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700">

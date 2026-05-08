@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import PillarCard from '@/components/student/PillarCard';
+import PageHero from "@/components/student/PageHero";
+import SectionHeading from "@/components/student/SectionHeading";
 import { BookOpen, Edit3, Headphones, Mic } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 
@@ -77,14 +79,12 @@ export default function MissionsDashboard() {
     : null;
 
   return (
-    <div className="max-w-3xl mx-auto">
-      {/* Page header */}
-      <h1 className="font-baloo text-2xl sm:text-3xl font-extrabold text-amber-950 mb-1">Learning Missions</h1>
-      <p className="font-nunito text-sm text-amber-800/70 mb-5">Choose a pillar to start practicing</p>
+    <div className="space-y-6 sm:space-y-8 pb-10">
+      <PageHero label="DAILY MISSIONS" name="Pick a Pillar" subtitle="Each pillar has fresh challenges every day." mascot="🎯" />
 
       {/* Progress banner */}
       {!perfLoading && performance && performance.overall_accuracy > 0 && (
-        <div className="mb-6 rounded-[20px] bg-gradient-to-r from-amber-100 via-amber-200 to-amber-300 border-2 border-amber-400 p-5 shadow-[0_6px_24px_rgba(245,158,11,0.2)]">
+        <div className="mb-6 bg-white rounded-3xl p-6 border-2 border-amber-100 shadow-[0_8px_24px_rgba(251,191,36,0.10)]">
           <div className="flex items-center justify-between mb-3">
             <div>
               <p className="font-nunito font-semibold text-xs text-amber-800/70 mb-1">Your Performance</p>
@@ -141,12 +141,7 @@ export default function MissionsDashboard() {
         </div>
       )}
 
-      {/* Section label */}
-      <div className="flex items-center gap-2.5 mb-4">
-        <span className="font-baloo font-extrabold text-xs text-amber-700 uppercase tracking-widest">Choose a Pillar</span>
-        <div className="flex-1 h-[1.5px] bg-gradient-to-r from-amber-300 to-transparent" />
-        <span className="font-nunito font-semibold text-xs text-amber-700/60">Tap any card</span>
-      </div>
+      <SectionHeading icon="🧭" title="Choose Your Pillar" tone="violet" />
 
       {/* 2x2 Pillar grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
