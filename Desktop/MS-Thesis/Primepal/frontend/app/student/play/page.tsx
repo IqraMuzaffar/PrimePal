@@ -162,8 +162,8 @@ export default function StudentPlayPage() {
           <span className="text-3xl animate-spinSlow">⭐</span>
           <span className="font-baloo font-extrabold text-2xl text-slate-900">PrimePal</span>
         </div>
-        <a href="/teacher/login" className="font-baloo font-bold text-sm text-violet-700 hover:text-violet-900 bg-white/70 backdrop-blur-sm px-4 py-2 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.06)] transition-all hover:-translate-y-0.5">
-          👩‍🏫 Teacher
+        <a href="/teacher/login" className="flex items-center gap-2 font-baloo font-extrabold text-base text-teal-700 bg-gradient-to-br from-teal-50 to-emerald-50 border-2 border-teal-200 backdrop-blur-sm px-5 py-2.5 rounded-2xl shadow-[0_4px_14px_rgba(13,148,136,0.15)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(13,148,136,0.2)] hover:border-teal-300">
+          <span className="text-xl">👩‍🏫</span> Teacher Login
         </a>
       </header>
 
@@ -226,10 +226,15 @@ export default function StudentPlayPage() {
                   </button>
                 </form>
 
-                <p className="text-center mt-5 font-nunito font-semibold text-sm text-slate-400">
-                  Are you a teacher?{" "}
-                  <a href="/teacher/login" className="text-violet-600 font-bold hover:underline">Sign in here →</a>
-                </p>
+                <a
+                  href="/teacher/login"
+                  className="mt-5 flex items-center justify-center gap-2 w-full py-3 rounded-xl font-baloo font-bold text-sm
+                             text-teal-700 bg-teal-50 border border-teal-200
+                             hover:bg-teal-100 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(13,148,136,0.15)]
+                             transition-all duration-200"
+                >
+                  <span>👩‍🏫</span> Are you a teacher? Sign in here →
+                </a>
                 <a
                   href="/"
                   className="mt-4 flex items-center justify-center gap-2 w-full py-3 rounded-xl font-baloo font-bold text-sm
