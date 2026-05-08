@@ -52,8 +52,7 @@ export default function AvatarSelect({ avatars, onBack, onAvatarSelect }: Props)
             />
 
             <div
-              className="w-20 h-20 rounded-full ring-4 ring-offset-2 overflow-hidden bg-slate-50"
-              style={{ "--tw-ring-color": avatar.theme_color } as React.CSSProperties}
+              className="w-20 h-20 rounded-full ring-4 ring-violet-400 ring-offset-2 overflow-hidden bg-slate-50"
             >
               <Image
                 src={avatar.avatar_url}

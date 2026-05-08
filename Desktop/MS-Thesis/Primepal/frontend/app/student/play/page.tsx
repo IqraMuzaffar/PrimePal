@@ -135,14 +135,14 @@ export default function StudentPlayPage() {
   }
 
   return (
-    <div className="min-h-screen bg-cream flex flex-col relative">
+    <div className="min-h-screen bg-student-bg flex flex-col relative">
       <BgDecor />
 
       {/* Top bar */}
-      <header className="bg-amber-950 h-14 z-10 relative flex items-center justify-between px-5 sm:px-7 shadow-[0_3px_16px_rgba(0,0,0,0.22)]">
+      <header className="bg-white border-b border-slate-100 h-14 z-10 relative flex items-center justify-between px-5 sm:px-7 shadow-[0_3px_16px_rgba(0,0,0,0.22)]">
         <div className="flex items-center gap-2.5">
           <span className="text-2xl animate-floatUp">⭐</span>
-          <span className="font-baloo font-extrabold text-xl text-amber-50">PrimePal</span>
+          <span className="font-baloo font-extrabold text-xl text-slate-900">PrimePal</span>
         </div>
         <span className="font-nunito font-semibold text-sm text-amber-100/60 hidden sm:inline">
           English Learning Platform
@@ -156,7 +156,7 @@ export default function StudentPlayPage() {
       <div className="flex-1 flex items-center justify-center px-4 py-8 relative z-[1]">
         <div className="w-full max-w-md">
           {/* Card */}
-          <div className="bg-white rounded-[28px] p-7 sm:p-9 shadow-[0_8px_0_rgba(120,53,15,0.15),0_16px_48px_rgba(0,0,0,0.12)] border-2 border-amber-400/30 animate-slideUp relative overflow-hidden">
+          <div className="bg-white rounded-3xl p-8 shadow-[0_24px_48px_rgba(168,85,247,0.10)] animate-slideUp relative overflow-hidden">
             {/* Top shimmer */}
             <div className="absolute top-0 left-0 right-0 h-[5px] bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500" />
 
@@ -199,12 +199,12 @@ export default function StudentPlayPage() {
                   <button
                     type="submit"
                     disabled={loading || classCode.trim().length < 3}
-                    className="w-full py-4 rounded-[18px] border-none cursor-pointer font-baloo font-extrabold text-xl
-                               bg-gradient-to-r from-amber-950 to-amber-700 text-white
-                               shadow-[0_6px_0_#92400e,0_10px_24px_rgba(120,53,15,0.3)]
+                    className="w-full py-4 rounded-2xl border-none cursor-pointer font-baloo font-extrabold text-xl
+                               bg-gradient-to-br from-violet-400 to-violet-500 text-white
+                               shadow-[0_6px_0_#5b21b6,0_8px_18px_rgba(124,58,237,0.3)]
                                disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none disabled:from-gray-200 disabled:to-gray-200
                                transition-all duration-150
-                               hover:-translate-y-0.5 active:translate-y-[3px] active:shadow-[0_2px_0_#92400e]
+                               hover:-translate-y-0.5 active:translate-y-1 active:shadow-[0_2px_0_#5b21b6]
                                flex items-center justify-center gap-2"
                   >
                     {loading ? <Loader2 size={24} className="animate-spin" /> : "Let's Go! 🚀"}
@@ -244,7 +244,7 @@ export default function StudentPlayPage() {
                 </div>
                 <button
                   onClick={handleBackToCode}
-                  className="mt-5 w-full py-3 text-amber-700 hover:text-amber-950 font-baloo font-bold transition-colors"
+                  className="mt-5 w-full py-3 bg-slate-100 text-slate-700 rounded-2xl shadow-[0_3px_0_#94a3b8] font-baloo font-bold transition-colors"
                 >
                   ← Back to Class Code
                 </button>
