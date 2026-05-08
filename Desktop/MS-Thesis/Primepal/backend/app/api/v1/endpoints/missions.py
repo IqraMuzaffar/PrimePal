@@ -448,11 +448,12 @@ async def complete_mission(
     # Update daily streak (any completed mission counts as activity)
     streak_data = await update_streak(student_id)
 
-    # Invalidate caches so next page load shows fresh data
+    # Always invalidate profile cache (points changed), debounce the rest
+    background_tasks.add_task(invalidate_profile_cache, student_id)
     background_tasks.add_task(
         debounced_invalidate,
         student_id,
-        [invalidate_profile_cache, invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
+        [invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
     )
 
     # Check and unlock any newly earned achievements
@@ -596,11 +597,12 @@ async def submit_batch(
         # Update daily streak after batch processing
         await update_streak(student_id)
 
-        # Invalidate caches
+        # Always invalidate profile cache (points changed), debounce the rest
+        background_tasks.add_task(invalidate_profile_cache, student_id)
         background_tasks.add_task(
             debounced_invalidate,
             student_id,
-            [invalidate_profile_cache, invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
+            [invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
         )
 
     return BatchSubmitResponse(
@@ -1319,11 +1321,12 @@ async def submit_speaking_answer(
     # Update daily streak
     await update_streak(student_id)
 
-    # Invalidate caches
+    # Always invalidate profile cache (points changed), debounce the rest
+    background_tasks.add_task(invalidate_profile_cache, student_id)
     background_tasks.add_task(
         debounced_invalidate,
         student_id,
-        [invalidate_profile_cache, invalidate_rewards_cache, invalidate_scores_cache],
+        [invalidate_rewards_cache, invalidate_scores_cache],
     )
 
     return SpeakingSubmissionResponse(
