@@ -32,6 +32,7 @@ export default function AnalyticsClient({
     let pillarBreakdown = data.pillar_breakdown;
     let topStudents = data.top_students;
     let strugglingStudents = data.struggling_students;
+    let weeklyTrends = data.weekly_trends;
 
     if (gradeLevel) {
       gradeBreakdown = gradeBreakdown.filter((g) => g.grade_level === gradeLevel);
@@ -43,18 +44,42 @@ export default function AnalyticsClient({
       pillarBreakdown = pillarBreakdown.filter((p) => p.pillar === pillar);
     }
 
-    // Recompute summary stats from the filtered grade breakdown
-    const summaryStats =
-      gradeLevel && gradeBreakdown.length > 0
-        ? {
-            total_students: gradeBreakdown.reduce((sum, g) => sum + g.student_count, 0),
-            total_interactions: gradeBreakdown.reduce((sum, g) => sum + g.total_interactions, 0),
-            avg_accuracy: Math.round(
-              gradeBreakdown.reduce((sum, g) => sum + g.avg_accuracy, 0) / gradeBreakdown.length
-            ),
-            active_this_week: data.summary_stats.active_this_week,
-          }
-        : data.summary_stats;
+    // Recompute summary stats whenever any filter is active
+    const hasFilter = gradeLevel || pillar;
+    let summaryStats = data.summary_stats;
+
+    if (hasFilter && gradeBreakdown.length > 0) {
+      // When pillar is filtered, use the pillar breakdown for interaction/accuracy data
+      if (pillar && pillarBreakdown.length > 0) {
+        const filteredPillar = pillarBreakdown[0];
+        summaryStats = {
+          total_students: gradeLevel
+            ? gradeBreakdown.reduce((sum, g) => sum + g.student_count, 0)
+            : data.summary_stats.total_students,
+          total_interactions: filteredPillar.total_attempts,
+          avg_accuracy: filteredPillar.avg_accuracy,
+          active_this_week: data.summary_stats.active_this_week,
+        };
+      } else if (gradeLevel) {
+        summaryStats = {
+          total_students: gradeBreakdown.reduce((sum, g) => sum + g.student_count, 0),
+          total_interactions: gradeBreakdown.reduce((sum, g) => sum + g.total_interactions, 0),
+          avg_accuracy: Math.round(
+            gradeBreakdown.reduce((sum, g) => sum + g.avg_accuracy * g.student_count, 0) /
+            Math.max(1, gradeBreakdown.reduce((sum, g) => sum + g.student_count, 0))
+          ),
+          active_this_week: data.summary_stats.active_this_week,
+        };
+      }
+    } else if (hasFilter) {
+      // Filters active but no matching data
+      summaryStats = {
+        total_students: 0,
+        total_interactions: 0,
+        avg_accuracy: 0,
+        active_this_week: 0,
+      };
+    }
 
     return {
       ...data,
@@ -63,6 +88,7 @@ export default function AnalyticsClient({
       pillar_breakdown: pillarBreakdown,
       top_students: topStudents,
       struggling_students: strugglingStudents,
+      weekly_trends: weeklyTrends,
     };
   }, [data, gradeLevel, pillar]);
 
