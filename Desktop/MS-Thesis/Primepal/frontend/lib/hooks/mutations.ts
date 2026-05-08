@@ -30,6 +30,7 @@ export function useMissionComplete() {
       queryClient.invalidateQueries({ queryKey: queryKeys.dailySummary });
       queryClient.invalidateQueries({ queryKey: queryKeys.pointsBreakdown });
       queryClient.invalidateQueries({ queryKey: queryKeys.weeklyProgress });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dailyPillarStatus });
       queryClient.invalidateQueries({ queryKey: ["myScores"] });
     },
   });

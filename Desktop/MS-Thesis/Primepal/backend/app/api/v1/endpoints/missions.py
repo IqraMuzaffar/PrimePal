@@ -448,8 +448,11 @@ async def complete_mission(
     # Update daily streak (any completed mission counts as activity)
     streak_data = await update_streak(student_id)
 
-    # Always invalidate profile cache (points changed), debounce the rest
+    # Always invalidate profile + daily pillar status (must update immediately)
     background_tasks.add_task(invalidate_profile_cache, student_id)
+    background_tasks.add_task(
+        cache_delete, make_cache_key("daily_pillar_status", student_id)
+    )
     background_tasks.add_task(
         debounced_invalidate,
         student_id,
@@ -1456,4 +1459,66 @@ async def get_weekly_progress(student: dict = Depends(get_current_student)):
 
     # Cache for 5 minutes
     await cache_set(cache_key, response.model_dump(), ttl=300)
+    return response
+
+
+# ---------------------------------------------------------------------------
+# GET /daily-pillar-status (How many questions done per pillar TODAY)
+# ---------------------------------------------------------------------------
+
+class DailyPillarStatus(BaseModel):
+    pillar: str
+    done: int
+    limit: int
+    completed: bool
+
+class DailyPillarStatusResponse(BaseModel):
+    pillars: list[DailyPillarStatus]
+
+
+@router.get("/daily-pillar-status", response_model=DailyPillarStatusResponse, summary="Today's per-pillar completion status")
+async def get_daily_pillar_status(student: dict = Depends(get_current_student)):
+    """Return how many mission questions the student answered TODAY per pillar."""
+    supabase = get_supabase_admin()
+    student_id: str = student["sub"]
+
+    cache_key = make_cache_key("daily_pillar_status", student_id)
+    cached = await cache_get(cache_key)
+    if cached:
+        return DailyPillarStatusResponse(**cached)
+
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ).isoformat()
+
+    interactions_resp = (
+        supabase.table("student_interactions")
+        .select("pillar")
+        .eq("student_id", student_id)
+        .not_.is_("pillar", "null")
+        .like("interaction_type", "mission_%")
+        .gte("created_at", today_start)
+        .execute()
+    )
+    rows = interactions_resp.data or []
+
+    counts: dict[str, int] = {"reading": 0, "writing": 0, "listening": 0, "speaking": 0}
+    for row in rows:
+        p = row.get("pillar")
+        if p in counts:
+            counts[p] += 1
+
+    DAILY_LIMIT = 10
+    pillars = [
+        DailyPillarStatus(
+            pillar=p,
+            done=min(counts[p], DAILY_LIMIT),
+            limit=DAILY_LIMIT,
+            completed=counts[p] >= DAILY_LIMIT,
+        )
+        for p in ["reading", "writing", "listening", "speaking"]
+    ]
+
+    response = DailyPillarStatusResponse(pillars=pillars)
+    await cache_set(cache_key, response.model_dump(), ttl=60)
     return response

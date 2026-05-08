@@ -6,6 +6,7 @@ import PageHero from "@/components/student/PageHero";
 import SectionHeading from "@/components/student/SectionHeading";
 import { BookOpen, Edit3, Headphones, Mic } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
+import { useDailyPillarStatus } from '@/lib/hooks/queries';
 
 type PillarType = 'reading' | 'writing' | 'listening' | 'speaking';
 
@@ -40,6 +41,7 @@ const DIFFICULTY_BADGES: Record<string, { label: string; color: string }> = {
 export default function MissionsDashboard() {
   const [performance, setPerformance] = useState<PerformanceProfile | null>(null);
   const [perfLoading, setPerfLoading] = useState(true);
+  const { data: dailyStatus } = useDailyPillarStatus();
 
   useEffect(() => {
     const fetchPerformance = async () => {
@@ -145,14 +147,19 @@ export default function MissionsDashboard() {
 
       {/* 2x2 Pillar grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        {pillars.map((pillar) => (
-          <PillarCard
-            key={pillar.id}
-            pillar={pillar.id}
-            bgColor={pillar.bgColor}
-            icon={pillar.icon}
-          />
-        ))}
+        {pillars.map((pillar) => {
+          const status = dailyStatus?.pillars?.find(p => p.pillar === pillar.id);
+          return (
+            <PillarCard
+              key={pillar.id}
+              pillar={pillar.id}
+              bgColor={pillar.bgColor}
+              icon={pillar.icon}
+              done={status?.done ?? 0}
+              completed={status?.completed ?? false}
+            />
+          );
+        })}
       </div>
 
       {/* Hint footer */}

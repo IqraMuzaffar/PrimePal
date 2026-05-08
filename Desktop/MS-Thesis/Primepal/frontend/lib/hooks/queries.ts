@@ -96,6 +96,7 @@ export const queryKeys = {
   weeklyProgress: ["weeklyProgress"] as const,
   pointsBreakdown: ["pointsBreakdown"] as const,
   myScores: (timeRange: string) => ["myScores", timeRange] as const,
+  dailyPillarStatus: ["dailyPillarStatus"] as const,
 };
 
 export function useStudentProfile() {
@@ -226,6 +227,25 @@ export function useWeeklyProgress() {
     queryKey: queryKeys.weeklyProgress,
     queryFn: () => studentFetch<WeeklyProgress>("/missions/weekly-progress"),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+interface DailyPillarStatus {
+  pillar: string;
+  done: number;
+  limit: number;
+  completed: boolean;
+}
+
+interface DailyPillarStatusResponse {
+  pillars: DailyPillarStatus[];
+}
+
+export function useDailyPillarStatus() {
+  return useQuery({
+    queryKey: queryKeys.dailyPillarStatus,
+    queryFn: () => studentFetch<DailyPillarStatusResponse>("/missions/daily-pillar-status"),
+    staleTime: 60 * 1000, // 1 minute — must refresh quickly after completion
   });
 }
 
