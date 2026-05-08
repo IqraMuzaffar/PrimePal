@@ -15,6 +15,7 @@ import AchievementPopup from "@/components/student/AchievementPopup";
 import PageHero from "@/components/student/PageHero";
 import SectionHeading from "@/components/student/SectionHeading";
 import ActivityCard from "@/components/student/ActivityCard";
+import { useGenderTheme } from "@/lib/gender-theme-context";
 
 const ACTIVITY_CARDS = [
   { href: "/student/missions",     icon: "🎯", title: "Daily Missions",  subtitle: "Earn stars across 4 pillars — let's go!", tone: "purple" as const, wide: true,  badge: "NEW" },
@@ -35,6 +36,7 @@ export default function HomePage() {
   const { data: achievementsData } = useAchievements();
   const { data: pointsBreakdown } = usePointsBreakdown();
 
+  const theme = useGenderTheme();
   const [achievementPopup, setAchievementPopup] = useState<{ name: string; icon: string; tier: "bronze" | "silver" | "gold" } | null>(null);
   const [streakResetBanner, setStreakResetBanner] = useState(false);
 
@@ -102,7 +104,8 @@ export default function HomePage() {
           waveEmoji="👋"
           subtitle={profile?.roll_number ? `Roll No: ${profile.roll_number}` : undefined}
           pills={heroPills}
-          mascot="🦄"
+          mascot={theme.mascotEmoji}
+          className={theme.heroBg}
         />
       )}
 

@@ -8,6 +8,7 @@ import { useStudentProfile, useStreak, queryKeys } from "@/lib/hooks/queries";
 import { studentFetch } from "@/lib/api-helpers";
 import OfflineBanner from "@/components/student/OfflineBanner";
 import StreakCounter from "@/components/student/StreakCounter";
+import { GenderThemeProvider, useGenderTheme } from "@/lib/gender-theme-context";
 
 const PREFETCH_MAP: Record<string, { queryKey: readonly string[]; url: string; staleTime: number }[]> = {
   "/student/missions": [
@@ -45,6 +46,7 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
 
   const { data: profile, isLoading: loading } = useStudentProfile();
   const { data: streak } = useStreak();
+  const theme = useGenderTheme();
 
   const handlePrefetch = useCallback(
     (href: string) => {
@@ -101,14 +103,14 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
                     "font-baloo font-extrabold text-base lg:text-lg",
                     "transition-all duration-150",
                     active
-                      ? "bg-pill-active text-pink-900 shadow-[0_4px_14px_rgba(236,72,153,0.18)]"
+                      ? `${theme.navPillActive} ${theme.navPillText} shadow-[0_4px_14px_rgba(0,0,0,0.10)]`
                       : "text-slate-600 hover:text-slate-900 hover:bg-slate-50 hover:-translate-y-0.5",
                   ].join(" ")}
                 >
                   <span
                     className={[
                       "text-xl lg:text-2xl",
-                      active ? "animate-bounceSoft" : "",
+                      active ? theme.navIconBounce : "",
                     ].join(" ")}
                   >
                     {icon}
@@ -134,7 +136,7 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
                   currentStreak={streak?.current_streak ?? 0}
                   longestStreak={streak?.longest_streak ?? 0}
                 />
-                <div className="flex items-center gap-1.5 bg-gradient-to-br from-amber-200 to-amber-300 rounded-2xl px-3 lg:px-4 py-2.5 shadow-[0_4px_10px_rgba(245,158,11,0.15)]">
+                <div className={`flex items-center gap-1.5 bg-gradient-to-br ${theme.pointsChip} rounded-2xl px-3 lg:px-4 py-2.5 shadow-[0_4px_10px_rgba(0,0,0,0.08)]`}>
                   <span className="text-base lg:text-lg">⭐</span>
                   <span className="font-baloo font-extrabold text-sm lg:text-base text-amber-900">
                     {profile.points}
@@ -179,7 +181,7 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
                     className={[
                       "flex items-center gap-1.5 px-3 py-2 rounded-2xl text-sm font-baloo font-extrabold transition-all",
                       active
-                        ? "bg-pill-active text-pink-900"
+                        ? `${theme.navPillActive} ${theme.navPillText}`
                         : "text-slate-700 hover:bg-slate-50",
                     ].join(" ")}
                   >
@@ -201,6 +203,18 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
   );
 }
 
+function StudentLayoutWithTheme({ children }: { children: React.ReactNode }) {
+  const { data: profile } = useStudentProfile();
+  const studentName = profile?.student_name
+    ?? (typeof window !== "undefined" ? localStorage.getItem("primepal_student_name") : null);
+
+  return (
+    <GenderThemeProvider studentName={studentName ?? null}>
+      <StudentLayoutContent>{children}</StudentLayoutContent>
+    </GenderThemeProvider>
+  );
+}
+
 export default function StudentLayout({ children }: { children: React.ReactNode }) {
-  return <StudentLayoutContent>{children}</StudentLayoutContent>;
+  return <StudentLayoutWithTheme>{children}</StudentLayoutWithTheme>;
 }

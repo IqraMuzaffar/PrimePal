@@ -4,6 +4,7 @@ import { useState, FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import PinEntry from "./pin-entry";
+import { guessGender, getThemeTokens } from "@/lib/gender-theme";
 
 interface Avatar {
   id: string;
@@ -139,16 +140,13 @@ export default function StudentPlayPage() {
       <BgDecor />
 
       {/* Top bar */}
-      <header className="bg-white border-b border-slate-100 h-14 z-10 relative flex items-center justify-between px-5 sm:px-7 shadow-[0_3px_16px_rgba(0,0,0,0.22)]">
+      <header className="bg-gradient-to-r from-pink-100/80 via-violet-100/80 to-cyan-100/80 backdrop-blur-sm border-b border-violet-100/30 h-14 z-10 relative flex items-center justify-between px-5 sm:px-7">
         <div className="flex items-center gap-2.5">
-          <span className="text-2xl animate-floatUp">⭐</span>
+          <span className="text-2xl animate-spinSlow">⭐</span>
           <span className="font-baloo font-extrabold text-xl text-slate-900">PrimePal</span>
         </div>
-        <span className="font-nunito font-semibold text-sm text-amber-100/60 hidden sm:inline">
-          English Learning Platform
-        </span>
-        <a href="/teacher/login" className="font-baloo font-bold text-sm text-amber-200 hover:text-amber-100 transition-colors">
-          👩‍🏫 Teacher Login
+        <a href="/teacher/login" className="font-baloo font-bold text-sm text-violet-600 hover:text-violet-800 bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-full transition-colors">
+          👩‍🏫 Teacher
         </a>
       </header>
 
@@ -156,9 +154,9 @@ export default function StudentPlayPage() {
       <div className="flex-1 flex items-center justify-center px-4 py-8 relative z-[1]">
         <div className="w-full max-w-md">
           {/* Card */}
-          <div className="bg-white rounded-3xl p-8 shadow-[0_24px_48px_rgba(168,85,247,0.10)] animate-slideUp relative overflow-hidden">
+          <div className="bg-white/85 backdrop-blur-xl rounded-3xl p-8 shadow-[0_24px_48px_rgba(168,85,247,0.12)] border-2 border-violet-100/30 animate-slideUp relative overflow-hidden">
             {/* Top shimmer */}
-            <div className="absolute top-0 left-0 right-0 h-[5px] bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500" />
+            <div className="absolute top-0 left-0 right-0 h-[5px] bg-gradient-to-r from-violet-400 via-pink-400 to-cyan-400 bg-[length:200%_100%] animate-shimmer" />
 
             {step === "enter-code" && (
               <div>
@@ -166,10 +164,10 @@ export default function StudentPlayPage() {
                   <div className="inline-block animate-floatUp mb-3">
                     <PrimePalMascot size={88} />
                   </div>
-                  <h1 className="font-baloo font-extrabold text-2xl sm:text-[26px] text-amber-950 leading-tight mb-1.5">
+                  <h1 className="font-baloo font-extrabold text-2xl sm:text-[26px] text-slate-900 leading-tight mb-1.5">
                     Enter Your Class Code
                   </h1>
-                  <p className="font-nunito font-semibold text-sm text-amber-700">
+                  <p className="font-nunito font-semibold text-sm text-slate-500">
                     Get the code from your teacher.
                   </p>
                 </div>
@@ -183,10 +181,10 @@ export default function StudentPlayPage() {
                     required
                     placeholder="ABC123"
                     className="w-full text-center text-3xl sm:text-4xl font-baloo font-extrabold tracking-[0.25em] uppercase
-                               px-4 py-4 rounded-2xl border-[3px] border-amber-200 bg-amber-50/50
-                               text-amber-950 placeholder-amber-300
-                               focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-100
-                               transition-all shadow-inner"
+                               px-4 py-4 rounded-2xl border-[3px] border-violet-200 bg-gradient-to-br from-violet-50/50 to-pink-50/30
+                               text-slate-900 placeholder-violet-300
+                               focus:outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100
+                               transition-all"
                     aria-label="Class code"
                   />
 
@@ -211,9 +209,12 @@ export default function StudentPlayPage() {
                   </button>
                 </form>
 
-                <p className="text-center mt-5 font-nunito font-semibold text-sm text-amber-600/50">
+                <p className="text-center mt-5 font-nunito font-semibold text-sm text-slate-400">
                   Are you a teacher?{" "}
-                  <a href="/teacher/login" className="text-amber-700 font-bold hover:underline">Sign in here →</a>
+                  <a href="/teacher/login" className="text-violet-600 font-bold hover:underline">Sign in here →</a>
+                </p>
+                <p className="text-center mt-2 font-nunito font-semibold text-xs text-slate-400">
+                  <a href="/" className="hover:underline hover:text-violet-500 transition-colors">← Back to Home</a>
                 </p>
               </div>
             )}
@@ -224,27 +225,43 @@ export default function StudentPlayPage() {
                   <div className="inline-block animate-floatUp mb-3">
                     <PrimePalMascot size={72} />
                   </div>
-                  <h2 className="font-baloo font-extrabold text-2xl text-amber-950 mb-1">Who are you?</h2>
-                  <p className="font-nunito font-semibold text-sm text-amber-700">Select your name from the list</p>
+                  <h2 className="font-baloo font-extrabold text-2xl text-slate-900 mb-1">Who are you?</h2>
+                  <p className="font-nunito font-semibold text-sm text-slate-500">Tap your name below</p>
                 </div>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {avatars.map((avatar) => (
-                    <button
-                      key={avatar.id}
-                      onClick={() => handleAvatarSelect(avatar)}
-                      className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-amber-200 bg-white
-                                 hover:border-amber-500 hover:bg-amber-50 transition-all group"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-800 font-baloo font-extrabold shrink-0 border-2 border-amber-200 group-hover:border-amber-400 transition-colors">
-                        {avatar.student_name.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="text-lg font-baloo font-bold text-amber-950">{avatar.student_name}</span>
-                    </button>
-                  ))}
+                <div className="space-y-3 max-h-80 overflow-y-auto">
+                  {avatars.map((avatar) => {
+                    const gender = guessGender(avatar.student_name);
+                    const t = getThemeTokens(gender);
+                    return (
+                      <button
+                        key={avatar.id}
+                        onClick={() => handleAvatarSelect(avatar)}
+                        className={[
+                          "w-full flex items-center gap-3.5 p-4 rounded-[20px] border-2 transition-all duration-200 group relative overflow-hidden",
+                          t.rowBorder,
+                          t.rowBorderHover,
+                          t.rowShadowHover,
+                          "hover:translate-x-1.5",
+                          gender === "girl" ? "bg-gradient-to-br from-pink-50/60 to-white/80 hover:from-pink-100 hover:to-pink-50" :
+                          gender === "boy"  ? "bg-gradient-to-br from-sky-50/60 to-white/80 hover:from-sky-100 hover:to-sky-50" :
+                                              "bg-gradient-to-br from-violet-50/60 to-white/80 hover:from-violet-100 hover:to-violet-50",
+                        ].join(" ")}
+                      >
+                        <div className={`w-12 h-12 rounded-2xl ${t.rowAvatar} border-2 ${t.rowAvatarBorder} flex items-center justify-center text-2xl shrink-0 shadow-[0_4px_10px_rgba(0,0,0,0.06)] transition-transform duration-200 group-hover:scale-110 group-hover:rotate-[-5deg]`}>
+                          {t.avatarEmoji}
+                        </div>
+                        <div className="text-left">
+                          <span className={`text-lg font-baloo font-extrabold ${t.rowName} block`}>{avatar.student_name}</span>
+                          <span className="text-xs font-nunito font-semibold text-slate-400">Tap to continue</span>
+                        </div>
+                        <span className={`ml-auto text-xl font-bold ${t.rowArrow} ${t.rowArrowHover} transition-all duration-200 group-hover:translate-x-1.5`}>→</span>
+                      </button>
+                    );
+                  })}
                 </div>
                 <button
                   onClick={handleBackToCode}
-                  className="mt-5 w-full py-3 bg-slate-100 text-slate-700 rounded-2xl shadow-[0_3px_0_#94a3b8] font-baloo font-bold transition-colors"
+                  className="mt-5 w-full py-3.5 bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 rounded-2xl shadow-[0_4px_0_#94a3b8] font-baloo font-extrabold text-sm transition-all active:translate-y-1 active:shadow-none"
                 >
                   ← Back to Class Code
                 </button>
@@ -261,7 +278,7 @@ export default function StudentPlayPage() {
           </div>
 
           {/* Bottom tagline */}
-          <p className="text-center mt-5 font-nunito font-semibold text-sm text-amber-700/50">
+          <p className="text-center mt-5 font-nunito font-semibold text-sm text-slate-400">
             🔒 Safe, ad-free learning for every student
           </p>
         </div>

@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2, Delete } from "lucide-react";
 import { apiFetch } from "@/lib/api";
+import { getThemeForName } from "@/lib/gender-theme";
 
 interface Avatar {
   id: string;
@@ -26,6 +27,7 @@ interface Props {
 
 export default function PinEntry({ avatar, classCode, onBack }: Props) {
   const router = useRouter();
+  const theme = useMemo(() => getThemeForName(avatar.student_name), [avatar.student_name]);
   const [digits, setDigits] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -116,11 +118,11 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
     <div className="w-full flex flex-col items-center gap-5">
       {/* Student info */}
       <div className="flex flex-col items-center gap-2">
-        <div className="w-20 h-20 rounded-full bg-amber-100 flex items-center justify-center border-4 border-amber-300">
-          <span className="text-4xl">🎓</span>
+        <div className={`w-20 h-20 rounded-full ${theme.pinAvatarBg} flex items-center justify-center border-4 ${theme.pinAvatarBorder} shadow-[0_8px_24px_rgba(0,0,0,0.10)]`}>
+          <span className="text-4xl">{theme.avatarEmoji}</span>
         </div>
-        <p className="text-base font-baloo font-bold text-amber-950">{avatar.student_name}</p>
-        <p className="text-sm font-nunito font-semibold text-amber-700">Enter your Secret PIN</p>
+        <p className="text-lg font-baloo font-extrabold text-slate-900">{avatar.student_name}</p>
+        <p className="text-sm font-nunito font-semibold text-slate-500">Enter your Secret PIN</p>
       </div>
 
       {/* PIN display */}
@@ -136,7 +138,7 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
               key={i}
               className={`w-14 h-16 rounded-2xl border-[3px] flex items-center justify-center text-2xl font-baloo font-extrabold transition-all duration-150 ${
                 i < digits.length
-                  ? "border-violet-400 bg-violet-50 text-violet-800 shadow-[0_3px_0_#ddd6fe]"
+                  ? `${theme.pinFilledBorder} ${theme.pinFilledBg} ${theme.pinFilledText} shadow-[0_4px_0_rgba(0,0,0,0.06)]`
                   : "border-slate-200 bg-white text-transparent shadow-[0_3px_0_#e5e7eb]"
               }`}
             >
@@ -213,8 +215,8 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
               key={key}
               onClick={() => pressDigit(key)}
               disabled={loading || digits.length >= 4}
-              className="h-14 rounded-2xl bg-white border-2 border-slate-200 hover:bg-violet-50 active:bg-violet-100 font-baloo font-extrabold text-xl text-slate-800
-                         shadow-[0_4px_0_#cbd5e1]
+              className="h-14 rounded-2xl bg-gradient-to-b from-white to-violet-50/50 border-2 border-violet-100 hover:from-violet-50 hover:to-violet-100 hover:border-violet-200 active:bg-violet-100 font-baloo font-extrabold text-xl text-slate-800
+                         shadow-[0_4px_0_#ddd6fe]
                          active:translate-y-[4px] active:shadow-none
                          disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:translate-y-0
                          transition-all duration-75"
