@@ -540,8 +540,16 @@ def _get_difficulty_preference(
     if not student_weaknesses:
         return None
 
-    # Weakness strings look like "reading (accuracy: 40%)"
-    pillar_is_weak = any(w.lower().startswith(pillar) for w in student_weaknesses)
+    # H3: weaknesses can be structured dicts or legacy strings
+    pillar_is_weak = False
+    for w in student_weaknesses:
+        if isinstance(w, dict):
+            if w.get("pillar") == pillar:
+                pillar_is_weak = True
+                break
+        elif isinstance(w, str) and w.lower().startswith(pillar):
+            pillar_is_weak = True
+            break
 
     if pillar_is_weak:
         return ["easy", "medium"]
