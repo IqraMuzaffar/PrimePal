@@ -572,9 +572,9 @@ async def generate_pillar_missions(
     config = PILLAR_TASK_CONFIGS[pillar]
     topic_text = ", ".join(active_topics) if active_topics else "General English skills"
 
-    # Retry configuration for LLM generation
-    MAX_RETRIES = 2
-    RETRY_DELAY_BASE = 1.0  # seconds (reduced for faster retries)
+    # Retry configuration — only 1 retry (not 2) to avoid 60s+ cascades
+    MAX_RETRIES = 1
+    RETRY_DELAY_BASE = 0.5  # seconds
 
     # Build task distribution for 5 questions (halved from original 10)
     # Take roughly half of each task type, minimum 1
@@ -742,8 +742,8 @@ RULES:
                 model=settings.CHAT_MODEL,
                 temperature=0.7,
                 openai_api_key=settings.OPENAI_API_KEY,
-                max_retries=3,
-                timeout=LLM_PILLAR_REQUEST_TIMEOUT,  # M1: reduced from 40s
+                max_retries=1,  # Reduced from 3 — outer loop handles retries
+                timeout=LLM_PILLAR_REQUEST_TIMEOUT,
             ).with_structured_output(PillarMissions)
 
             prompt = ChatPromptTemplate.from_messages([
@@ -772,14 +772,18 @@ RULES:
             questions_returned = len(result.questions)
             logger.info(f"LLM returned {questions_returned} questions for {pillar} grade {grade_level}")
 
-            if questions_returned < LLM_QUESTIONS_COUNT:
+            # Accept partial results — the caller fills gaps from bank.
+            # Only reject if LLM returned ZERO questions.
+            if questions_returned == 0:
                 logger.error(
-                    f"LLM generated only {questions_returned}/{LLM_QUESTIONS_COUNT} questions for {pillar} grade {grade_level}. "
-                    f"Rejecting partial result."
+                    f"LLM generated 0 questions for {pillar} grade {grade_level}. "
+                    f"Rejecting empty result."
                 )
-                raise ValueError(
-                    f"LLM returned only {questions_returned}/{LLM_QUESTIONS_COUNT} questions. "
-                    f"This indicates a timeout or generation issue. Please retry."
+                raise ValueError("LLM returned 0 questions.")
+            if questions_returned < LLM_QUESTIONS_COUNT:
+                logger.warning(
+                    f"LLM generated {questions_returned}/{LLM_QUESTIONS_COUNT} for {pillar} grade {grade_level}. "
+                    f"Accepting partial — bank will fill the rest."
                 )
 
             # Normalize and validate
