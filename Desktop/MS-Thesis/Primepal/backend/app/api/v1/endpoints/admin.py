@@ -1319,3 +1319,152 @@ async def delete_classroom(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete classroom: {str(e)}")
+
+
+# ─────────────────────────────────────────────────────────────
+# TOPIC MANAGEMENT (Admin CRUD for snc_topics)
+# ─────────────────────────────────────────────────────────────
+
+VALID_SKILLS = ("listening", "speaking", "reading", "writing")
+
+
+class TopicCreateRequest(BaseModel):
+    grade_level: int
+    skill: str
+    topic_name: str
+
+
+class TopicEditRequest(BaseModel):
+    topic_name: Optional[str] = None
+    skill: Optional[str] = None
+
+
+@router.get("/topics")
+async def list_admin_topics(
+    grade_level: Optional[int] = Query(None, description="Filter by grade (1-5)"),
+    current_admin: dict = Depends(get_current_admin),
+):
+    """List all SNC topics, optionally filtered by grade."""
+    supabase_admin = get_supabase_admin()
+
+    try:
+        query = supabase_admin.table("snc_topics").select("id, grade_level, skill, topic_name").order("grade_level").order("skill").order("id")
+        if grade_level is not None:
+            if grade_level < 1 or grade_level > 5:
+                raise HTTPException(status_code=400, detail="grade_level must be between 1 and 5")
+            query = query.eq("grade_level", grade_level)
+        result = query.execute()
+        return result.data or []
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch topics: {str(e)}")
+
+
+@router.post("/topics")
+async def create_topic(
+    req: TopicCreateRequest,
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Create a new SNC topic."""
+    if req.grade_level < 1 or req.grade_level > 5:
+        raise HTTPException(status_code=400, detail="grade_level must be between 1 and 5")
+    if req.skill not in VALID_SKILLS:
+        raise HTTPException(status_code=400, detail=f"skill must be one of: {', '.join(VALID_SKILLS)}")
+
+    supabase_admin = get_supabase_admin()
+
+    try:
+        result = supabase_admin.table("snc_topics").insert({
+            "grade_level": req.grade_level,
+            "skill": req.skill,
+            "topic_name": req.topic_name.strip(),
+        }).execute()
+
+        supabase_admin.table("admin_audit_log").insert({
+            "admin_id": current_admin["id"],
+            "action": "create_topic",
+            "resource_type": "snc_topic",
+            "resource_id": str(result.data[0]["id"]) if result.data else "",
+            "details": {"grade_level": req.grade_level, "skill": req.skill, "topic_name": req.topic_name.strip()},
+        }).execute()
+
+        return result.data[0] if result.data else {}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create topic: {str(e)}")
+
+
+@router.put("/topics/{topic_id}")
+async def edit_topic(
+    topic_id: int,
+    req: TopicEditRequest,
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Edit a topic's name or skill."""
+    update_data = {}
+    if req.topic_name is not None:
+        update_data["topic_name"] = req.topic_name.strip()
+    if req.skill is not None:
+        if req.skill not in VALID_SKILLS:
+            raise HTTPException(status_code=400, detail=f"skill must be one of: {', '.join(VALID_SKILLS)}")
+        update_data["skill"] = req.skill
+
+    if not update_data:
+        raise HTTPException(status_code=422, detail="No fields to update")
+
+    supabase_admin = get_supabase_admin()
+
+    try:
+        result = supabase_admin.table("snc_topics").update(update_data).eq("id", topic_id).execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Topic not found")
+
+        supabase_admin.table("admin_audit_log").insert({
+            "admin_id": current_admin["id"],
+            "action": "edit_topic",
+            "resource_type": "snc_topic",
+            "resource_id": str(topic_id),
+            "details": update_data,
+        }).execute()
+
+        return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to edit topic: {str(e)}")
+
+
+@router.delete("/topics/{topic_id}")
+async def delete_topic(
+    topic_id: int,
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Delete a topic. Also removes related grade_topic_selections and classroom_active_topics."""
+    supabase_admin = get_supabase_admin()
+
+    try:
+        # Clean up related selections (CASCADE should handle this, but be explicit)
+        supabase_admin.table("grade_topic_selections").delete().eq("topic_id", topic_id).execute()
+        supabase_admin.table("classroom_active_topics").delete().eq("topic_id", topic_id).execute()
+
+        result = supabase_admin.table("snc_topics").delete().eq("id", topic_id).execute()
+
+        if result.data is not None and len(result.data) == 0:
+            raise HTTPException(status_code=404, detail="Topic not found")
+
+        supabase_admin.table("admin_audit_log").insert({
+            "admin_id": current_admin["id"],
+            "action": "delete_topic",
+            "resource_type": "snc_topic",
+            "resource_id": str(topic_id),
+            "details": {},
+        }).execute()
+
+        return {"deleted": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to delete topic: {str(e)}")

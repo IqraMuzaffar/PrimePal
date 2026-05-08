@@ -13,6 +13,7 @@ import {
   GraduationCap,
   BookOpen,
   Download,
+  Tags,
 } from "lucide-react";
 import { Sidebar, TopBar } from "@/components/teacher/design-system";
 
@@ -21,6 +22,7 @@ const ADMIN_NAV_LINKS = [
   { href: "/admin/dashboard/staff", label: "Staff", icon: Users },
   { href: "/admin/dashboard/hierarchy", label: "Hierarchy", icon: Network },
   { href: "/admin/dashboard/students", label: "Students", icon: GraduationCap },
+  { href: "/admin/dashboard/topics", label: "Topics", icon: Tags },
   { href: "/admin/dashboard/curriculum", label: "Curriculum", icon: BookOpen },
   { href: "/admin/dashboard/export", label: "Export", icon: Download },
 ];
@@ -30,6 +32,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin/dashboard/staff": "Staff Management",
   "/admin/dashboard/hierarchy": "Hierarchy",
   "/admin/dashboard/students": "Students",
+  "/admin/dashboard/topics": "Topic Management",
   "/admin/dashboard/curriculum": "Curriculum",
   "/admin/dashboard/export": "Export Data",
 };
