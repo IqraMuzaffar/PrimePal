@@ -566,6 +566,11 @@ async def update_classroom_active_topics(
 
     from app.utils.pregenerate_missions import pregenerate_pillar_missions
     background_tasks.add_task(pregenerate_pillar_missions, classroom_id)
+
+    # Populate the question bank (persistent DB-backed pool for instant delivery)
+    from app.utils.question_bank import populate_question_bank
+    background_tasks.add_task(populate_question_bank, classroom_id)
+
     return result
 
 
