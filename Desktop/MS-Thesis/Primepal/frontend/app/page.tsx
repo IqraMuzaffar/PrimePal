@@ -32,6 +32,7 @@ const floatingItems = [
 const pillarData = [
   { icon: BookOpen, label: "Reading", desc: "Stories & comprehension" },
   { icon: PenLine, label: "Writing", desc: "Spelling & grammar" },
+  { icon: Mic, label: "Listening", desc: "Audio comprehension" },
   { icon: Mic, label: "Speaking", desc: "Pronunciation practice" },
 ];
 
@@ -76,17 +77,8 @@ export default function LandingPage() {
             PrimePal
           </span>
         </div>
-        <Link
-          href="/admin/login"
-          className="text-sm font-bold px-5 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-lg flex items-center gap-2"
-          style={{
-            color: "#fff",
-            background: "linear-gradient(135deg, #4361ee 0%, #7c3aed 100%)",
-            boxShadow: "0 4px 20px rgba(67,97,238,0.35)",
-          }}
-        >
-          🛡️ Admin
-        </Link>
+        <div />
+        {/* Admin moved to role cards below */}
       </nav>
 
       {/* ── main content (centered) ── */}
@@ -162,7 +154,7 @@ export default function LandingPage() {
               }}
             >
               <span className="text-2xl sm:text-3xl">
-                {label === "Reading" ? "📖" : label === "Writing" ? "✏️" : "🎤"}
+                {label === "Reading" ? "📖" : label === "Writing" ? "✏️" : label === "Listening" ? "🎧" : "🎤"}
               </span>
               <div className="flex flex-col">
                 <span className="text-white text-sm sm:text-base font-bold leading-tight">{label}</span>
@@ -178,7 +170,7 @@ export default function LandingPage() {
         </AnimatedHeroItem>
 
         {/* ── role cards ── */}
-        <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 w-full relative z-10" style={{ maxWidth: "860px" }}>
+        <div className="flex flex-col sm:flex-row gap-5 sm:gap-5 w-full relative z-10" style={{ maxWidth: "1080px" }}>
           {/* student */}
           <AnimatedCard xOffset={-36} delay={0.5} className="flex-1">
             <Link href="/student/play" className="block group">
@@ -261,6 +253,50 @@ export default function LandingPage() {
                   style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "white" }}
                 >
                   <span>Sign In</span>
+                  <span className="text-xl transition-transform duration-200 group-hover:translate-x-1">→</span>
+                </div>
+              </AnimatedCardInner>
+            </Link>
+          </AnimatedCard>
+
+          {/* admin */}
+          <AnimatedCard xOffset={0} delay={0.7} className="flex-1">
+            <Link href="/admin/login" className="block group">
+              <AnimatedCardInner
+                className="relative overflow-hidden"
+                style={{
+                  background: "linear-gradient(135deg, #4361ee 0%, #7c3aed 100%)",
+                  borderRadius: "24px",
+                  padding: "36px 32px",
+                  boxShadow: "0 20px 56px rgba(67,97,238,0.35)",
+                  border: "2px solid rgba(124,158,255,0.4)",
+                }}
+              >
+                <div className="absolute -right-4 -bottom-4 text-[6rem] opacity-[0.08] leading-none select-none pointer-events-none">
+                  🛡️
+                </div>
+
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg text-2xl">
+                    🛡️
+                  </div>
+                  <span className="bg-white/20 text-white text-xs font-extrabold px-4 py-2 rounded-full tracking-wide shadow-md">
+                    ADMIN
+                  </span>
+                </div>
+
+                <h2 className="font-extrabold text-white mb-2 leading-tight" style={{ fontSize: "28px" }}>
+                  I&apos;m an Admin
+                </h2>
+                <p className="font-semibold leading-relaxed mb-5" style={{ fontSize: "15px", color: "rgba(255,255,255,0.8)", lineHeight: 1.6 }}>
+                  Manage the platform, configure curriculum, and oversee schools.
+                </p>
+
+                <div
+                  className="inline-flex items-center gap-2.5 font-bold text-base px-6 py-3 rounded-2xl backdrop-blur-sm group-hover:bg-white/30 transition-all duration-200 group-hover:gap-3.5"
+                  style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "white" }}
+                >
+                  <span>Admin Panel</span>
                   <span className="text-xl transition-transform duration-200 group-hover:translate-x-1">→</span>
                 </div>
               </AnimatedCardInner>
