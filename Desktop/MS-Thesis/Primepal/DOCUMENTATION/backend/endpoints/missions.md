@@ -174,10 +174,17 @@ Generate 10 questions for a specific pillar, weighted by student weaknesses.
 1. Validate pillar parameter
 2. Resolve grade + active topics
 3. Check cache (1-hour TTL, keyed by student+pillar+topics hash)
-4. Fetch student's last 5 incorrect interactions (weaknesses)
+4. Analyze last 30 interactions to identify weak pillars (<60% accuracy, min 3 attempts)
 5. Fetch student performance profile for adaptive difficulty
-6. Generate via `generate_pillar_missions()` LLM call
+6. Generate via `generate_pillar_missions()` LLM call with weakness context
 7. Count weakness-focused questions, strip correct_answer
+
+**Weakness Detection:**
+- Queries last 30 `student_interactions` with non-null pillar
+- Calculates accuracy per pillar (reading, writing, listening, speaking)
+- Returns pillars with <60% accuracy as weaknesses (requires minimum 3 attempts)
+- Format: `["reading (accuracy: 40%)", "listening (accuracy: 50%)"]`
+- LLM uses weakness data to generate 3-4 targeted questions per weak pillar
 
 **DB Tables:** `classrooms`, `classroom_active_topics`, `snc_topics`, `student_interactions`, `grade_topic_selections`
 
