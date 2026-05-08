@@ -221,15 +221,28 @@ export default function TeacherLoginPage() {
         </p>
 
         {/* Back to home */}
-        <p className="text-center mt-3" style={{ fontSize: 13, color: '#b0bcd5' }}>
-          <a
-            href="/"
-            className="font-medium hover:underline"
-            style={{ color: '#9aa8c9' }}
-          >
-            ← Back to Home
-          </a>
-        </p>
+        <a
+          href="/"
+          className="mt-4 flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm transition-all duration-200"
+          style={{
+            color: '#4361ee',
+            backgroundColor: '#eef2ff',
+            border: '1px solid #c7d2fe',
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.backgroundColor = '#e0e7ff';
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(67,97,238,0.15)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.backgroundColor = '#eef2ff';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
+          <span style={{ fontSize: 16 }}>🏠</span>
+          Back to Home
+        </a>
       </div>
     </div>
   );

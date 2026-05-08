@@ -230,9 +230,15 @@ export default function StudentPlayPage() {
                   Are you a teacher?{" "}
                   <a href="/teacher/login" className="text-violet-600 font-bold hover:underline">Sign in here →</a>
                 </p>
-                <p className="text-center mt-2 font-nunito font-semibold text-xs text-slate-400">
-                  <a href="/" className="hover:underline hover:text-violet-500 transition-colors">← Back to Home</a>
-                </p>
+                <a
+                  href="/"
+                  className="mt-4 flex items-center justify-center gap-2 w-full py-3 rounded-xl font-baloo font-bold text-sm
+                             text-violet-600 bg-violet-50 border border-violet-200
+                             hover:bg-violet-100 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(124,58,237,0.15)]
+                             transition-all duration-200"
+                >
+                  <span>🏠</span> Back to Home
+                </a>
               </div>
             )}
 
