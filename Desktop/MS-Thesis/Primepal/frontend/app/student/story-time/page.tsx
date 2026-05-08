@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { useStoryTime, queryKeys } from '@/lib/hooks/queries';
+import PageHero from '@/components/student/PageHero';
 
 type GameState = 'loading' | 'reading' | 'questioning' | 'finished';
 
@@ -201,41 +202,35 @@ export default function StoryTimePage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-green-50 pb-6">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-emerald-400 to-green-500 text-white p-4">
-        <div className="max-w-2xl mx-auto">
-          <button
-            onClick={() => router.push('/student/home')}
-            className="flex items-center gap-2 text-sm font-semibold mb-4 hover:opacity-80 transition-opacity"
-          >
-            <ArrowLeft size={16} />
-            Back
-          </button>
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold">📖 Story Time</h1>
-              <p className="text-sm text-white/80">{story.topic}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-white/80">Score</p>
-              <p className="text-3xl font-bold">{score.totalPoints}</p>
-            </div>
-          </div>
+    <div className="min-h-screen bg-student-bg pb-6">
+      <PageHero label="STORY TIME" name="Read & Discover" subtitle="Read the story, then answer the questions." mascot="📖" />
+
+      {/* Back / Score bar */}
+      <div className="max-w-3xl mx-auto px-4 flex items-center justify-between py-3">
+        <button
+          onClick={() => router.push('/student/home')}
+          className="flex items-center gap-2 text-sm font-semibold text-slate-600 hover:opacity-80 transition-opacity"
+        >
+          <ArrowLeft size={16} />
+          Back
+        </button>
+        <div className="text-right">
+          <p className="text-xs text-slate-500">Score</p>
+          <p className="text-2xl font-bold text-emerald-600">{score.totalPoints}</p>
         </div>
       </div>
 
       {gameState === 'reading' && (
         <>
           {/* Story Card */}
-          <div className="max-w-2xl mx-auto px-4 py-8 space-y-4">
+          <div className="max-w-3xl mx-auto px-4 py-8 space-y-4">
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl border-2 border-emerald-100 p-6 shadow-sm"
+              className="bg-white rounded-3xl p-6 sm:p-8 border-2 border-emerald-100 shadow-[0_12px_40px_rgba(15,23,42,0.06)]"
             >
               <h2 className="text-2xl font-bold text-gray-900 mb-4 text-center">{story.story_title}</h2>
-              <p className="text-gray-700 text-lg leading-relaxed mb-6 font-medium">{story.story_text}</p>
+              <p className="text-base sm:text-lg leading-relaxed font-nunito text-gray-700 mb-6">{story.story_text}</p>
 
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -243,11 +238,10 @@ export default function StoryTimePage() {
                 onClick={speakStory}
                 disabled={isSpeaking}
                 className={[
-                  'w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl font-semibold text-white',
-                  'transition-all',
+                  'flex items-center justify-center gap-2 px-5 py-3 rounded-2xl font-baloo font-extrabold text-white transition-all',
                   isSpeaking
                     ? 'bg-gray-400 cursor-not-allowed'
-                    : 'bg-blue-500 hover:bg-blue-600 active:bg-blue-700',
+                    : 'bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-[0_4px_12px_rgba(16,185,129,0.3)]',
                 ].join(' ')}
               >
                 <Volume2 size={20} />
@@ -271,16 +265,16 @@ export default function StoryTimePage() {
         <>
           {/* Progress bar */}
           <div className="bg-white border-b border-gray-200">
-            <div className="max-w-2xl mx-auto px-4 py-4">
+            <div className="max-w-3xl mx-auto px-4 py-4">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-sm font-semibold text-gray-700">
                   Question {currentQuestionIndex + 1} of {story.questions.length}
                 </p>
                 <p className="text-sm font-semibold text-emerald-600">{progress}%</p>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="h-3 rounded-full bg-emerald-100 overflow-hidden">
                 <div
-                  className="bg-gradient-to-r from-emerald-400 to-green-500 h-2 rounded-full transition-all"
+                  className="bg-gradient-to-r from-emerald-400 to-teal-400 h-full transition-all duration-500"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -288,7 +282,7 @@ export default function StoryTimePage() {
           </div>
 
           {/* Question area */}
-          <div className="max-w-2xl mx-auto px-4 py-8">
+          <div className="max-w-3xl mx-auto px-4 py-8">
             <motion.div
               key={currentQuestionIndex}
               initial={{ opacity: 0, y: 10 }}
@@ -296,9 +290,9 @@ export default function StoryTimePage() {
               className="space-y-6"
             >
               {/* Question card */}
-              <div className="bg-white rounded-2xl border-2 border-emerald-100 p-6 shadow-sm">
+              <div className="bg-white rounded-3xl border-2 border-emerald-100 p-6 sm:p-8 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
                 <p className="text-sm font-semibold text-gray-600 mb-2 uppercase tracking-widest">Question</p>
-                <p className="text-lg font-semibold text-gray-900">{currentQuestion.question}</p>
+                <p className="text-xl sm:text-2xl font-baloo font-extrabold text-slate-900">{currentQuestion.question}</p>
               </div>
 
               {/* Answer options */}
@@ -315,14 +309,14 @@ export default function StoryTimePage() {
                       onClick={() => !answerResult && !isSubmitting && submitAnswer(index)}
                       disabled={answerResult !== null || isSubmitting}
                       className={[
-                        'w-full p-4 rounded-xl font-semibold text-left transition-all',
+                        'block w-full text-left border-2 rounded-2xl px-5 py-4 font-nunito font-semibold text-base transition-all',
                         shouldHighlight
                           ? answerResult.correct
-                            ? 'bg-green-500 text-white border-2 border-green-600'
-                            : 'bg-red-500 text-white border-2 border-red-600'
+                            ? 'border-emerald-500 bg-emerald-100 text-emerald-900'
+                            : 'border-rose-400 bg-rose-50 text-rose-900'
                           : answerResult && isCorrectAnswer
-                          ? 'bg-green-100 text-green-900 border-2 border-green-500'
-                          : 'bg-gray-100 text-gray-900 border-2 border-gray-200 hover:border-emerald-400 hover:bg-emerald-50 cursor-pointer',
+                          ? 'border-emerald-500 bg-emerald-100 text-emerald-900'
+                          : 'bg-white border-slate-200 hover:border-emerald-300 hover:bg-emerald-50 cursor-pointer',
                       ].join(' ')}
                     >
                       <span className="text-sm font-bold opacity-60 mr-2">
