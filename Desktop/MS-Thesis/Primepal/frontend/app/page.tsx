@@ -116,15 +116,15 @@ export default function LandingPage() {
 
           {/* title */}
           <AnimatedHeroH1
-            className="font-extrabold text-white text-center leading-none"
-            style={{ fontSize: "clamp(40px, 6vw, 56px)", letterSpacing: "-0.02em" }}
+            className="font-extrabold text-white text-center leading-[0.95]"
+            style={{ fontSize: "clamp(48px, 8vw, 80px)", letterSpacing: "-0.03em" }}
           >
             Learn English
             <br />
             the{" "}
             <span
               style={{
-                background: "linear-gradient(135deg, #60a5fa, #a78bfa)",
+                background: "linear-gradient(135deg, #60a5fa, #a78bfa, #f472b6)",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
@@ -136,11 +136,11 @@ export default function LandingPage() {
 
           {/* subtitle */}
           <AnimatedHeroP
-            className="font-semibold text-center mt-3 mx-auto"
+            className="font-semibold text-center mt-4 mx-auto"
             style={{
-              fontSize: "clamp(14px, 1.8vw, 16px)",
-              color: "rgba(255,255,255,0.55)",
-              maxWidth: "540px",
+              fontSize: "clamp(16px, 2.2vw, 20px)",
+              color: "rgba(255,255,255,0.6)",
+              maxWidth: "640px",
               lineHeight: 1.6,
             }}
           >
@@ -150,24 +150,24 @@ export default function LandingPage() {
         </AnimatedHeroSection>
 
         {/* ── pillar cards ── */}
-        <AnimatedHeroItem className="flex items-center justify-center gap-2.5 sm:gap-3 mb-8 relative z-10">
+        <AnimatedHeroItem className="flex items-center justify-center gap-3 sm:gap-4 mb-10 relative z-10">
           {pillarData.map(({ icon: Icon, label, desc }) => (
             <div
               key={label}
-              className="flex items-center gap-2 sm:gap-2.5 px-3 sm:px-4 py-2.5 rounded-xl transition-all hover:-translate-y-0.5"
+              className="flex items-center gap-2.5 sm:gap-3 px-4 sm:px-5 py-3 sm:py-3.5 rounded-2xl transition-all hover:-translate-y-1 hover:shadow-lg"
               style={{
-                background: "rgba(255,255,255,0.05)",
-                border: "1px solid rgba(255,255,255,0.08)",
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.10)",
               }}
             >
-              <span className="text-lg sm:text-xl">
+              <span className="text-2xl sm:text-3xl">
                 {label === "Reading" ? "📖" : label === "Writing" ? "✏️" : "🎤"}
               </span>
               <div className="flex flex-col">
-                <span className="text-white text-[13px] font-bold leading-tight">{label}</span>
+                <span className="text-white text-sm sm:text-base font-bold leading-tight">{label}</span>
                 <span
-                  className="text-[10px] font-semibold leading-tight hidden sm:block"
-                  style={{ color: "rgba(255,255,255,0.4)" }}
+                  className="text-[11px] sm:text-xs font-semibold leading-tight hidden sm:block"
+                  style={{ color: "rgba(255,255,255,0.45)" }}
                 >
                   {desc}
                 </span>
@@ -177,7 +177,7 @@ export default function LandingPage() {
         </AnimatedHeroItem>
 
         {/* ── role cards ── */}
-        <div className="flex flex-col sm:flex-row gap-4 sm:gap-5 w-full relative z-10" style={{ maxWidth: "680px" }}>
+        <div className="flex flex-col sm:flex-row gap-5 sm:gap-6 w-full relative z-10" style={{ maxWidth: "860px" }}>
           {/* student */}
           <AnimatedCard xOffset={-36} delay={0.5} className="flex-1">
             <Link href="/student/play" className="block group">
@@ -185,38 +185,38 @@ export default function LandingPage() {
                 className="relative overflow-hidden"
                 style={{
                   background: "linear-gradient(135deg, #f472b6 0%, #db2777 100%)",
-                  borderRadius: "20px",
-                  padding: "28px 24px",
-                  boxShadow: "0 16px 48px rgba(219,39,119,0.35)",
+                  borderRadius: "24px",
+                  padding: "36px 32px",
+                  boxShadow: "0 20px 56px rgba(219,39,119,0.35)",
                   border: "2px solid rgba(251,146,191,0.4)",
                 }}
               >
-                <div className="absolute -right-2.5 -bottom-2.5 text-[4.5rem] opacity-[0.08] leading-none select-none pointer-events-none">
+                <div className="absolute -right-4 -bottom-4 text-[6rem] opacity-[0.08] leading-none select-none pointer-events-none">
                   🎮
                 </div>
 
-                <div className="flex items-center gap-3 mb-3.5">
-                  <div className="w-[42px] h-[42px] bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
-                    <Gamepad2 size={22} className="text-white" strokeWidth={2.5} />
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
+                    <Gamepad2 size={26} className="text-white" strokeWidth={2.5} />
                   </div>
-                  <span className="bg-white/20 text-white text-[11px] font-extrabold px-3.5 py-1.5 rounded-full tracking-wide shadow-md">
+                  <span className="bg-white/20 text-white text-xs font-extrabold px-4 py-2 rounded-full tracking-wide shadow-md">
                     LET&apos;S PLAY!
                   </span>
                 </div>
 
-                <h2 className="font-extrabold text-white mb-1.5 leading-tight" style={{ fontSize: "22px" }}>
+                <h2 className="font-extrabold text-white mb-2 leading-tight" style={{ fontSize: "28px" }}>
                   I&apos;m a Student
                 </h2>
-                <p className="font-semibold leading-relaxed mb-4" style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)", lineHeight: 1.5 }}>
+                <p className="font-semibold leading-relaxed mb-5" style={{ fontSize: "15px", color: "rgba(255,255,255,0.8)", lineHeight: 1.6 }}>
                   Enter your class code and start your English adventure with fun missions!
                 </p>
 
                 <div
-                  className="inline-flex items-center gap-2 font-bold text-sm px-5 py-2.5 rounded-xl backdrop-blur-sm group-hover:bg-white/30 transition-all duration-200 group-hover:gap-3"
+                  className="inline-flex items-center gap-2.5 font-bold text-base px-6 py-3 rounded-2xl backdrop-blur-sm group-hover:bg-white/30 transition-all duration-200 group-hover:gap-3.5"
                   style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "white" }}
                 >
                   <span>Enter Class Code</span>
-                  <span className="text-lg transition-transform duration-200 group-hover:translate-x-1">→</span>
+                  <span className="text-xl transition-transform duration-200 group-hover:translate-x-1">→</span>
                 </div>
               </AnimatedCardInner>
             </Link>
@@ -229,38 +229,38 @@ export default function LandingPage() {
                 className="relative overflow-hidden"
                 style={{
                   background: "linear-gradient(135deg, #2dd4bf 0%, #0d9488 100%)",
-                  borderRadius: "20px",
-                  padding: "28px 24px",
-                  boxShadow: "0 16px 48px rgba(13,148,136,0.35)",
+                  borderRadius: "24px",
+                  padding: "36px 32px",
+                  boxShadow: "0 20px 56px rgba(13,148,136,0.35)",
                   border: "2px solid rgba(94,234,212,0.4)",
                 }}
               >
-                <div className="absolute -right-2.5 -bottom-2.5 text-[4.5rem] opacity-[0.08] leading-none select-none pointer-events-none">
+                <div className="absolute -right-4 -bottom-4 text-[6rem] opacity-[0.08] leading-none select-none pointer-events-none">
                   📊
                 </div>
 
-                <div className="flex items-center gap-3 mb-3.5">
-                  <div className="w-[42px] h-[42px] bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg">
-                    <GraduationCap size={22} className="text-white" strokeWidth={2.5} />
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center shadow-lg">
+                    <GraduationCap size={26} className="text-white" strokeWidth={2.5} />
                   </div>
-                  <span className="bg-white/20 text-white text-[11px] font-extrabold px-3.5 py-1.5 rounded-full tracking-wide shadow-md">
+                  <span className="bg-white/20 text-white text-xs font-extrabold px-4 py-2 rounded-full tracking-wide shadow-md">
                     DASHBOARD
                   </span>
                 </div>
 
-                <h2 className="font-extrabold text-white mb-1.5 leading-tight" style={{ fontSize: "22px" }}>
+                <h2 className="font-extrabold text-white mb-2 leading-tight" style={{ fontSize: "28px" }}>
                   I&apos;m a Teacher
                 </h2>
-                <p className="font-semibold leading-relaxed mb-4" style={{ fontSize: "13px", color: "rgba(255,255,255,0.8)", lineHeight: 1.5 }}>
+                <p className="font-semibold leading-relaxed mb-5" style={{ fontSize: "15px", color: "rgba(255,255,255,0.8)", lineHeight: 1.6 }}>
                   Manage classrooms, track progress, and view AI-powered insights.
                 </p>
 
                 <div
-                  className="inline-flex items-center gap-2 font-bold text-sm px-5 py-2.5 rounded-xl backdrop-blur-sm group-hover:bg-white/30 transition-all duration-200 group-hover:gap-3"
+                  className="inline-flex items-center gap-2.5 font-bold text-base px-6 py-3 rounded-2xl backdrop-blur-sm group-hover:bg-white/30 transition-all duration-200 group-hover:gap-3.5"
                   style={{ backgroundColor: "rgba(255,255,255,0.2)", color: "white" }}
                 >
                   <span>Sign In</span>
-                  <span className="text-lg transition-transform duration-200 group-hover:translate-x-1">→</span>
+                  <span className="text-xl transition-transform duration-200 group-hover:translate-x-1">→</span>
                 </div>
               </AnimatedCardInner>
             </Link>
