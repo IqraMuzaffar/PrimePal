@@ -53,7 +53,7 @@ export default function PinEntry({ avatar, classCode, onBack }: Props) {
       });
       localStorage.setItem("primepal_student_token", data.access_token);
       localStorage.setItem("primepal_student_name", avatar.student_name);
-      router.push("/student/home");
+      router.push("/student/missions");
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Something went wrong";
 
