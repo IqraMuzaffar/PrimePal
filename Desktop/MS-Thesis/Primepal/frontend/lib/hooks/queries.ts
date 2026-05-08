@@ -88,7 +88,6 @@ export const queryKeys = {
   streak: ["streak"] as const,
   dailySummary: ["dailySummary"] as const,
   achievements: ["achievements"] as const,
-  spellingWords: ["spellingWords"] as const,
   storyTime: ["storyTime"] as const,
   evalStatus: ["evalStatus"] as const,
   evalQuestions: (type: string) => ["evalQuestions", type] as const,
@@ -131,16 +130,6 @@ export function useAchievements() {
   });
 }
 
-interface SpellingWord {
-  word: string;
-  emoji: string;
-}
-
-interface WordsResponse {
-  words: SpellingWord[];
-  topic: string;
-  week_number: number;
-}
 
 interface ComprehensionQuestion {
   id: number;
@@ -176,13 +165,6 @@ interface EvalQuestion {
   audio_text: string | null;
 }
 
-export function useSpellingWords() {
-  return useQuery({
-    queryKey: queryKeys.spellingWords,
-    queryFn: () => studentFetch<WordsResponse>("/spelling-bee/words"),
-    staleTime: 10 * 60 * 1000,
-  });
-}
 
 export function useStoryTime() {
   return useQuery({
