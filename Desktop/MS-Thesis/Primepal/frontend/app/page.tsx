@@ -78,13 +78,14 @@ export default function LandingPage() {
         </div>
         <Link
           href="/admin/login"
-          className="text-[13px] font-semibold px-3.5 py-1.5 rounded-lg transition-all hover:bg-white/[0.06]"
+          className="text-sm font-bold px-5 py-2.5 rounded-xl transition-all hover:-translate-y-0.5 hover:shadow-lg flex items-center gap-2"
           style={{
-            color: "rgba(147,197,253,0.5)",
-            border: "1px solid rgba(147,197,253,0.15)",
+            color: "#fff",
+            background: "linear-gradient(135deg, #4361ee 0%, #7c3aed 100%)",
+            boxShadow: "0 4px 20px rgba(67,97,238,0.35)",
           }}
         >
-          Admin Login
+          🛡️ Admin
         </Link>
       </nav>
 
