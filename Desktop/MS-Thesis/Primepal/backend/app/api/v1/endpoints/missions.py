@@ -1114,8 +1114,29 @@ async def get_pillar_missions(
             if len(merged) < PILLAR_QUESTIONS_COUNT:
                 merged.append(q)
 
-    # If we STILL don't have enough (bank was empty), raise a service error
-    # rather than returning an incomplete set
+    # If we have 0 questions after all attempts, try one last emergency LLM call
+    if len(merged) == 0:
+        logger.warning("EMERGENCY: 0 questions after bank+LLM for %s. Attempting emergency generation.", pillar)
+        try:
+            emergency = await generate_pillar_missions(
+                pillar=pillar,
+                grade_level=grade_level,
+                active_topics=active_topic_names,
+                student_id=student_id,
+                student_weaknesses=[],
+                is_frustrated=False,
+                performance_profile=None,
+                context_chunks=None,
+                count=PILLAR_QUESTIONS_COUNT,
+            )
+            if emergency:
+                for q in emergency:
+                    if isinstance(q, dict) and q.get("question"):
+                        merged.append(q)
+                logger.info("Emergency generation produced %d questions for %s", len(merged), pillar)
+        except Exception as exc:
+            logger.error("Emergency generation also failed for %s: %s", pillar, exc)
+
     if len(merged) == 0:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
