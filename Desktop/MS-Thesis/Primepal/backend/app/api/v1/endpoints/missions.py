@@ -51,6 +51,7 @@ from app.utils.pregenerate_missions import _build_generic_cache_key
 from app.utils.question_bank import pull_from_bank
 from app.api.v1.endpoints.rewards import invalidate_rewards_cache
 from app.api.v1.endpoints.student_scores import invalidate_scores_cache
+from app.core.llm_tracker import track_llm, log_cache_hit
 
 logger = logging.getLogger(__name__)
 
@@ -257,6 +258,7 @@ async def get_daily_missions(
         cached = await cache_get(cache_key)
         if cached:
             logger.info(f"Cache hit for daily missions: {cache_key}")
+            await log_cache_hit("missions/daily", student_id=student_id, classroom_id=classroom_id)
             return DailyMissionsResponse(**cached)
 
     # ------------------------------------------------------------------
@@ -969,6 +971,7 @@ async def get_pillar_missions(
         cached = await cache_get(cache_key)
         if cached:
             logger.info(f"Cache hit for pillar missions (student): {cache_key}")
+            await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
             return PillarMissionsResponse(**cached)
 
         # Fallback: check generic classroom-level cache (pre-generated)
@@ -976,6 +979,7 @@ async def get_pillar_missions(
         generic_cached = await cache_get(generic_key)
         if generic_cached:
             logger.info(f"Cache hit for pillar missions (generic): {generic_key}")
+            await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
             background_tasks.add_task(
                 _generate_personalized_missions,
                 student_id, classroom_id, pillar, grade_level,
@@ -1254,12 +1258,13 @@ async def submit_speaking_answer(
     audio_buffer.name = "recording.webm"
 
     try:
-        whisper_response = await openai_client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_buffer,
-            language="en",
-            prompt=_WHISPER_ACCENT_PROMPT,
-        )
+        async with track_llm("missions/submit-speaking", model="whisper-1", student_id=student_id, classroom_id=classroom_id):
+            whisper_response = await openai_client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_buffer,
+                language="en",
+                prompt=_WHISPER_ACCENT_PROMPT,
+            )
         transcription = whisper_response.text.strip()
     except Exception as exc:
         logger.error(f"Whisper transcription failed: {exc}")
