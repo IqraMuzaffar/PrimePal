@@ -286,3 +286,61 @@ export function useDeleteAdminTopic() {
     },
   });
 }
+
+// ── Monitoring ──────────────────────────────────────────────────────────────
+
+export function useMonitoringStats() {
+  return useQuery({
+    queryKey: ["admin", "monitoring", "stats"],
+    queryFn: () => adminFetch<{
+      total_calls: number;
+      total_tokens: number;
+      avg_latency_ms: number;
+      cache_hit_rate: number;
+      error_count: number;
+      estimated_cost_usd: number;
+      calls_by_endpoint: Array<{ endpoint: string; count: number }>;
+    }>("/admin/monitoring/stats"),
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+  });
+}
+
+export function useMonitoringCalls(limit = 50) {
+  return useQuery({
+    queryKey: ["admin", "monitoring", "calls", limit],
+    queryFn: () => adminFetch<Array<{
+      id: number;
+      created_at: string;
+      endpoint: string;
+      model: string;
+      prompt_tokens: number | null;
+      completion_tokens: number | null;
+      total_tokens: number | null;
+      latency_ms: number;
+      cache_hit: boolean;
+      success: boolean;
+      error: string | null;
+    }>>(`/admin/monitoring/calls?limit=${limit}`),
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+  });
+}
+
+export function useHealthDetailed() {
+  return useQuery({
+    queryKey: ["health", "detailed"],
+    queryFn: async () => {
+      const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const res = await fetch(`${API_BASE.replace('/api/v1', '')}/health/detailed`);
+      if (!res.ok) throw new Error("Health check failed");
+      return res.json() as Promise<{
+        status: string;
+        checks: Record<string, { ok: boolean; latency_ms?: number; message?: string }>;
+        llm_24h: Record<string, number | string>;
+      }>;
+    },
+    staleTime: 30 * 1000,
+    refetchInterval: 30 * 1000,
+  });
+}
