@@ -228,8 +228,8 @@ Return ONLY valid JSON (no markdown code blocks).
         questions=questions,
     )
 
-    # Cache for 1 hour (same topic/grade will get same story)
-    await cache_set(cache_key, response.model_dump(), ttl=3600)
+    # Cache for 24 hours (same topic/grade will get same story)
+    await cache_set(cache_key, response.model_dump(), ttl=86400)
 
     return response
 

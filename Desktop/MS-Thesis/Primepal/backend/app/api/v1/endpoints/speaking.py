@@ -227,8 +227,8 @@ Return ONLY valid JSON (no markdown):
         week_number=week_number,
     )
 
-    # Cache for 1 hour (same topic/grade will get same prompts)
-    await cache_set(cache_key, response.model_dump(), ttl=3600)
+    # Cache for 24 hours (same topic/grade will get same prompts)
+    await cache_set(cache_key, response.model_dump(), ttl=86400)
 
     return response
 
@@ -309,49 +309,21 @@ async def evaluate_response(
             status="retry",
         )
 
-    # Evaluate via LLM
-    eval_prompt = f"""A Grade {grade_level} student was asked: "{request.prompt_text}"
-They said: "{request.transcript}"
+    # Template-based evaluation (replaces LLM call for cost optimization)
+    from difflib import SequenceMatcher
+    transcript_lower = (request.transcript or "").lower().strip()
+    prompt_lower = (request.prompt_text or "").lower().strip()
+    similarity = SequenceMatcher(None, prompt_lower, transcript_lower).ratio()
 
-Score their response on a scale of 0-2:
-  2 = on-topic and uses relevant vocabulary
-  1 = partially on-topic or very short
-  0 = off-topic or empty
-
-Return ONLY valid JSON:
-{{"score": 2, "feedback": "Great job! You used good words about the topic."}}
-
-Keep the feedback encouraging, short (1-2 sentences), and suitable for a young child."""
-
-    try:
-        # 10-second timeout for evaluation LLM call
-        response = await asyncio.wait_for(
-            client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": eval_prompt}],
-                temperature=0.5,
-                max_tokens=200,
-            ),
-            timeout=10.0,
-        )
-
-        response_text = response.choices[0].message.content.strip()
-
-        # C2: Line-based markdown stripping (replaces fragile split("```"))
-        from app.utils.markdown_parser import strip_markdown_code_block
-        response_text = strip_markdown_code_block(response_text)
-
-        eval_data = json.loads(response_text)
-        score: int = eval_data.get("score", 0)
-        feedback: str = eval_data.get("feedback", "Thanks for trying!")
-
-        if not isinstance(score, int) or score < 0 or score > 2:
-            score = 0
-
-    except Exception as exc:
-        logger.error(f"Failed to evaluate response: {exc}")
+    if similarity >= 0.6:
+        score = 2
+        feedback = "Great job! You spoke clearly and used the right words! 🌟"
+    elif similarity >= 0.3 or len(transcript_lower) > 5:
+        score = 1
+        feedback = "Good try! Keep practising and you'll get even better! 💪"
+    else:
         score = 0
-        feedback = "We couldn't evaluate that. Try again!"
+        feedback = "Let's try that again — listen carefully and speak slowly! 🎤"
 
     points_awarded = {0: 0, 1: 5, 2: 10}.get(score, 0)
 
@@ -534,40 +506,29 @@ async def evaluate_pronunciation(
     logger.info(f"Pronunciation score: {pronunciation_score}%, overall correct: {overall_correct}")
 
     # ------------------------------------------------------------------
-    # Step 3: Generate AI feedback based on pronunciation results
+    # Step 3: Template-based feedback (replaces LLM call for cost optimization)
     # ------------------------------------------------------------------
     incorrect_words = [p["word"] for p in pronunciation_data_list if p["status"] != "correct"]
 
-    feedback_prompt = f"""A Grade {grade_level} student was asked: "{request.prompt_text}"
-They said: "{whisper_text}"
-
-Word-level results:
-- Correct words: {len([p for p in pronunciation_data_list if p['status'] == 'correct'])}/{len(pronunciation_data_list)}
-- Mispronounced: {', '.join(incorrect_words) if incorrect_words else 'None'}
-
-Pronunciation score: {pronunciation_score}%
-
-Generate SHORT, encouraging feedback (1-2 sentences max). If score >= 70, congratulate them.
-If < 70, gently point out which word(s) to practice. Make it suitable for young children."""
-
-    try:
-        # 10-second timeout for feedback generation
-        response = await asyncio.wait_for(
-            client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": feedback_prompt}],
-                temperature=0.5,
-                max_tokens=150,
-            ),
-            timeout=10.0,
-        )
-        feedback: str = response.choices[0].message.content.strip()
-    except (asyncio.TimeoutError, Exception) as exc:
-        logger.error(f"Failed to generate feedback: {exc}")
-        feedback = "Great attempt! Keep practicing!" if overall_correct else "Keep practicing, you're getting closer!"
+    if pronunciation_score >= 90:
+        feedback = "Amazing pronunciation! You said every word perfectly! 🌟"
+    elif pronunciation_score >= 70:
+        feedback = "Great job! Your pronunciation is really good! Keep it up! 🎉"
+    elif pronunciation_score >= 50:
+        if incorrect_words:
+            words_hint = ", ".join(incorrect_words[:3])
+            feedback = f"Good try! Practise saying: {words_hint}. You're getting closer! 💪"
+        else:
+            feedback = "Good effort! Keep practising and you'll get even better! 💪"
+    else:
+        if incorrect_words:
+            words_hint = ", ".join(incorrect_words[:2])
+            feedback = f"Let's practise! Try saying \"{words_hint}\" slowly. You can do it! 🎤"
+        else:
+            feedback = "Let's try again — speak slowly and clearly! You've got this! 🎤"
 
     if noise_flagged:
-        feedback += " Try moving to a quieter spot! \U0001f92b"
+        feedback += " Try moving to a quieter spot! 🤫"
 
     # ------------------------------------------------------------------
     # Step 4: Calculate points and update atomically

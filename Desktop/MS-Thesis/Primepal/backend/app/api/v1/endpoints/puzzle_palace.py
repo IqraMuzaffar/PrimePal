@@ -258,7 +258,7 @@ async def get_puzzle_palace_rooms(
     response = PuzzlePalaceResponse(rooms=rooms, topic=topic_label)
 
     # Cache for 1 hour
-    await cache_set(cache_key, response.model_dump(), ttl=3600)
+    await cache_set(cache_key, response.model_dump(), ttl=86400)  # 24 hours
 
     total_qs = sum(len(r.questions) for r in rooms)
     logger.info(

@@ -329,7 +329,7 @@ async def get_daily_missions(
 
     # Cache the response for future requests
     if not is_frustrated:
-        await cache_set(cache_key, response.model_dump(), ttl=3600)
+        await cache_set(cache_key, response.model_dump(), ttl=86400)  # 24 hours — same topic/grade gets same questions all day
 
     return response
 
@@ -721,7 +721,7 @@ async def _generate_personalized_missions(
                     match_count=5,
                 )
                 logger.info(f"Background task RAG retrieval: {len(context_chunks)} chunks for {pillar} grade {grade_level}")
-                await cache_set(rag_cache_key, context_chunks, ttl=3600)
+                await cache_set(rag_cache_key, context_chunks, ttl=86400)  # 24 hours — curriculum doesn't change often
             except Exception as exc:
                 logger.warning(f"Background task RAG retrieval failed, continuing without curriculum context: {exc}")
                 context_chunks = []
@@ -800,7 +800,7 @@ async def _generate_personalized_missions(
             questions=[_strip_answer(q) for q in mission_questions],
             weakness_focus_questions=weakness_focus_count,
         )
-        await cache_set(cache_key, response.model_dump(), ttl=3600)
+        await cache_set(cache_key, response.model_dump(), ttl=86400)  # 24 hours — same topic/grade gets same questions all day
         logger.info(
             "Background personalization cached for student %s pillar %s (%d questions)",
             student_id, pillar, len(merged),
@@ -995,7 +995,7 @@ async def get_pillar_missions(
                 match_count=5,
             )
             logger.info(f"RAG retrieval for pillar missions: {len(context_chunks)} chunks for {pillar} grade {grade_level}")
-            await cache_set(rag_cache_key, context_chunks, ttl=3600)
+            await cache_set(rag_cache_key, context_chunks, ttl=86400)  # 24 hours — curriculum doesn't change often
         except Exception as exc:
             logger.warning(f"RAG retrieval failed for pillar missions, continuing without curriculum context: {exc}")
             context_chunks = []
@@ -1184,7 +1184,7 @@ async def get_pillar_missions(
 
     # Cache the response for future requests
     if not is_frustrated:
-        await cache_set(cache_key, response.model_dump(), ttl=3600)
+        await cache_set(cache_key, response.model_dump(), ttl=86400)  # 24 hours — same topic/grade gets same questions all day
 
     logger.info(
         "Pillar missions returned for student %s pillar %s: "
