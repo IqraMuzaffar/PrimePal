@@ -732,6 +732,62 @@ RULES:
 5. For multiple choice fields (options, image_options): always provide exactly 4 items with ids "a","b","c","d".
 6. correct_answer for option-based questions must be one of "a","b","c","d".
 7. URDU_HINT: Add an urdu_hint field with the Urdu translation of the key vocabulary or sentence. Use simple Urdu appropriate for Grade {grade_level}. For example: "The cat is sleeping" → "بلی سو رہی ہے".
+
+🚨 CRITICAL QUESTION QUALITY REQUIREMENTS (MANDATORY):
+
+1. ONE CLEAR CORRECT ANSWER - UNAMBIGUOUS:
+   ✅ GOOD: "The cat is ___." Options: [sleeping, blue, yesterday, loudly]
+           → Only "sleeping" is grammatically correct and makes sense
+   ❌ BAD:  "I like to play ___." Options: [., !, ?, ,]
+           → REJECTED: Multiple punctuation marks could be correct depending on context
+   ❌ BAD:  "What is missing? I am happy ___" Options: [., !, ?, ,]
+           → REJECTED: Any punctuation could work (statement/exclamation/question)
+
+2. CONCRETE, NOT ABSTRACT (especially for Grade {grade_level}):
+   ✅ GOOD: "Which animal lives in water? cat, dog, fish, bird"
+           → Tests concrete knowledge of animals
+   ❌ BAD:  "Which word does NOT belong? period, comma, exclamation mark, letter"
+           → REJECTED: Too abstract, requires meta-understanding of "punctuation vs letter"
+   ❌ BAD:  "Identify the noun in this sentence"
+           → REJECTED: Meta-cognitive task, too abstract for young learners
+
+3. PLAUSIBLE BUT CLEARLY WRONG DISTRACTORS:
+   ✅ GOOD: "How many legs does a cat have? 2, 4, 6, 8"
+           → All are even numbers, but only 4 is correct
+   ❌ BAD:  "The cat is ___." Options: [sleeping, sky, tuesday, music]
+           → REJECTED: sky, tuesday, music are obviously wrong (wrong parts of speech)
+   ✅ GOOD: "The ___ is sleeping." Options: [cat, dog, bird, fish]
+           → All animals can sleep, student must know the context
+
+4. CONTEXT-INDEPENDENT - COMPLETE INFORMATION:
+   ✅ GOOD: "A cat has ___ legs. 2, 4, 6, 8"
+           → Complete factual question, no ambiguity
+   ❌ BAD:  "What is missing? The cat is ___" without clear context
+           → REJECTED: Could be many things (sleeping, big, black, hungry, etc.)
+   ✅ GOOD: "Complete the sentence: A cat has ___ legs. two, four, six, eight"
+           → Clear what information is needed
+
+5. TESTABLE KNOWLEDGE, NOT OPINION:
+   ✅ GOOD: "What color is grass? green, blue, red, yellow"
+           → Objective fact
+   ❌ BAD:  "What is your favorite color?"
+           → REJECTED: Opinion, not knowledge
+
+6. AGE-APPROPRIATE VOCABULARY & CONCEPTS:
+   Grade 1-2: Simple concrete nouns (cat, dog, ball), basic verbs (run, eat, sleep)
+   Grade 3-4: Common adjectives (big, small, happy), simple past tense
+   Grade 5-6: More complex sentences, basic idioms, story comprehension
+   ❌ BAD for Grade 1-2: "Identify the subordinate clause"
+           → REJECTED: Too advanced
+
+QUESTION VALIDATION CHECKLIST - BEFORE FINALIZING EACH QUESTION, ASK:
+□ Is there EXACTLY ONE clear correct answer?
+□ Are the wrong options plausible but definitely incorrect?
+□ Can a Grade {grade_level} student understand this without extra context?
+□ Does it test concrete knowledge, not abstract concepts?
+□ Would this question confuse or frustrate a student?
+
+If you answer NO to any of these, REJECT that question and create a different one.
 {weakness_context}{confidence_override}{adaptive_section}{curriculum_context}"""
 
     user_message = f"Generate {target} {pillar} questions for Grade {grade_level} on topics: {topic_text}."
@@ -828,7 +884,59 @@ RULES:
             # Save pre-validation list for fallback
             all_normalized = list(validated)
 
-            # Validate topic alignment after normalization
+            # ══════════════════════════════════════════════════════════════
+            # LAYER 2: Semantic Quality Validation (Heuristic Checks)
+            # ══════════════════════════════════════════════════════════════
+            from app.agents.tutor_agent.semantic_quality_validator import SemanticQualityValidator
+
+            semantic_validator = SemanticQualityValidator(strict_mode=False)
+            semantically_valid, semantically_invalid, semantic_issues = semantic_validator.validate_questions(
+                validated,
+                grade_level=grade_level,
+            )
+
+            semantic_pass_rate = (len(semantically_valid) / len(validated) * 100) if validated else 0
+            logger.info(
+                f"Semantic validation: {len(semantically_valid)}/{len(validated)} passed "
+                f"({semantic_pass_rate:.1f}%) for {pillar} grade {grade_level}"
+            )
+
+            # Log rejected questions for analysis
+            if semantically_invalid:
+                for invalid_q in semantically_invalid[:3]:  # Log first 3 rejections
+                    logger.warning(
+                        f"Semantic rejection: Q{invalid_q.get('id', '?')} - {invalid_q.get('question', '')[:50]}..."
+                    )
+
+            # Use semantically valid questions for further processing
+            validated = semantically_valid
+
+            # ══════════════════════════════════════════════════════════════
+            # LAYER 3: Evaluator Agent Quality Gate (LLM-Powered)
+            # ══════════════════════════════════════════════════════════════
+            # Optional: Enable for high-stakes scenarios or when semantic validation
+            # pass rate is low. Disabled by default for performance.
+            #
+            # from app.agents.evaluator_agent.question_quality_evaluator import QuestionQualityEvaluator
+            #
+            # if semantic_pass_rate < 70:  # Only run if semantic validation rejected >30%
+            #     evaluator = QuestionQualityEvaluator(timeout=8.0)
+            #     evaluator_valid, evaluator_invalid, evaluations = await evaluator.evaluate_questions(
+            #         validated,
+            #         grade_level=grade_level,
+            #         topic=", ".join(active_topics) if active_topics else "General English",
+            #         max_concurrent=2,
+            #     )
+            #
+            #     evaluator_pass_rate = (len(evaluator_valid) / len(validated) * 100) if validated else 0
+            #     logger.info(
+            #         f"Evaluator validation: {len(evaluator_valid)}/{len(validated)} passed "
+            #         f"({evaluator_pass_rate:.1f}%) for {pillar} grade {grade_level}"
+            #     )
+            #
+            #     validated = evaluator_valid
+
+            # Validate topic alignment after quality validation
             pre_validation_count = len(validated)
             topic_aligned = validate_topic_alignment(validated, active_topics, pillar)
             post_validation_count = len(topic_aligned)
