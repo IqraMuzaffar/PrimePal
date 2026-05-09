@@ -285,7 +285,7 @@ class TestGenericCacheFallback:
         import hashlib
         topics_hash = hashlib.md5(",".join(sorted(active_topic_names)).encode()).hexdigest()[:12]
         student_id = MOCK_STUDENT["sub"]
-        student_cache_key = make_cache_key("pillar_missions", student_id, "reading", "False", topics_hash)
+        student_cache_key = make_cache_key("pillar_missions", CLASSROOM_ID, "reading", "False", topics_hash)
         generic_cache_key = _build_generic_cache_key(CLASSROOM_ID, "reading", topics_hash)
 
         # cache_get: None for student key, mock data for generic key

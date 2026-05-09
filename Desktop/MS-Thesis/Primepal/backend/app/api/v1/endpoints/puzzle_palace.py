@@ -117,7 +117,7 @@ async def get_puzzle_palace_rooms(
     # ------------------------------------------------------------------
     # Step 3: Check cache (1 hour TTL)
     # ------------------------------------------------------------------
-    cache_key = make_cache_key("puzzle_palace", student_id, topics_hash)
+    cache_key = make_cache_key("puzzle_palace", classroom_id, topics_hash)
     cached = await cache_get(cache_key)
     if cached:
         logger.info("Cache hit for puzzle palace: %s", cache_key)

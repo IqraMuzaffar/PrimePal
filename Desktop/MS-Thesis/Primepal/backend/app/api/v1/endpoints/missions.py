@@ -956,7 +956,7 @@ async def get_pillar_missions(
     # ------------------------------------------------------------------
     # Step 0: Check cache (only if not frustrated — frustrated students need fresh questions)
     # ------------------------------------------------------------------
-    cache_key = make_cache_key("pillar_missions", student_id, pillar, str(is_frustrated), topics_hash)
+    cache_key = make_cache_key("pillar_missions", classroom_id, pillar, str(is_frustrated), topics_hash)
     if not is_frustrated:
         # Check student-specific cache first
         cached = await cache_get(cache_key)
