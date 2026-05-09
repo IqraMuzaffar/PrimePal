@@ -21,6 +21,7 @@ from app.core.config import settings
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
 from app.core.cache import cache_get, cache_set, make_cache_key, debounced_invalidate
+from app.core.llm_tracker import track_llm, log_cache_hit
 from app.api.v1.endpoints.rewards import invalidate_rewards_cache
 from app.api.v1.endpoints.student_scores import invalidate_scores_cache
 from app.utils.pronunciation import compare_phrases, calculate_pronunciation_score
@@ -150,6 +151,8 @@ async def get_prompts(student: dict = Depends(get_current_student)):
     cached = await cache_get(cache_key)
     if cached:
         logger.info(f"Cache hit for speaking prompts: {cache_key}")
+        student_id = student["sub"]
+        await log_cache_hit("speaking/prompts", student_id=student_id, classroom_id=classroom_id)
         return PromptsResponse(**cached)
 
     # ------------------------------------------------------------------
@@ -169,17 +172,20 @@ Return ONLY valid JSON (no markdown):
 ]
 """
 
+    student_id = student["sub"]
     try:
         # 12-second timeout for LLM call (consistent with missions endpoints)
-        response = await asyncio.wait_for(
-            client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-                max_tokens=400,
-            ),
-            timeout=12.0,
-        )
+        async with track_llm("speaking/prompts", model="gpt-4o-mini", student_id=student_id, classroom_id=classroom_id) as tracker:
+            response = await asyncio.wait_for(
+                client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.7,
+                    max_tokens=400,
+                ),
+                timeout=12.0,
+            )
+            tracker.set_usage(response.usage)
 
         response_text = response.choices[0].message.content.strip()
 
@@ -413,14 +419,15 @@ async def evaluate_pronunciation(
         audio_bytes = await audio_file.read()
         audio_file_obj = BytesIO(audio_bytes)
         audio_file_obj.name = "audio.webm"
-        return await client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_file_obj,
-            response_format="verbose_json",
-            timestamp_granularities=["word"],
-            language="en",
-            prompt=WHISPER_ACCENT_PROMPT,
-        )
+        async with track_llm("speaking/evaluate-pro", model="whisper-1", student_id=student_id, classroom_id=classroom_id):
+            return await client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file_obj,
+                response_format="verbose_json",
+                timestamp_granularities=["word"],
+                language="en",
+                prompt=WHISPER_ACCENT_PROMPT,
+            )
 
     try:
         # 15-second timeout for Whisper transcription (audio processing can be slower)

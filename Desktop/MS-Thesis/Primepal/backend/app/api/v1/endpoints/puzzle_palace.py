@@ -24,6 +24,7 @@ from app.api.v1.endpoints.missions import MissionQuestionOut, _strip_answer
 from app.agents.tutor_agent.mission_generator import generate_pillar_missions
 from app.agents.tutor_agent.chatbot import retrieve_grade_filtered_chunks
 from app.core.cache import cache_get, cache_set, make_cache_key
+from app.core.llm_tracker import log_cache_hit
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
 
@@ -126,6 +127,7 @@ async def get_puzzle_palace_rooms(
     cached = await cache_get(cache_key)
     if cached:
         logger.info("Cache hit for puzzle palace: %s", cache_key)
+        await log_cache_hit("puzzle_palace/rooms", student_id=student_id, classroom_id=classroom_id)
         return PuzzlePalaceResponse(**cached)
 
     # ------------------------------------------------------------------
