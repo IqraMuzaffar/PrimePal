@@ -28,7 +28,7 @@ function getAccuracyColor(pct: number): string {
   return "text-rose-600";
 }
 
-function getAccuracyBg(pct: number): string {
+function _getAccuracyBg(pct: number): string {
   if (pct >= 70) return "from-emerald-400 to-emerald-600";
   if (pct >= 40) return "from-amber-400 to-amber-600";
   return "from-rose-400 to-rose-600";

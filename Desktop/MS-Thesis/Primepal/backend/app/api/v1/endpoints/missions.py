@@ -364,30 +364,31 @@ async def complete_mission(
     supabase = get_supabase_admin()
 
     # ------------------------------------------------------------------
-    # Step 1: Fetch current points
+    # Step 1: Fetch current points + classroom grade in parallel (non-blocking)
     # ------------------------------------------------------------------
-    student_resp = (
-        supabase.table("students")
-        .select("points")
-        .eq("id", student_id)
-        .maybe_single()
-        .execute()
+    classroom_id: str = student["classroom_id"]
+
+    student_resp, classroom_resp = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("students")
+            .select("points")
+            .eq("id", student_id)
+            .maybe_single()
+            .execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        ),
     )
     if not student_resp.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Student record not found",
         )
-
-    classroom_id: str = student["classroom_id"]
-
-    classroom_resp = (
-        supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
-    )
     grade_level: int = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     current_points: int = student_resp.data.get("points") or 0
@@ -405,8 +406,8 @@ async def complete_mission(
             window_start = (submitted_dt - timedelta(seconds=60)).isoformat()
             window_end = (submitted_dt + timedelta(seconds=60)).isoformat()
 
-            dup_resp = (
-                supabase.table("student_interactions")
+            dup_resp = await asyncio.to_thread(
+                lambda: supabase.table("student_interactions")
                 .select("id")
                 .eq("student_id", student_id)
                 .eq("interaction_type", interaction_type)
@@ -427,10 +428,12 @@ async def complete_mission(
     # Step 2: Atomically increment points via RPC
     # ------------------------------------------------------------------
     if points_awarded > 0:
-        rpc_result = supabase.rpc("increment_student_points", {
-            "p_student_id": student_id,
-            "p_points": points_awarded,
-        }).execute()
+        rpc_result = await asyncio.to_thread(
+            lambda: supabase.rpc("increment_student_points", {
+                "p_student_id": student_id,
+                "p_points": points_awarded,
+            }).execute()
+        )
         result_data = rpc_result.data[0] if rpc_result.data else {}
         new_total = result_data.get("new_points", current_points + points_awarded)
     else:
@@ -507,14 +510,23 @@ async def submit_batch(
     classroom_id: str = student["classroom_id"]
     supabase = get_supabase_admin()
 
-    # Fetch student data once
+    # Fetch student data + classroom grade in parallel (non-blocking)
     try:
-        student_resp = (
-            supabase.table("students")
-            .select("points")
-            .eq("id", student_id)
-            .maybe_single()
-            .execute()
+        student_resp, classroom_resp = await asyncio.gather(
+            asyncio.to_thread(
+                lambda: supabase.table("students")
+                .select("points")
+                .eq("id", student_id)
+                .maybe_single()
+                .execute()
+            ),
+            asyncio.to_thread(
+                lambda: supabase.table("classrooms")
+                .select("grade_level")
+                .eq("id", classroom_id)
+                .maybe_single()
+                .execute()
+            ),
         )
     except Exception as e:
         if "Missing response" not in str(e) and "204" not in str(e):
@@ -523,19 +535,6 @@ async def submit_batch(
 
     if not student_resp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student record not found")
-
-    try:
-        classroom_resp = (
-            supabase.table("classrooms")
-            .select("grade_level")
-            .eq("id", classroom_id)
-            .maybe_single()
-            .execute()
-        )
-    except Exception as e:
-        if "Missing response" not in str(e) and "204" not in str(e):
-            raise
-        classroom_resp = type('obj', (object,), {'data': None})()
 
     grade_level: int = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
@@ -556,13 +555,13 @@ async def submit_batch(
                 window_start = (submitted_dt - timedelta(seconds=60)).isoformat()
                 window_end = (submitted_dt + timedelta(seconds=60)).isoformat()
 
-                dup_resp = (
-                    supabase.table("student_interactions")
+                dup_resp = await asyncio.to_thread(
+                    lambda ws=window_start, we=window_end, it=itype: supabase.table("student_interactions")
                     .select("id")
                     .eq("student_id", student_id)
-                    .eq("interaction_type", itype)
-                    .gte("created_at", window_start)
-                    .lte("created_at", window_end)
+                    .eq("interaction_type", it)
+                    .gte("created_at", ws)
+                    .lte("created_at", we)
                     .limit(1)
                     .execute()
                 )
@@ -597,10 +596,12 @@ async def submit_batch(
     final_total = student_resp.data.get("points") or 0
     if processed > 0:
         total_points_earned = current_points - (student_resp.data.get("points") or 0)
-        rpc_result = supabase.rpc("increment_student_points", {
-            "p_student_id": student_id,
-            "p_points": total_points_earned,
-        }).execute()
+        rpc_result = await asyncio.to_thread(
+            lambda: supabase.rpc("increment_student_points", {
+                "p_student_id": student_id,
+                "p_points": total_points_earned,
+            }).execute()
+        )
         result_data = rpc_result.data[0] if rpc_result.data else {}
         final_total = result_data.get("new_points", current_points)
 
@@ -646,8 +647,8 @@ async def get_student_profile(
         return StudentProfileResponse(**cached)
 
     try:
-        student_resp = (
-            supabase.table("students")
+        student_resp = await asyncio.to_thread(
+            lambda: supabase.table("students")
             .select("student_name, roll_number, avatar_url, avatar_style, theme_color, points")
             .eq("id", student_id)
             .maybe_single()
@@ -656,7 +657,6 @@ async def get_student_profile(
     except Exception as e:
         if "Missing response" not in str(e) and "204" not in str(e):
             raise
-        # If 204, treat as not found
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Student record not found",
@@ -670,8 +670,8 @@ async def get_student_profile(
 
     data = student_resp.data
 
-    missions_count_resp = (
-        supabase.table("student_interactions")
+    missions_count_resp = await asyncio.to_thread(
+        lambda: supabase.table("student_interactions")
         .select("id", count="exact")
         .eq("student_id", student_id)
         .like("interaction_type", "mission%")
@@ -1282,8 +1282,8 @@ async def submit_speaking_answer(
     )
 
     if is_garbled:
-        student_resp = (
-            supabase.table("students")
+        student_resp = await asyncio.to_thread(
+            lambda: supabase.table("students")
             .select("points")
             .eq("id", student_id)
             .maybe_single()
@@ -1312,33 +1312,36 @@ async def submit_speaking_answer(
     is_correct = similarity >= 0.6
     points_awarded = _POINTS_PER_CORRECT if is_correct else 0
 
-    student_resp = (
-        supabase.table("students")
-        .select("points")
-        .eq("id", student_id)
-        .maybe_single()
-        .execute()
+    student_resp, classroom_resp = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("students")
+            .select("points")
+            .eq("id", student_id)
+            .maybe_single()
+            .execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        ),
     )
     current_points = (student_resp.data.get("points") or 0) if student_resp.data else 0
+    grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     if points_awarded > 0:
-        rpc_result = supabase.rpc("increment_student_points", {
-            "p_student_id": student_id,
-            "p_points": points_awarded,
-        }).execute()
+        rpc_result = await asyncio.to_thread(
+            lambda: supabase.rpc("increment_student_points", {
+                "p_student_id": student_id,
+                "p_points": points_awarded,
+            }).execute()
+        )
         result_data = rpc_result.data[0] if rpc_result.data else {}
         new_total = result_data.get("new_points", current_points + points_awarded)
     else:
         new_total = current_points
-
-    classroom_resp = (
-        supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
-    )
-    grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     background_tasks.add_task(
         log_interaction,
@@ -1439,30 +1442,29 @@ async def get_weekly_progress(student: dict = Depends(get_current_student)):
         return WeeklyProgressResponse(**cached)
 
     # ------------------------------------------------------------------
-    # Step 1: Fetch active week topic
-    # ------------------------------------------------------------------
-    syllabus_resp = (
-        supabase.table("classroom_syllabus")
-        .select("topic_title")
-        .eq("classroom_id", classroom_id)
-        .eq("status", "active")
-        .maybe_single()
-        .execute()
-    )
-    week_topic = syllabus_resp.data["topic_title"] if syllabus_resp.data else None
-
-    # ------------------------------------------------------------------
-    # Step 2: Fetch this week's pillar interactions (rolling 7-day window)
+    # Steps 1+2: Fetch active week topic + this week's interactions in parallel
     # ------------------------------------------------------------------
     seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-    interactions_resp = (
-        supabase.table("student_interactions")
-        .select("pillar")
-        .eq("student_id", student_id)
-        .not_.is_("pillar", "null")
-        .gte("created_at", seven_days_ago)
-        .execute()
+
+    syllabus_resp, interactions_resp = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("classroom_syllabus")
+            .select("topic_title")
+            .eq("classroom_id", classroom_id)
+            .eq("status", "active")
+            .maybe_single()
+            .execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("student_interactions")
+            .select("pillar")
+            .eq("student_id", student_id)
+            .not_.is_("pillar", "null")
+            .gte("created_at", seven_days_ago)
+            .execute()
+        ),
     )
+    week_topic = syllabus_resp.data["topic_title"] if syllabus_resp.data else None
     rows = interactions_resp.data or []
 
     # ------------------------------------------------------------------
@@ -1524,8 +1526,8 @@ async def get_daily_pillar_status(student: dict = Depends(get_current_student)):
         hour=0, minute=0, second=0, microsecond=0
     ).isoformat()
 
-    interactions_resp = (
-        supabase.table("student_interactions")
+    interactions_resp = await asyncio.to_thread(
+        lambda: supabase.table("student_interactions")
         .select("pillar")
         .eq("student_id", student_id)
         .not_.is_("pillar", "null")

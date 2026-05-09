@@ -18,11 +18,35 @@ interface CompleteRequest {
   submitted_at?: string;
 }
 
+interface BatchSubmitResponse {
+  processed: number;
+  skipped: number;
+  new_total: number;
+}
+
 export function useMissionComplete() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (data: CompleteRequest) =>
       studentMutate<CompleteResponse>("/missions/complete", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.studentProfile });
+      queryClient.invalidateQueries({ queryKey: queryKeys.streak });
+      queryClient.invalidateQueries({ queryKey: queryKeys.achievements });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dailySummary });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pointsBreakdown });
+      queryClient.invalidateQueries({ queryKey: queryKeys.weeklyProgress });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dailyPillarStatus });
+      queryClient.invalidateQueries({ queryKey: ["myScores"] });
+    },
+  });
+}
+
+export function useMissionBatchSubmit() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (answers: CompleteRequest[]) =>
+      studentMutate<BatchSubmitResponse>("/missions/submit-batch", { answers }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: queryKeys.studentProfile });
       queryClient.invalidateQueries({ queryKey: queryKeys.streak });

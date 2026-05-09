@@ -42,7 +42,7 @@ function StudentsContent() {
   const [removeError, setRemoveError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState<string | null>(null);
 
-  const { gradeLevel, pillar, search } = useFilterParams();
+  const { gradeLevel, search } = useFilterParams();
   const { isAdmin } = useTeacherRole();
 
   const {

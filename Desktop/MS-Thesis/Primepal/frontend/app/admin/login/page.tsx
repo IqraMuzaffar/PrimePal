@@ -197,7 +197,7 @@ export default function AdminLoginPage() {
 
         {/* Step indicator */}
         <div className="flex justify-center gap-2 mb-6">
-          {(['code', 'signup', 'login'] as LoginStep[]).map((s, i) => (
+          {(['code', 'signup', 'login'] as LoginStep[]).map((s, _i) => (
             <div
               key={s}
               style={{

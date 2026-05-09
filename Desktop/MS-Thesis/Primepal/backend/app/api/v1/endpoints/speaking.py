@@ -334,10 +334,12 @@ async def evaluate_response(
     points_awarded = {0: 0, 1: 5, 2: 10}.get(score, 0)
 
     if points_awarded > 0:
-        rpc_result = supabase.rpc("increment_student_points", {
-            "p_student_id": student_id,
-            "p_points": points_awarded,
-        }).execute()
+        rpc_result = await asyncio.to_thread(
+            lambda: supabase.rpc("increment_student_points", {
+                "p_student_id": student_id,
+                "p_points": points_awarded,
+            }).execute()
+        )
         result_data = rpc_result.data[0] if rpc_result.data else {}
         new_total = result_data.get("new_points", current_points + points_awarded)
     else:

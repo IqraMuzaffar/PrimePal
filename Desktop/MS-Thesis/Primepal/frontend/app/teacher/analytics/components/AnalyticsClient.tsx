@@ -32,7 +32,7 @@ export default function AnalyticsClient({
     let pillarBreakdown = data.pillar_breakdown;
     let topStudents = data.top_students;
     let strugglingStudents = data.struggling_students;
-    let weeklyTrends = data.weekly_trends;
+    const weeklyTrends = data.weekly_trends;
 
     if (gradeLevel) {
       gradeBreakdown = gradeBreakdown.filter((g) => g.grade_level === gradeLevel);

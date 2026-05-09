@@ -7,7 +7,7 @@ import { MissionQuestion } from '@/types/missions';
 import { useNetworkStatus } from '@/lib/use-network-status';
 import { addPendingAnswer, flushPendingAnswers } from '@/lib/network-queue';
 import { useMissionPillar } from '@/lib/hooks/queries';
-import { useMissionComplete } from '@/lib/hooks/mutations';
+import { useMissionBatchSubmit } from '@/lib/hooks/mutations';
 
 interface GameResult {
   question_id: number;
@@ -22,7 +22,7 @@ export default function PillarMissionPage() {
   const router = useRouter();
   const pillar = params.pillar as string;
   const { isOnline } = useNetworkStatus();
-  const missionComplete = useMissionComplete();
+  const batchSubmit = useMissionBatchSubmit();
 
   const { data, isLoading: loading, error: queryError } = useMissionPillar(pillar);
   const questions: MissionQuestion[] = data?.questions ?? [];
@@ -43,16 +43,19 @@ export default function PillarMissionPage() {
       : null;
     if (!token) { router.push('/student/missions'); return; }
 
-    for (const result of results) {
-      try {
-        await missionComplete.mutateAsync({
-          question_correct: result.is_correct,
-          task_type: result.task_type,
-          pillar: pillar,
-          points_value: result.points_value,
-          submitted_at: new Date().toISOString(),
-        });
-      } catch {
+    const answers = results.map(result => ({
+      question_correct: result.is_correct,
+      task_type: result.task_type,
+      pillar: pillar,
+      points_value: result.points_value,
+      submitted_at: new Date().toISOString(),
+    }));
+
+    try {
+      await batchSubmit.mutateAsync(answers);
+    } catch {
+      // Offline fallback: queue individual answers
+      for (const result of results) {
         addPendingAnswer({
           student_id: '',
           question_id: result.question_id,
@@ -65,8 +68,6 @@ export default function PillarMissionPage() {
         });
       }
     }
-
-    flushPendingAnswers(token).catch(() => {});
 
     router.push('/student/missions');
   };

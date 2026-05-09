@@ -2,7 +2,6 @@
 
 import React from "react";
 import { Users, Trophy, AlertCircle } from "lucide-react";
-import { designTokens } from "@/lib/design-tokens";
 import { ProgressBar } from "@/components/teacher/design-system";
 import { TeacherGradeBreakdown } from "@/types/analytics";
 

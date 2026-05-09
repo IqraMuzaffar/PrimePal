@@ -13,13 +13,14 @@ from app.core.supabase_client import get_supabase_admin
 from app.core.rate_limit import limiter
 from app.api.v1.router import api_router
 
-logging.basicConfig(level=logging.DEBUG)
+import os
+logging.basicConfig(level=getattr(logging, os.getenv("LOG_LEVEL", "INFO").upper(), logging.INFO))
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_redis("redis://localhost:6379")
+    await init_redis(settings.REDIS_URL)
     yield
     await close_redis()
 
