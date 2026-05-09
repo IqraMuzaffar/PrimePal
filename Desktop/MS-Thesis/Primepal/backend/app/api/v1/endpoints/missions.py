@@ -22,6 +22,9 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
+from starlette.requests import Request
+
+from app.core.rate_limit import limiter
 
 from app.api.v1.endpoints.classroom import get_active_topics
 from app.core.security import get_current_student
@@ -195,7 +198,9 @@ def _strip_answer(q) -> MissionQuestionOut:
 # ---------------------------------------------------------------------------
 
 @router.get("/daily", response_model=DailyMissionsResponse, summary="Get daily missions")
+@limiter.limit("20/minute")
 async def get_daily_missions(
+    request: Request,
     is_frustrated: bool = Query(False, description="If True, generate 'Confidence Builder' questions to recover affective state"),
     student: dict = Depends(get_current_student),
 ):
@@ -810,7 +815,9 @@ async def _generate_personalized_missions(
 
 
 @router.get("/pillar", response_model=PillarMissionsResponse, summary="Get missions for specific pillar")
+@limiter.limit("20/minute")
 async def get_pillar_missions(
+    request: Request,
     background_tasks: BackgroundTasks,
     pillar: str = Query(..., description="Pillar type: reading, writing, listening, speaking"),
     is_frustrated: bool = Query(False, description="If True, generate 'Confidence Builder' questions to recover affective state"),

@@ -12,6 +12,9 @@ import logging
 from openai import AsyncOpenAI
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
+from starlette.requests import Request
+
+from app.core.rate_limit import limiter
 
 from app.core.config import settings
 from app.core.security import get_current_student
@@ -65,7 +68,8 @@ class AnswerResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.get("/story", response_model=StoryResponse)
-async def get_story(student: dict = Depends(get_current_student)):
+@limiter.limit("20/minute")
+async def get_story(request: Request, student: dict = Depends(get_current_student)):
     """
     Generate a short story and 3 comprehension questions based on the active week's topic.
     """

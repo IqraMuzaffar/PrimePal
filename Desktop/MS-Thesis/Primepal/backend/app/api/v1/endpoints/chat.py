@@ -20,6 +20,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, AIMessage
 from pydantic import BaseModel, Field
+from starlette.requests import Request
+
+from app.core.rate_limit import limiter
 
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
@@ -72,7 +75,9 @@ def _convert_history(history: list[ChatMessage]) -> list[HumanMessage | AIMessag
 
 
 @router.post("", response_model=ChatResponse, summary="Guardrailed adaptive student chat")
+@limiter.limit("20/minute")
 async def chat(
+    request: Request,
     body: ChatRequest,
     background_tasks: BackgroundTasks,
     student: dict = Depends(get_current_student),

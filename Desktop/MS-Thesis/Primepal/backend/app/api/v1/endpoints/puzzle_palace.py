@@ -15,6 +15,9 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
+from starlette.requests import Request
+
+from app.core.rate_limit import limiter
 
 from app.api.v1.endpoints.classroom import get_active_topics
 from app.api.v1.endpoints.missions import MissionQuestionOut, _strip_answer
@@ -63,7 +66,9 @@ class PuzzlePalaceResponse(BaseModel):
 
 
 @router.get("/rooms", response_model=PuzzlePalaceResponse, summary="Get Puzzle Palace rooms")
+@limiter.limit("20/minute")
 async def get_puzzle_palace_rooms(
+    request: Request,
     student: dict = Depends(get_current_student),
 ):
     """
