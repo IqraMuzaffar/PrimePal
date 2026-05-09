@@ -146,7 +146,8 @@
       "Read(//c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/frontend/$LOCALAPPDATA/**)",
       "Bash(git config:*)",
       "Bash(git add:*)",
-      "Bash(echo \"Type check completed with exit code: $?\")"
+      "Bash(echo \"Type check completed with exit code: $?\")",
+      "Bash(grep -r spelling.*bee --include=*.py --include=*.ts --include=*.tsx .)"
     ]
   }
 }

@@ -20,6 +20,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
 from langchain_core.messages import HumanMessage, AIMessage
 from pydantic import BaseModel, Field
+from starlette.requests import Request
+
+from app.core.rate_limit import limiter
 
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
@@ -31,6 +34,7 @@ from app.agents.tutor_agent.chatbot import (
     stream_guardrailed_response,
 )
 from app.agents.evaluator_agent.interaction_logger import log_interaction
+from app.core.llm_tracker import track_llm
 
 router = APIRouter()
 
@@ -72,7 +76,9 @@ def _convert_history(history: list[ChatMessage]) -> list[HumanMessage | AIMessag
 
 
 @router.post("", response_model=ChatResponse, summary="Guardrailed adaptive student chat")
+@limiter.limit("20/minute")
 async def chat(
+    request: Request,
     body: ChatRequest,
     background_tasks: BackgroundTasks,
     student: dict = Depends(get_current_student),
@@ -84,8 +90,13 @@ async def chat(
     - Student writes in English → pure English reply
     - Student writes in Roman Urdu / Minglish → bilingual Minglish reply
     """
+    student_id: str = student["sub"]
     classroom_id: str = student["classroom_id"]
     supabase = get_supabase_admin()
+
+    async def _tracked_translate():
+        async with track_llm("chat/translate", model="gpt-4o-mini", student_id=student_id, classroom_id=classroom_id):
+            return await translate_to_english(body.message)
 
     classroom_resp, translated_query = await asyncio.gather(
         asyncio.to_thread(
@@ -95,7 +106,7 @@ async def chat(
             .maybe_single()
             .execute()
         ),
-        translate_to_english(body.message),
+        _tracked_translate(),
     )
 
     if not classroom_resp.data:
@@ -111,17 +122,18 @@ async def chat(
         supabase_admin_client=supabase,
     )
 
-    tutor_response = await get_guardrailed_response(
-        original_message=body.message,
-        translated_message=translated_query,
-        grade_level=grade_level,
-        context_chunks=context_chunks,
-        history=_convert_history(body.history),
-    )
+    async with track_llm("chat/respond", model="gpt-4o", student_id=student_id, classroom_id=classroom_id):
+        tutor_response = await get_guardrailed_response(
+            original_message=body.message,
+            translated_message=translated_query,
+            grade_level=grade_level,
+            context_chunks=context_chunks,
+            history=_convert_history(body.history),
+        )
 
     background_tasks.add_task(
         log_interaction,
-        student_id=student["sub"],
+        student_id=student_id,
         classroom_id=classroom_id,
         grade_level=grade_level,
         interaction_type="chat",
@@ -152,8 +164,13 @@ async def chat_stream(
       - {"type": "token", "content": "<token>"}  (repeated)
       - {"type": "done"}
     """
+    student_id: str = student["sub"]
     classroom_id: str = student["classroom_id"]
     supabase = get_supabase_admin()
+
+    async def _tracked_translate():
+        async with track_llm("chat/translate", model="gpt-4o-mini", student_id=student_id, classroom_id=classroom_id):
+            return await translate_to_english(body.message)
 
     classroom_resp, translated_query = await asyncio.gather(
         asyncio.to_thread(
@@ -163,7 +180,7 @@ async def chat_stream(
             .maybe_single()
             .execute()
         ),
-        translate_to_english(body.message),
+        _tracked_translate(),
     )
 
     if not classroom_resp.data:
@@ -181,6 +198,7 @@ async def chat_stream(
 
     lc_history = _convert_history(body.history)
 
+    # TODO: Add track_llm for streaming chat — needs post-stream hook
     async def event_stream():
         yield f"data: {json.dumps({'type': 'status', 'content': 'Thinking...'})}\n\n"
 
@@ -221,5 +239,8 @@ async def chat_urdu(
     student: dict = Depends(get_current_student),
 ):
     """Translate a tutor reply into Urdu script (نستعلیق) on demand."""
-    urdu_text = await translate_to_urdu(body.text)
+    student_id: str = student["sub"]
+    classroom_id: str = student["classroom_id"]
+    async with track_llm("chat/urdu", model="gpt-4o-mini", student_id=student_id, classroom_id=classroom_id):
+        urdu_text = await translate_to_urdu(body.text)
     return UrduResponse(urdu=urdu_text)

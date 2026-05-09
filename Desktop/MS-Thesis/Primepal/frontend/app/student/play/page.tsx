@@ -4,6 +4,7 @@ import { useState, FormEvent } from "react";
 import { Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import PinEntry from "./pin-entry";
+import { guessGender, getThemeTokens } from "@/lib/gender-theme";
 
 interface Avatar {
   id: string;
@@ -17,44 +18,58 @@ type Step = "enter-code" | "select-student" | "enter-pin";
 
 /* ── Decorative background ─────────────────────────────────── */
 function BgDecor() {
-  const dots = [
-    { top: "12%", left: "8%", size: 14, color: "bg-amber-400", delay: "0s" },
-    { top: "22%", right: "12%", size: 10, color: "bg-blue-400", delay: "0.5s" },
-    { top: "65%", left: "5%", size: 12, color: "bg-emerald-400", delay: "1s" },
-    { top: "75%", right: "8%", size: 16, color: "bg-rose-400", delay: "0.3s" },
-    { top: "45%", left: "92%", size: 8, color: "bg-purple-400", delay: "0.8s" },
-    { top: "88%", left: "20%", size: 11, color: "bg-amber-400", delay: "1.2s" },
-    { top: "8%", left: "55%", size: 9, color: "bg-rose-400", delay: "0.2s" },
+  const emojis = [
+    { emoji: "📚", top: "8%", left: "6%", size: 36, delay: "0s", dur: 6 },
+    { emoji: "⭐", top: "15%", left: "85%", size: 42, delay: "1.2s", dur: 5.5 },
+    { emoji: "🎯", top: "70%", left: "8%", size: 32, delay: "2s", dur: 7 },
+    { emoji: "💬", top: "75%", left: "88%", size: 30, delay: "0.6s", dur: 6.2 },
+    { emoji: "✏️", top: "5%", left: "50%", size: 28, delay: "1.8s", dur: 5.8 },
+    { emoji: "🌟", top: "50%", left: "93%", size: 34, delay: "2.8s", dur: 6.5 },
+    { emoji: "🎮", top: "45%", left: "3%", size: 38, delay: "0.3s", dur: 7.2 },
+    { emoji: "📖", top: "85%", left: "70%", size: 30, delay: "1.5s", dur: 6.8 },
+    { emoji: "🇵🇰", top: "88%", left: "30%", size: 28, delay: "3.2s", dur: 5.2 },
+    { emoji: "🐝", top: "30%", left: "90%", size: 26, delay: "0.9s", dur: 6 },
+    { emoji: "🎧", top: "60%", left: "5%", size: 24, delay: "2.4s", dur: 5.5 },
+    { emoji: "🏆", top: "20%", left: "15%", size: 26, delay: "1s", dur: 7 },
   ];
 
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
-      {/* Soft radial circles */}
-      <div className="absolute -top-32 -left-32 w-96 h-96 rounded-full bg-amber-400/15 blur-3xl" />
-      <div className="absolute -bottom-20 -right-24 w-80 h-80 rounded-full bg-blue-400/10 blur-3xl" />
-      <div className="absolute top-[40%] -right-16 w-60 h-60 rounded-full bg-emerald-400/10 blur-3xl" />
-      {/* Floating dots */}
-      {dots.map((d, i) => (
+      {/* Large vivid glow blobs */}
+      <div className="absolute -top-24 -left-24 w-[32rem] h-[32rem] rounded-full blur-[100px] animate-pulseSoft"
+        style={{ background: "radial-gradient(circle, rgba(236,72,153,0.25) 0%, transparent 70%)" }} />
+      <div className="absolute -bottom-16 -right-16 w-[28rem] h-[28rem] rounded-full blur-[100px] animate-pulseSoftReverse"
+        style={{ background: "radial-gradient(circle, rgba(96,165,250,0.25) 0%, transparent 70%)" }} />
+      <div className="absolute top-[35%] left-[50%] -translate-x-1/2 w-[24rem] h-[24rem] rounded-full blur-[80px] animate-pulseSoft"
+        style={{ background: "radial-gradient(circle, rgba(167,139,250,0.2) 0%, transparent 70%)", animationDelay: "2s" }} />
+      <div className="absolute top-[10%] right-[20%] w-[18rem] h-[18rem] rounded-full blur-[60px] animate-pulseSoftReverse"
+        style={{ background: "radial-gradient(circle, rgba(251,191,36,0.2) 0%, transparent 70%)", animationDelay: "1s" }} />
+
+      {/* Floating emojis */}
+      {emojis.map((e, i) => (
         <div
           key={i}
-          className={`absolute rounded-full ${d.color} opacity-30 animate-floatUp`}
+          className="absolute animate-floatUp select-none"
           style={{
-            top: d.top,
-            left: d.left,
-            right: (d as { right?: string }).right,
-            width: d.size,
-            height: d.size,
-            animationDelay: d.delay,
-            animationDuration: `${2.5 + i * 0.4}s`,
+            top: e.top,
+            left: e.left,
+            fontSize: e.size,
+            animationDelay: e.delay,
+            animationDuration: `${e.dur}s`,
+            opacity: 0.15,
+            filter: "blur(0.5px)",
           }}
-        />
+        >
+          {e.emoji}
+        </div>
       ))}
+
       {/* Subtle dot grid */}
       <div
-        className="absolute inset-0"
+        className="absolute inset-0 opacity-40"
         style={{
-          backgroundImage: "radial-gradient(circle, rgba(120,53,15,0.06) 1px, transparent 1px)",
-          backgroundSize: "36px 36px",
+          backgroundImage: "radial-gradient(circle, rgba(167,139,250,0.12) 1px, transparent 1px)",
+          backgroundSize: "32px 32px",
         }}
       />
     </div>
@@ -135,42 +150,42 @@ export default function StudentPlayPage() {
   }
 
   return (
-    <div className="min-h-screen bg-student-bg flex flex-col relative">
+    <div
+      className="min-h-screen flex flex-col relative"
+      style={{ background: "linear-gradient(160deg, #fdf2f8 0%, #ede9fe 30%, #ddd6fe 55%, #cffafe 80%, #ecfeff 100%)" }}
+    >
       <BgDecor />
 
       {/* Top bar */}
-      <header className="bg-white border-b border-slate-100 h-14 z-10 relative flex items-center justify-between px-5 sm:px-7 shadow-[0_3px_16px_rgba(0,0,0,0.22)]">
-        <div className="flex items-center gap-2.5">
-          <span className="text-2xl animate-floatUp">⭐</span>
-          <span className="font-baloo font-extrabold text-xl text-slate-900">PrimePal</span>
+      <header className="backdrop-blur-md bg-white/50 border-b border-violet-200/30 h-16 z-10 relative flex items-center justify-between px-5 sm:px-8">
+        <div className="flex items-center gap-3">
+          <span className="text-3xl animate-spinSlow">⭐</span>
+          <span className="font-baloo font-extrabold text-2xl text-slate-900">PrimePal</span>
         </div>
-        <span className="font-nunito font-semibold text-sm text-amber-100/60 hidden sm:inline">
-          English Learning Platform
-        </span>
-        <a href="/teacher/login" className="font-baloo font-bold text-sm text-amber-200 hover:text-amber-100 transition-colors">
-          👩‍🏫 Teacher Login
+        <a href="/teacher/login" className="flex items-center gap-2 font-baloo font-extrabold text-base text-teal-700 bg-gradient-to-br from-teal-50 to-emerald-50 border-2 border-teal-200 backdrop-blur-sm px-5 py-2.5 rounded-2xl shadow-[0_4px_14px_rgba(13,148,136,0.15)] transition-all hover:-translate-y-0.5 hover:shadow-[0_8px_20px_rgba(13,148,136,0.2)] hover:border-teal-300">
+          <span className="text-xl">👩‍🏫</span> Teacher Login
         </a>
       </header>
 
       {/* Main content */}
-      <div className="flex-1 flex items-center justify-center px-4 py-8 relative z-[1]">
-        <div className="w-full max-w-md">
+      <div className="flex-1 flex items-center justify-center px-4 sm:px-6 py-8 relative z-[1]">
+        <div className="w-full max-w-lg">
           {/* Card */}
-          <div className="bg-white rounded-3xl p-8 shadow-[0_24px_48px_rgba(168,85,247,0.10)] animate-slideUp relative overflow-hidden">
+          <div className="bg-white/80 backdrop-blur-2xl rounded-[32px] p-8 sm:p-10 shadow-[0_32px_64px_rgba(168,85,247,0.18),0_8px_24px_rgba(0,0,0,0.06)] border-2 border-white/60 animate-slideUp relative overflow-hidden">
             {/* Top shimmer */}
-            <div className="absolute top-0 left-0 right-0 h-[5px] bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500" />
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-violet-400 via-pink-400 to-cyan-400 bg-[length:200%_100%] animate-shimmer" />
 
             {step === "enter-code" && (
               <div>
-                <div className="text-center mb-7">
-                  <div className="inline-block animate-floatUp mb-3">
-                    <PrimePalMascot size={88} />
+                <div className="text-center mb-8">
+                  <div className="inline-block animate-floatBig mb-4">
+                    <PrimePalMascot size={110} />
                   </div>
-                  <h1 className="font-baloo font-extrabold text-2xl sm:text-[26px] text-amber-950 leading-tight mb-1.5">
+                  <h1 className="font-baloo font-extrabold text-3xl sm:text-4xl text-slate-900 leading-tight mb-2">
                     Enter Your Class Code
                   </h1>
-                  <p className="font-nunito font-semibold text-sm text-amber-700">
-                    Get the code from your teacher.
+                  <p className="font-nunito font-semibold text-base text-slate-500">
+                    Get the code from your teacher
                   </p>
                 </div>
 
@@ -182,11 +197,11 @@ export default function StudentPlayPage() {
                     maxLength={10}
                     required
                     placeholder="ABC123"
-                    className="w-full text-center text-3xl sm:text-4xl font-baloo font-extrabold tracking-[0.25em] uppercase
-                               px-4 py-4 rounded-2xl border-[3px] border-amber-200 bg-amber-50/50
-                               text-amber-950 placeholder-amber-300
-                               focus:outline-none focus:border-amber-500 focus:ring-4 focus:ring-amber-100
-                               transition-all shadow-inner"
+                    className="w-full text-center text-4xl sm:text-5xl font-baloo font-extrabold tracking-[0.3em] uppercase
+                               px-5 py-5 rounded-3xl border-[3px] border-violet-200 bg-gradient-to-br from-violet-50/60 to-pink-50/40
+                               text-slate-900 placeholder-violet-300
+                               focus:outline-none focus:border-violet-400 focus:ring-4 focus:ring-violet-100
+                               transition-all shadow-[inset_0_2px_8px_rgba(167,139,250,0.08)]"
                     aria-label="Class code"
                   />
 
@@ -199,52 +214,82 @@ export default function StudentPlayPage() {
                   <button
                     type="submit"
                     disabled={loading || classCode.trim().length < 3}
-                    className="w-full py-4 rounded-2xl border-none cursor-pointer font-baloo font-extrabold text-xl
-                               bg-gradient-to-br from-violet-400 to-violet-500 text-white
-                               shadow-[0_6px_0_#5b21b6,0_8px_18px_rgba(124,58,237,0.3)]
+                    className="w-full py-5 rounded-2xl border-none cursor-pointer font-baloo font-extrabold text-2xl
+                               bg-gradient-to-br from-violet-500 to-purple-600 text-white
+                               shadow-[0_6px_0_#4c1d95,0_10px_24px_rgba(124,58,237,0.35)]
                                disabled:bg-gray-200 disabled:text-gray-400 disabled:shadow-none disabled:from-gray-200 disabled:to-gray-200
                                transition-all duration-150
-                               hover:-translate-y-0.5 active:translate-y-1 active:shadow-[0_2px_0_#5b21b6]
+                               hover:-translate-y-0.5 active:translate-y-1 active:shadow-[0_2px_0_#4c1d95]
                                flex items-center justify-center gap-2"
                   >
                     {loading ? <Loader2 size={24} className="animate-spin" /> : "Let's Go! 🚀"}
                   </button>
                 </form>
 
-                <p className="text-center mt-5 font-nunito font-semibold text-sm text-amber-600/50">
-                  Are you a teacher?{" "}
-                  <a href="/teacher/login" className="text-amber-700 font-bold hover:underline">Sign in here →</a>
-                </p>
+                <a
+                  href="/teacher/login"
+                  className="mt-5 flex items-center justify-center gap-2 w-full py-3 rounded-xl font-baloo font-bold text-sm
+                             text-teal-700 bg-teal-50 border border-teal-200
+                             hover:bg-teal-100 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(13,148,136,0.15)]
+                             transition-all duration-200"
+                >
+                  <span>👩‍🏫</span> Are you a teacher? Sign in here →
+                </a>
+                <a
+                  href="/"
+                  className="mt-4 flex items-center justify-center gap-2 w-full py-3 rounded-xl font-baloo font-bold text-sm
+                             text-violet-600 bg-violet-50 border border-violet-200
+                             hover:bg-violet-100 hover:-translate-y-0.5 hover:shadow-[0_4px_12px_rgba(124,58,237,0.15)]
+                             transition-all duration-200"
+                >
+                  <span>🏠</span> Back to Home
+                </a>
               </div>
             )}
 
             {step === "select-student" && (
               <div>
-                <div className="text-center mb-5">
-                  <div className="inline-block animate-floatUp mb-3">
-                    <PrimePalMascot size={72} />
+                <div className="text-center mb-6">
+                  <div className="inline-block animate-floatBig mb-4">
+                    <PrimePalMascot size={96} />
                   </div>
-                  <h2 className="font-baloo font-extrabold text-2xl text-amber-950 mb-1">Who are you?</h2>
-                  <p className="font-nunito font-semibold text-sm text-amber-700">Select your name from the list</p>
+                  <h2 className="font-baloo font-extrabold text-3xl sm:text-4xl text-slate-900 mb-1.5">Who are you?</h2>
+                  <p className="font-nunito font-semibold text-base text-slate-500">Tap your name below</p>
                 </div>
-                <div className="space-y-2 max-h-80 overflow-y-auto">
-                  {avatars.map((avatar) => (
-                    <button
-                      key={avatar.id}
-                      onClick={() => handleAvatarSelect(avatar)}
-                      className="w-full flex items-center gap-3 p-4 rounded-2xl border-2 border-amber-200 bg-white
-                                 hover:border-amber-500 hover:bg-amber-50 transition-all group"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-800 font-baloo font-extrabold shrink-0 border-2 border-amber-200 group-hover:border-amber-400 transition-colors">
-                        {avatar.student_name.charAt(0).toUpperCase()}
-                      </div>
-                      <span className="text-lg font-baloo font-bold text-amber-950">{avatar.student_name}</span>
-                    </button>
-                  ))}
+                <div className="space-y-3 max-h-80 overflow-y-auto">
+                  {avatars.map((avatar) => {
+                    const gender = guessGender(avatar.student_name);
+                    const t = getThemeTokens(gender);
+                    return (
+                      <button
+                        key={avatar.id}
+                        onClick={() => handleAvatarSelect(avatar)}
+                        className={[
+                          "w-full flex items-center gap-3.5 p-4 rounded-[20px] border-2 transition-all duration-200 group relative overflow-hidden",
+                          t.rowBorder,
+                          t.rowBorderHover,
+                          t.rowShadowHover,
+                          "hover:translate-x-1.5",
+                          gender === "girl" ? "bg-gradient-to-br from-pink-50/60 to-white/80 hover:from-pink-100 hover:to-pink-50" :
+                          gender === "boy"  ? "bg-gradient-to-br from-sky-50/60 to-white/80 hover:from-sky-100 hover:to-sky-50" :
+                                              "bg-gradient-to-br from-violet-50/60 to-white/80 hover:from-violet-100 hover:to-violet-50",
+                        ].join(" ")}
+                      >
+                        <div className={`w-12 h-12 rounded-2xl ${t.rowAvatar} border-2 ${t.rowAvatarBorder} flex items-center justify-center text-2xl shrink-0 shadow-[0_4px_10px_rgba(0,0,0,0.06)] transition-transform duration-200 group-hover:scale-110 group-hover:rotate-[-5deg]`}>
+                          {t.avatarEmoji}
+                        </div>
+                        <div className="text-left">
+                          <span className={`text-lg font-baloo font-extrabold ${t.rowName} block`}>{avatar.student_name}</span>
+                          <span className="text-xs font-nunito font-semibold text-slate-400">Tap to continue</span>
+                        </div>
+                        <span className={`ml-auto text-xl font-bold ${t.rowArrow} ${t.rowArrowHover} transition-all duration-200 group-hover:translate-x-1.5`}>→</span>
+                      </button>
+                    );
+                  })}
                 </div>
                 <button
                   onClick={handleBackToCode}
-                  className="mt-5 w-full py-3 bg-slate-100 text-slate-700 rounded-2xl shadow-[0_3px_0_#94a3b8] font-baloo font-bold transition-colors"
+                  className="mt-5 w-full py-3.5 bg-gradient-to-br from-slate-100 to-slate-200 text-slate-600 rounded-2xl shadow-[0_4px_0_#94a3b8] font-baloo font-extrabold text-sm transition-all active:translate-y-1 active:shadow-none"
                 >
                   ← Back to Class Code
                 </button>
@@ -261,7 +306,7 @@ export default function StudentPlayPage() {
           </div>
 
           {/* Bottom tagline */}
-          <p className="text-center mt-5 font-nunito font-semibold text-sm text-amber-700/50">
+          <p className="text-center mt-5 font-nunito font-semibold text-sm text-slate-400">
             🔒 Safe, ad-free learning for every student
           </p>
         </div>

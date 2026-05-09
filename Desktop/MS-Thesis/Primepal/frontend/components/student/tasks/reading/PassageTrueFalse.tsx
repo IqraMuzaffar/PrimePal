@@ -11,12 +11,14 @@ export default function PassageTrueFalse({ question, onAnswer, showFeedback, dis
   const handleTap = (value: string) => {
     if (disabled || showFeedback) return;
     setSelected(value);
-    onAnswer(value, value === question.correct_answer);
+    onAnswer(value, value.toLowerCase() === (question.correct_answer ?? '').toLowerCase().trim());
   };
+
+  const isCorrectValue = (value: string) => value.toLowerCase() === (question.correct_answer ?? '').toLowerCase().trim();
 
   const getButtonClass = (value: string) => {
     if (showFeedback) {
-      if (value === question.correct_answer) return 'bg-green-100 border-green-500 text-green-800';
+      if (isCorrectValue(value)) return 'bg-green-100 border-green-500 text-green-800';
       if (value === selected) return 'bg-red-100 border-red-500 text-red-800';
     }
     if (value === selected) return 'bg-indigo-100 border-indigo-500 text-indigo-800';

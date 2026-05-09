@@ -282,9 +282,9 @@ TASK TYPE FIELD REQUIREMENTS:
         ],
         "field_instructions": """
 TASK TYPE FIELD REQUIREMENTS:
-- sentence_scramble: Set question ("Put the words in the correct order"), word_bank (list of scrambled words), correct_order (list of words in correct order), correct_answer (the full correct sentence as string).
-- missing_letter: Set question ("Fill in the missing letter(s)"), word_with_blanks (e.g. "c_t"), letter_options (6-8 single letters including correct ones), correct_answer (the complete word, e.g. "cat").
-- guided_translation: Set question (an Urdu sentence to translate), word_bank (English words to choose from, scrambled), correct_order (English words in correct order), correct_answer (the full English sentence as string).""",
+- sentence_scramble: Set question to EXACTLY "Put the words in the correct order" (do NOT include the scrambled words in the question field — they go ONLY in word_bank). Set word_bank (list of 4-6 scrambled words like ["is","the","cat","sleeping"]), correct_order (same words in correct order like ["the","cat","is","sleeping"]), correct_answer (the full correct sentence as string like "the cat is sleeping"). IMPORTANT: word_bank and correct_order must have the SAME words, just in different order. The sentence must be grammatically correct and grade-appropriate.
+- missing_letter: Set question to EXACTLY "Fill in the missing letter(s)". Set word_with_blanks (e.g. "c_t"), letter_options (6-8 single letters including the correct ones), correct_answer (the complete word, e.g. "cat"). The word must be grade-appropriate vocabulary.
+- guided_translation: Set question to an Urdu sentence that the student must translate to English (e.g. "بلی سو رہی ہے"). Set word_bank (scrambled English words like ["is","cat","the","sleeping"]), correct_order (English words in correct order like ["the","cat","is","sleeping"]), correct_answer (the full English sentence like "the cat is sleeping"). word_bank and correct_order must have the SAME words.""",
     },
     "listening": {
         "task_types": [
@@ -477,7 +477,16 @@ def validate_topic_alignment(questions: list[dict], active_topics: list[str], pi
     validated = []
     rejected = []
 
+    # Task types exempt from topic validation — these are action/instruction-based
+    # and don't need to reference topic vocabulary directly
+    TOPIC_EXEMPT_TYPES = {"simon_says", "repeat_after_me", "finish_the_sentence"}
+
     for q in questions:
+        # Exempt certain task types from topic validation
+        if q.get("task_type") in TOPIC_EXEMPT_TYPES:
+            validated.append(q)
+            continue
+
         question_text = q.get("question", "").lower()
 
         # Check ALL relevant fields that might contain topic keywords
@@ -555,16 +564,19 @@ async def generate_pillar_missions(
     is_frustrated: bool = False,
     performance_profile: dict | None = None,
     context_chunks: list[dict] | None = None,
+    count: int | None = None,
 ) -> list[dict]:
     """
-    Generate *LLM_QUESTIONS_COUNT* (5) personalized pillar questions via LLM.
+    Generate personalized pillar questions via LLM.
 
-    The caller (endpoint) is responsible for merging these with bank questions
-    to reach PILLAR_QUESTIONS_COUNT (10). This function no longer generates
-    all 10 -- that responsibility is split between bank + LLM.
+    Args:
+        count: Number of questions to generate. Defaults to target (5).
+               When bank is empty, caller passes 10 so LLM generates all.
 
-    M1: Timeout reduced from 45s to 20s (only 5 questions now).
+    The caller merges these with bank questions to reach PILLAR_QUESTIONS_COUNT (10).
     """
+    target = count if count is not None else LLM_QUESTIONS_COUNT
+
     valid_pillars = ["reading", "writing", "listening", "speaking"]
     if pillar not in valid_pillars:
         raise ValueError(f"Invalid pillar: {pillar}. Must be one of {valid_pillars}")
@@ -572,28 +584,23 @@ async def generate_pillar_missions(
     config = PILLAR_TASK_CONFIGS[pillar]
     topic_text = ", ".join(active_topics) if active_topics else "General English skills"
 
-    # Retry configuration for LLM generation
-    MAX_RETRIES = 2
-    RETRY_DELAY_BASE = 1.0  # seconds (reduced for faster retries)
+    # Retry configuration — only 1 retry to avoid cascades
+    MAX_RETRIES = 1
+    RETRY_DELAY_BASE = 0.5
 
-    # Build task distribution for 5 questions (halved from original 10)
-    # Take roughly half of each task type, minimum 1
+    # Scale timeout based on question count (2s per question + 10s base)
+    effective_timeout = min(10.0 + target * 2.0, 45.0)
+    effective_request_timeout = effective_timeout - 2.0
+
+    # Build task distribution proportional to target count
     task_distribution_lines = []
-    remaining = LLM_QUESTIONS_COUNT
-    for i, (task_type, original_count) in enumerate(config["task_types"]):
-        if i == len(config["task_types"]) - 1:
-            count = remaining  # Last type gets whatever is left
-        else:
-            count = max(1, original_count // 2)
-            remaining -= count
-    # Re-iterate with corrected counts
-    task_distribution_lines = []
-    remaining = LLM_QUESTIONS_COUNT
+    raw_total = sum(c for _, c in config["task_types"])
+    remaining = target
     for i, (task_type, original_count) in enumerate(config["task_types"]):
         if i == len(config["task_types"]) - 1:
             alloc = remaining
         else:
-            alloc = max(1, original_count // 2)
+            alloc = max(1, round(original_count * target / raw_total))
             remaining -= alloc
         task_distribution_lines.append(f"  - {alloc} questions of type '{task_type}'")
     task_distribution_str = "\n".join(task_distribution_lines)
@@ -619,7 +626,7 @@ async def generate_pillar_missions(
     # Build adaptive difficulty section from performance profile
     adaptive_section = ""
     # ALL questions worth 10 points each for consistent scoring
-    difficulty_dist_str = f"""  - {LLM_QUESTIONS_COUNT} questions with difficulty "medium" (points_value: 10)"""
+    difficulty_dist_str = f"""  - {target} questions with difficulty "medium" (points_value: 10)"""
 
     if performance_profile and not is_frustrated:
         overall_acc = performance_profile.get("overall_accuracy", 0)
@@ -683,9 +690,9 @@ Use vocabulary and concepts from this SNC curriculum context when creating quest
     system_prompt = f"""\
 You are an ESL mission designer for Pakistani primary school Grade {grade_level} students.
 
-⚠️ CRITICAL REQUIREMENT: Generate EXACTLY {LLM_QUESTIONS_COUNT} questions. Not {LLM_QUESTIONS_COUNT - 1}, not {LLM_QUESTIONS_COUNT + 1} — EXACTLY {LLM_QUESTIONS_COUNT}.
-⚠️ MANDATORY: You MUST generate EXACTLY {LLM_QUESTIONS_COUNT} questions for the {pillar} pillar.
-⚠️ VERIFICATION: Before responding, count your questions to ensure you have EXACTLY {LLM_QUESTIONS_COUNT}.
+⚠️ CRITICAL REQUIREMENT: Generate EXACTLY {target} questions. Not {target - 1}, not {target + 1} — EXACTLY {target}.
+⚠️ MANDATORY: You MUST generate EXACTLY {target} questions for the {pillar} pillar.
+⚠️ VERIFICATION: Before responding, count your questions to ensure you have EXACTLY {target}.
 
 Use ONLY vocabulary appropriate for Grade {grade_level}.
 
@@ -709,13 +716,13 @@ Examples of UNACCEPTABLE questions (will be REJECTED):
 TASK TYPE DISTRIBUTION (you MUST follow this exactly):
 {task_distribution_str}
 
-DIFFICULTY DISTRIBUTION across all {LLM_QUESTIONS_COUNT} questions:
+DIFFICULTY DISTRIBUTION across all {target} questions:
 {difficulty_dist_str}
 
 {config["field_instructions"]}
 
 EVERY question MUST have these fields:
-- id (1-{LLM_QUESTIONS_COUNT}), task_type, pillar ("{pillar}"), question, difficulty, points_value, correct_answer, emoji_hint, urdu_hint
+- id (1-{target}), task_type, pillar ("{pillar}"), question, difficulty, points_value, correct_answer, emoji_hint, urdu_hint
 
 RULES:
 1. Use age-appropriate vocabulary for Grade {grade_level} Pakistani students.
@@ -727,7 +734,7 @@ RULES:
 7. URDU_HINT: Add an urdu_hint field with the Urdu translation of the key vocabulary or sentence. Use simple Urdu appropriate for Grade {grade_level}. For example: "The cat is sleeping" → "بلی سو رہی ہے".
 {weakness_context}{confidence_override}{adaptive_section}{curriculum_context}"""
 
-    user_message = f"Generate {LLM_QUESTIONS_COUNT} {pillar} questions for Grade {grade_level} on topics: {topic_text}."
+    user_message = f"Generate {target} {pillar} questions for Grade {grade_level} on topics: {topic_text}."
 
     # Retry loop for better reliability
     last_exception = None
@@ -742,8 +749,8 @@ RULES:
                 model=settings.CHAT_MODEL,
                 temperature=0.7,
                 openai_api_key=settings.OPENAI_API_KEY,
-                max_retries=3,
-                timeout=LLM_PILLAR_REQUEST_TIMEOUT,  # M1: reduced from 40s
+                max_retries=1,
+                timeout=effective_request_timeout,
             ).with_structured_output(PillarMissions)
 
             prompt = ChatPromptTemplate.from_messages([
@@ -754,12 +761,12 @@ RULES:
             chain = prompt | llm
 
             # M1: Only generating 5 questions now — timeout reduced accordingly
-            logger.info(f"Starting {pillar} mission generation for grade {grade_level} (expecting {LLM_QUESTIONS_COUNT} questions)")
+            logger.info(f"Starting {pillar} mission generation for grade {grade_level} (expecting {target} questions)")
             start_time = asyncio.get_event_loop().time()
 
             result: PillarMissions | None = await asyncio.wait_for(
                 chain.ainvoke({}),
-                timeout=LLM_PILLAR_TIMEOUT,  # M1: 20s instead of 45s
+                timeout=effective_timeout,
             )
 
             elapsed_time = asyncio.get_event_loop().time() - start_time
@@ -772,19 +779,23 @@ RULES:
             questions_returned = len(result.questions)
             logger.info(f"LLM returned {questions_returned} questions for {pillar} grade {grade_level}")
 
-            if questions_returned < LLM_QUESTIONS_COUNT:
+            # Accept partial results — the caller fills gaps from bank.
+            # Only reject if LLM returned ZERO questions.
+            if questions_returned == 0:
                 logger.error(
-                    f"LLM generated only {questions_returned}/{LLM_QUESTIONS_COUNT} questions for {pillar} grade {grade_level}. "
-                    f"Rejecting partial result."
+                    f"LLM generated 0 questions for {pillar} grade {grade_level}. "
+                    f"Rejecting empty result."
                 )
-                raise ValueError(
-                    f"LLM returned only {questions_returned}/{LLM_QUESTIONS_COUNT} questions. "
-                    f"This indicates a timeout or generation issue. Please retry."
+                raise ValueError("LLM returned 0 questions.")
+            if questions_returned < target:
+                logger.warning(
+                    f"LLM generated {questions_returned}/{target} for {pillar} grade {grade_level}. "
+                    f"Accepting partial — bank will fill the rest."
                 )
 
             # Normalize and validate
             validated = []
-            questions_to_use = result.questions[:LLM_QUESTIONS_COUNT]
+            questions_to_use = result.questions[:target]
 
             # Detect if this pillar is a weakness area for the student
             # H3: weakness data may be structured dicts or legacy strings
@@ -810,48 +821,42 @@ RULES:
                 d["source"] = "llm"  # Tag source for merge tracking
                 validated.append(d)
 
+            # Normalize correct_answer format (repair LLM mismatches)
+            from app.agents.tutor_agent.question_validator import normalize_all_questions
+            normalize_all_questions(validated)
+
             # Save pre-validation list for fallback
             all_normalized = list(validated)
 
             # Validate topic alignment after normalization
             pre_validation_count = len(validated)
-            validated = validate_topic_alignment(validated, active_topics, pillar)
-            post_validation_count = len(validated)
+            topic_aligned = validate_topic_alignment(validated, active_topics, pillar)
+            post_validation_count = len(topic_aligned)
 
-            # Log validation statistics
             pass_rate = (post_validation_count / pre_validation_count * 100) if pre_validation_count else 0
             logger.info(
                 f"Topic validation stats: {post_validation_count}/{pre_validation_count} passed "
                 f"({pass_rate:.1f}%) for {pillar} grade {grade_level}"
             )
 
-            # M4: If pass rate < 70%, return None so caller fills from bank
-            if pass_rate < 70:
-                logger.warning(
-                    f"LOW PASS RATE ({pass_rate:.1f}%) for {pillar}. "
-                    f"LLM did not follow topic constraints: {active_topics}. "
-                    f"Returning None so caller can fill entirely from bank."
-                )
-                if attempt < MAX_RETRIES:
-                    raise ValueError(
-                        f"Topic validation failed: only {post_validation_count}/{pre_validation_count} "
-                        f"questions matched topics {active_topics}"
-                    )
-                else:
-                    # M4: Final attempt with low pass rate — signal caller to use bank
-                    logger.warning(
-                        f"Final attempt: topic validation too aggressive. "
-                        f"Returning validated subset ({post_validation_count} questions) "
-                        f"and letting caller fill remainder from bank."
-                    )
-                    return validated
-
-            # If we lost questions but pass rate >= 70%, return what we have
-            # The caller will fill the gap from bank
-            if len(validated) < LLM_QUESTIONS_COUNT:
+            # ALWAYS return exactly `target` questions.
+            # Strategy: topic-aligned first, then fill with non-aligned (still valid structure).
+            # A slightly off-topic question is better than a missing question.
+            if post_validation_count >= target:
+                validated = topic_aligned[:target]
+            else:
+                # Start with topic-aligned questions
+                validated = list(topic_aligned)
+                # Fill remaining from non-aligned questions (they have correct structure)
+                aligned_ids = {id(q) for q in topic_aligned}
+                for q in all_normalized:
+                    if len(validated) >= target:
+                        break
+                    if id(q) not in aligned_ids:
+                        validated.append(q)
                 logger.info(
-                    f"Returning {len(validated)}/{LLM_QUESTIONS_COUNT} validated LLM questions. "
-                    f"Caller will fill {LLM_QUESTIONS_COUNT - len(validated)} from bank."
+                    f"Filled {len(validated)}/{target} questions: "
+                    f"{post_validation_count} topic-aligned + {len(validated) - post_validation_count} structural-only"
                 )
 
             logger.info(f"Successfully generated and validated {len(validated)} {pillar} questions for grade {grade_level}")

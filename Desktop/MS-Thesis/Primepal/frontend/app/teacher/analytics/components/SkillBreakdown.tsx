@@ -2,7 +2,6 @@
 
 import React from "react";
 import { BookOpenCheck, BookOpen, Headphones, MessageSquare, TrendingUp, TrendingDown } from "lucide-react";
-import { designTokens } from "@/lib/design-tokens";
 import { ProgressBar } from "@/components/teacher/design-system";
 import { TeacherPillarBreakdown } from "@/types/analytics";
 

@@ -249,7 +249,7 @@ function ReportsContent() {
 
   const { data: classroomsData = [], isLoading: loadingClassrooms } = useTeacherClassrooms();
   const classrooms = classroomsData as Classroom[];
-  const { data: studentsData } = useTeacherStudents({});
+  const { data: studentsData } = useTeacherStudents();
   const students: StudentOption[] = (studentsData?.students ?? []).map(s => ({
     student_id: s.student_id,
     student_name: s.student_name,

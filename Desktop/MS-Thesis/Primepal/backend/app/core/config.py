@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     STUDENT_JWT_SECRET: str = "change-student-secret-in-production"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
 
+    # Redis
+    REDIS_URL: str = "redis://localhost:6379"
+
     # CORS
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:3000",

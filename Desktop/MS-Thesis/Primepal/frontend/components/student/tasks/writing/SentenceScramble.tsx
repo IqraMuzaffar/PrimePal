@@ -53,11 +53,16 @@ export default function SentenceScramble({ question, onAnswer, showFeedback, dis
     if (disabled || submitted) return;
     setSubmitted(true);
     const correctOrder = question.correct_order ?? [];
+    const correctSentence = (question.correct_answer ?? '').toLowerCase().trim();
     const texts = words.map(w => w.text);
-    // Case-insensitive comparison and trim whitespace
-    const isCorrect = texts.length === correctOrder.length &&
-      texts.every((w, i) => w.toLowerCase().trim() === correctOrder[i].toLowerCase().trim());
-    onAnswer(texts.join(' '), isCorrect);
+    const studentSentence = texts.join(' ').toLowerCase().trim();
+
+    // Try three checks: exact order match, sentence match, or correct_answer match
+    const orderMatch = texts.length === correctOrder.length &&
+      texts.every((w, i) => w.toLowerCase().trim() === (correctOrder[i] ?? '').toLowerCase().trim());
+    const sentenceMatch = correctSentence.length > 0 && studentSentence === correctSentence;
+
+    onAnswer(texts.join(' '), orderMatch || sentenceMatch);
   };
 
   const correctOrder = question.correct_order ?? [];

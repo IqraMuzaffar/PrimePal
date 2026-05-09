@@ -139,7 +139,7 @@ _ACTIVITY_MAP = {
     "mission_mc": "Missions",
     "mission_fill": "Missions",
     "mission_speaking": "Missions",
-    "spelling_bee": "Spelling Bee",
+    "puzzle_palace": "Puzzle Palace",
     "story_time": "Story Time",
     "speaking_practice": "Speaking",
     "speaking_pro": "Speaking",

@@ -12,11 +12,15 @@ import logging
 from openai import AsyncOpenAI
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
+from starlette.requests import Request
+
+from app.core.rate_limit import limiter
 
 from app.core.config import settings
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
 from app.core.cache import cache_get, cache_set, make_cache_key, debounced_invalidate
+from app.core.llm_tracker import track_llm, log_cache_hit
 from app.agents.evaluator_agent.interaction_logger import log_interaction
 from app.api.v1.endpoints.rewards import invalidate_rewards_cache
 from app.api.v1.endpoints.student_scores import invalidate_scores_cache
@@ -65,7 +69,8 @@ class AnswerResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 @router.get("/story", response_model=StoryResponse)
-async def get_story(student: dict = Depends(get_current_student)):
+@limiter.limit("20/minute")
+async def get_story(request: Request, student: dict = Depends(get_current_student)):
     """
     Generate a short story and 3 comprehension questions based on the active week's topic.
     """
@@ -134,6 +139,8 @@ async def get_story(student: dict = Depends(get_current_student)):
     cached = await cache_get(cache_key)
     if cached:
         logger.info(f"Cache hit for story time: {cache_key}")
+        student_id = student["sub"]
+        await log_cache_hit("story_time/story", student_id=student_id, classroom_id=classroom_id)
         return StoryResponse(**cached)
 
     # ------------------------------------------------------------------
@@ -158,17 +165,20 @@ Return ONLY valid JSON (no markdown code blocks).
 }}
 """
 
+    student_id = student["sub"]
     try:
         # 12-second timeout for LLM call (consistent with missions endpoints)
-        response = await asyncio.wait_for(
-            client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.7,
-                max_tokens=800,
-            ),
-            timeout=12.0,
-        )
+        async with track_llm("story_time/story", model="gpt-4o-mini", student_id=student_id, classroom_id=classroom_id) as tracker:
+            response = await asyncio.wait_for(
+                client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.7,
+                    max_tokens=800,
+                ),
+                timeout=12.0,
+            )
+            tracker.set_usage(response.usage)
 
         response_text = response.choices[0].message.content.strip()
 
@@ -228,8 +238,8 @@ Return ONLY valid JSON (no markdown code blocks).
         questions=questions,
     )
 
-    # Cache for 1 hour (same topic/grade will get same story)
-    await cache_set(cache_key, response.model_dump(), ttl=3600)
+    # Cache for 24 hours (same topic/grade will get same story)
+    await cache_set(cache_key, response.model_dump(), ttl=86400)
 
     return response
 

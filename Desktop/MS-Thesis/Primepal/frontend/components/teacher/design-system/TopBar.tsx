@@ -12,7 +12,7 @@ interface TopBarProps {
 
 export function TopBar({ pageTitle, userEmail }: TopBarProps) {
   const today = new Date();
-  const dateString = today.toLocaleDateString('en-US', {
+  const _dateString = today.toLocaleDateString('en-US', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',

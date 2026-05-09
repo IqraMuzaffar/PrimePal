@@ -88,7 +88,6 @@ export const queryKeys = {
   streak: ["streak"] as const,
   dailySummary: ["dailySummary"] as const,
   achievements: ["achievements"] as const,
-  spellingWords: ["spellingWords"] as const,
   storyTime: ["storyTime"] as const,
   evalStatus: ["evalStatus"] as const,
   evalQuestions: (type: string) => ["evalQuestions", type] as const,
@@ -96,6 +95,7 @@ export const queryKeys = {
   weeklyProgress: ["weeklyProgress"] as const,
   pointsBreakdown: ["pointsBreakdown"] as const,
   myScores: (timeRange: string) => ["myScores", timeRange] as const,
+  dailyPillarStatus: ["dailyPillarStatus"] as const,
 };
 
 export function useStudentProfile() {
@@ -130,16 +130,6 @@ export function useAchievements() {
   });
 }
 
-interface SpellingWord {
-  word: string;
-  emoji: string;
-}
-
-interface WordsResponse {
-  words: SpellingWord[];
-  topic: string;
-  week_number: number;
-}
 
 interface ComprehensionQuestion {
   id: number;
@@ -175,13 +165,6 @@ interface EvalQuestion {
   audio_text: string | null;
 }
 
-export function useSpellingWords() {
-  return useQuery({
-    queryKey: queryKeys.spellingWords,
-    queryFn: () => studentFetch<WordsResponse>("/spelling-bee/words"),
-    staleTime: 10 * 60 * 1000,
-  });
-}
 
 export function useStoryTime() {
   return useQuery({
@@ -226,6 +209,25 @@ export function useWeeklyProgress() {
     queryKey: queryKeys.weeklyProgress,
     queryFn: () => studentFetch<WeeklyProgress>("/missions/weekly-progress"),
     staleTime: 5 * 60 * 1000,
+  });
+}
+
+interface DailyPillarStatus {
+  pillar: string;
+  done: number;
+  limit: number;
+  completed: boolean;
+}
+
+interface DailyPillarStatusResponse {
+  pillars: DailyPillarStatus[];
+}
+
+export function useDailyPillarStatus() {
+  return useQuery({
+    queryKey: queryKeys.dailyPillarStatus,
+    queryFn: () => studentFetch<DailyPillarStatusResponse>("/missions/daily-pillar-status"),
+    staleTime: 60 * 1000, // 1 minute — must refresh quickly after completion
   });
 }
 

@@ -22,6 +22,9 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
 from pydantic import BaseModel
+from starlette.requests import Request
+
+from app.core.rate_limit import limiter
 
 from app.api.v1.endpoints.classroom import get_active_topics
 from app.core.security import get_current_student
@@ -48,6 +51,7 @@ from app.utils.pregenerate_missions import _build_generic_cache_key
 from app.utils.question_bank import pull_from_bank
 from app.api.v1.endpoints.rewards import invalidate_rewards_cache
 from app.api.v1.endpoints.student_scores import invalidate_scores_cache
+from app.core.llm_tracker import track_llm, log_cache_hit
 
 logger = logging.getLogger(__name__)
 
@@ -195,7 +199,9 @@ def _strip_answer(q) -> MissionQuestionOut:
 # ---------------------------------------------------------------------------
 
 @router.get("/daily", response_model=DailyMissionsResponse, summary="Get daily missions")
+@limiter.limit("20/minute")
 async def get_daily_missions(
+    request: Request,
     is_frustrated: bool = Query(False, description="If True, generate 'Confidence Builder' questions to recover affective state"),
     student: dict = Depends(get_current_student),
 ):
@@ -252,6 +258,7 @@ async def get_daily_missions(
         cached = await cache_get(cache_key)
         if cached:
             logger.info(f"Cache hit for daily missions: {cache_key}")
+            await log_cache_hit("missions/daily", student_id=student_id, classroom_id=classroom_id)
             return DailyMissionsResponse(**cached)
 
     # ------------------------------------------------------------------
@@ -329,7 +336,7 @@ async def get_daily_missions(
 
     # Cache the response for future requests
     if not is_frustrated:
-        await cache_set(cache_key, response.model_dump(), ttl=3600)
+        await cache_set(cache_key, response.model_dump(), ttl=86400)  # 24 hours — same topic/grade gets same questions all day
 
     return response
 
@@ -357,30 +364,31 @@ async def complete_mission(
     supabase = get_supabase_admin()
 
     # ------------------------------------------------------------------
-    # Step 1: Fetch current points
+    # Step 1: Fetch current points + classroom grade in parallel (non-blocking)
     # ------------------------------------------------------------------
-    student_resp = (
-        supabase.table("students")
-        .select("points")
-        .eq("id", student_id)
-        .maybe_single()
-        .execute()
+    classroom_id: str = student["classroom_id"]
+
+    student_resp, classroom_resp = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("students")
+            .select("points")
+            .eq("id", student_id)
+            .maybe_single()
+            .execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        ),
     )
     if not student_resp.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Student record not found",
         )
-
-    classroom_id: str = student["classroom_id"]
-
-    classroom_resp = (
-        supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
-    )
     grade_level: int = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     current_points: int = student_resp.data.get("points") or 0
@@ -398,8 +406,8 @@ async def complete_mission(
             window_start = (submitted_dt - timedelta(seconds=60)).isoformat()
             window_end = (submitted_dt + timedelta(seconds=60)).isoformat()
 
-            dup_resp = (
-                supabase.table("student_interactions")
+            dup_resp = await asyncio.to_thread(
+                lambda: supabase.table("student_interactions")
                 .select("id")
                 .eq("student_id", student_id)
                 .eq("interaction_type", interaction_type)
@@ -420,10 +428,12 @@ async def complete_mission(
     # Step 2: Atomically increment points via RPC
     # ------------------------------------------------------------------
     if points_awarded > 0:
-        rpc_result = supabase.rpc("increment_student_points", {
-            "p_student_id": student_id,
-            "p_points": points_awarded,
-        }).execute()
+        rpc_result = await asyncio.to_thread(
+            lambda: supabase.rpc("increment_student_points", {
+                "p_student_id": student_id,
+                "p_points": points_awarded,
+            }).execute()
+        )
         result_data = rpc_result.data[0] if rpc_result.data else {}
         new_total = result_data.get("new_points", current_points + points_awarded)
     else:
@@ -448,11 +458,15 @@ async def complete_mission(
     # Update daily streak (any completed mission counts as activity)
     streak_data = await update_streak(student_id)
 
-    # Invalidate caches so next page load shows fresh data
+    # Always invalidate profile + daily pillar status (must update immediately)
+    background_tasks.add_task(invalidate_profile_cache, student_id)
+    background_tasks.add_task(
+        cache_delete, make_cache_key("daily_pillar_status", student_id)
+    )
     background_tasks.add_task(
         debounced_invalidate,
         student_id,
-        [invalidate_profile_cache, invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
+        [invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
     )
 
     # Check and unlock any newly earned achievements
@@ -496,14 +510,23 @@ async def submit_batch(
     classroom_id: str = student["classroom_id"]
     supabase = get_supabase_admin()
 
-    # Fetch student data once
+    # Fetch student data + classroom grade in parallel (non-blocking)
     try:
-        student_resp = (
-            supabase.table("students")
-            .select("points")
-            .eq("id", student_id)
-            .maybe_single()
-            .execute()
+        student_resp, classroom_resp = await asyncio.gather(
+            asyncio.to_thread(
+                lambda: supabase.table("students")
+                .select("points")
+                .eq("id", student_id)
+                .maybe_single()
+                .execute()
+            ),
+            asyncio.to_thread(
+                lambda: supabase.table("classrooms")
+                .select("grade_level")
+                .eq("id", classroom_id)
+                .maybe_single()
+                .execute()
+            ),
         )
     except Exception as e:
         if "Missing response" not in str(e) and "204" not in str(e):
@@ -512,19 +535,6 @@ async def submit_batch(
 
     if not student_resp.data:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Student record not found")
-
-    try:
-        classroom_resp = (
-            supabase.table("classrooms")
-            .select("grade_level")
-            .eq("id", classroom_id)
-            .maybe_single()
-            .execute()
-        )
-    except Exception as e:
-        if "Missing response" not in str(e) and "204" not in str(e):
-            raise
-        classroom_resp = type('obj', (object,), {'data': None})()
 
     grade_level: int = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
@@ -545,13 +555,13 @@ async def submit_batch(
                 window_start = (submitted_dt - timedelta(seconds=60)).isoformat()
                 window_end = (submitted_dt + timedelta(seconds=60)).isoformat()
 
-                dup_resp = (
-                    supabase.table("student_interactions")
+                dup_resp = await asyncio.to_thread(
+                    lambda ws=window_start, we=window_end, it=itype: supabase.table("student_interactions")
                     .select("id")
                     .eq("student_id", student_id)
-                    .eq("interaction_type", itype)
-                    .gte("created_at", window_start)
-                    .lte("created_at", window_end)
+                    .eq("interaction_type", it)
+                    .gte("created_at", ws)
+                    .lte("created_at", we)
                     .limit(1)
                     .execute()
                 )
@@ -586,21 +596,24 @@ async def submit_batch(
     final_total = student_resp.data.get("points") or 0
     if processed > 0:
         total_points_earned = current_points - (student_resp.data.get("points") or 0)
-        rpc_result = supabase.rpc("increment_student_points", {
-            "p_student_id": student_id,
-            "p_points": total_points_earned,
-        }).execute()
+        rpc_result = await asyncio.to_thread(
+            lambda: supabase.rpc("increment_student_points", {
+                "p_student_id": student_id,
+                "p_points": total_points_earned,
+            }).execute()
+        )
         result_data = rpc_result.data[0] if rpc_result.data else {}
         final_total = result_data.get("new_points", current_points)
 
         # Update daily streak after batch processing
         await update_streak(student_id)
 
-        # Invalidate caches
+        # Always invalidate profile cache (points changed), debounce the rest
+        background_tasks.add_task(invalidate_profile_cache, student_id)
         background_tasks.add_task(
             debounced_invalidate,
             student_id,
-            [invalidate_profile_cache, invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
+            [invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
         )
 
     return BatchSubmitResponse(
@@ -634,8 +647,8 @@ async def get_student_profile(
         return StudentProfileResponse(**cached)
 
     try:
-        student_resp = (
-            supabase.table("students")
+        student_resp = await asyncio.to_thread(
+            lambda: supabase.table("students")
             .select("student_name, roll_number, avatar_url, avatar_style, theme_color, points")
             .eq("id", student_id)
             .maybe_single()
@@ -644,7 +657,6 @@ async def get_student_profile(
     except Exception as e:
         if "Missing response" not in str(e) and "204" not in str(e):
             raise
-        # If 204, treat as not found
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Student record not found",
@@ -658,8 +670,8 @@ async def get_student_profile(
 
     data = student_resp.data
 
-    missions_count_resp = (
-        supabase.table("student_interactions")
+    missions_count_resp = await asyncio.to_thread(
+        lambda: supabase.table("student_interactions")
         .select("id", count="exact")
         .eq("student_id", student_id)
         .like("interaction_type", "mission%")
@@ -716,7 +728,7 @@ async def _generate_personalized_missions(
                     match_count=5,
                 )
                 logger.info(f"Background task RAG retrieval: {len(context_chunks)} chunks for {pillar} grade {grade_level}")
-                await cache_set(rag_cache_key, context_chunks, ttl=3600)
+                await cache_set(rag_cache_key, context_chunks, ttl=86400)  # 24 hours — curriculum doesn't change often
             except Exception as exc:
                 logger.warning(f"Background task RAG retrieval failed, continuing without curriculum context: {exc}")
                 context_chunks = []
@@ -795,7 +807,7 @@ async def _generate_personalized_missions(
             questions=[_strip_answer(q) for q in mission_questions],
             weakness_focus_questions=weakness_focus_count,
         )
-        await cache_set(cache_key, response.model_dump(), ttl=3600)
+        await cache_set(cache_key, response.model_dump(), ttl=86400)  # 24 hours — same topic/grade gets same questions all day
         logger.info(
             "Background personalization cached for student %s pillar %s (%d questions)",
             student_id, pillar, len(merged),
@@ -805,7 +817,9 @@ async def _generate_personalized_missions(
 
 
 @router.get("/pillar", response_model=PillarMissionsResponse, summary="Get missions for specific pillar")
+@limiter.limit("20/minute")
 async def get_pillar_missions(
+    request: Request,
     background_tasks: BackgroundTasks,
     pillar: str = Query(..., description="Pillar type: reading, writing, listening, speaking"),
     is_frustrated: bool = Query(False, description="If True, generate 'Confidence Builder' questions to recover affective state"),
@@ -951,12 +965,13 @@ async def get_pillar_missions(
     # ------------------------------------------------------------------
     # Step 0: Check cache (only if not frustrated — frustrated students need fresh questions)
     # ------------------------------------------------------------------
-    cache_key = make_cache_key("pillar_missions", student_id, pillar, str(is_frustrated), topics_hash)
+    cache_key = make_cache_key("pillar_missions", classroom_id, pillar, str(is_frustrated), topics_hash)
     if not is_frustrated:
         # Check student-specific cache first
         cached = await cache_get(cache_key)
         if cached:
             logger.info(f"Cache hit for pillar missions (student): {cache_key}")
+            await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
             return PillarMissionsResponse(**cached)
 
         # Fallback: check generic classroom-level cache (pre-generated)
@@ -964,6 +979,7 @@ async def get_pillar_missions(
         generic_cached = await cache_get(generic_key)
         if generic_cached:
             logger.info(f"Cache hit for pillar missions (generic): {generic_key}")
+            await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
             background_tasks.add_task(
                 _generate_personalized_missions,
                 student_id, classroom_id, pillar, grade_level,
@@ -990,7 +1006,7 @@ async def get_pillar_missions(
                 match_count=5,
             )
             logger.info(f"RAG retrieval for pillar missions: {len(context_chunks)} chunks for {pillar} grade {grade_level}")
-            await cache_set(rag_cache_key, context_chunks, ttl=3600)
+            await cache_set(rag_cache_key, context_chunks, ttl=86400)  # 24 hours — curriculum doesn't change often
         except Exception as exc:
             logger.warning(f"RAG retrieval failed for pillar missions, continuing without curriculum context: {exc}")
             context_chunks = []
@@ -998,27 +1014,34 @@ async def get_pillar_missions(
         logger.info(f"RAG cache hit for grade {grade_level}, topics {topics_hash}: {len(context_chunks)} chunks")
 
     # ------------------------------------------------------------------
-    # Step 4: Parallel — bank pull (instant) + LLM generation (5 questions)
-    # If is_frustrated=true, generates Confidence Builder questions
+    # Step 4a: Pull from bank first (instant) to know how many LLM needs
     # ------------------------------------------------------------------
-    async def _pull_bank():
-        """Pull BANK_QUESTIONS_COUNT questions from question_bank (instant)."""
-        try:
-            return await pull_from_bank(
-                grade_level=grade_level,
-                pillar=pillar,
-                topics=active_topic_names,
-                count=BANK_QUESTIONS_COUNT,
-                classroom_id=classroom_id,
-            )
-        except Exception as exc:
-            logger.warning("Bank pull failed, will rely on LLM: %s", exc)
-            return []
+    try:
+        bank_questions = await pull_from_bank(
+            grade_level=grade_level,
+            pillar=pillar,
+            topics=active_topic_names,
+            count=BANK_QUESTIONS_COUNT,
+            classroom_id=classroom_id,
+        )
+    except Exception as exc:
+        logger.warning("Bank pull failed, LLM will generate all %d: %s", PILLAR_QUESTIONS_COUNT, exc)
+        bank_questions = []
 
-    async def _generate_llm():
-        """Generate LLM_QUESTIONS_COUNT personalized questions via LLM."""
+    # How many does LLM need to generate? (10 - bank_count)
+    llm_needed = PILLAR_QUESTIONS_COUNT - len(bank_questions)
+    logger.info(
+        "Bank provided %d questions for %s. LLM will generate %d.",
+        len(bank_questions), pillar, llm_needed,
+    )
+
+    # ------------------------------------------------------------------
+    # Step 4b: Generate remaining questions via LLM
+    # ------------------------------------------------------------------
+    llm_questions = None
+    if llm_needed > 0:
         try:
-            return await generate_pillar_missions(
+            llm_questions = await generate_pillar_missions(
                 pillar=pillar,
                 grade_level=grade_level,
                 active_topics=active_topic_names,
@@ -1027,18 +1050,14 @@ async def get_pillar_missions(
                 is_frustrated=is_frustrated,
                 performance_profile=performance_profile,
                 context_chunks=context_chunks,
+                count=llm_needed,
             )
         except Exception as exc:
             logger.error(
                 "LLM pillar generation failed for student %s pillar %s: %s",
                 student_id, pillar, exc, exc_info=True,
             )
-            return None  # Signal failure — bank will fill all 10
-
-    # Run bank pull and LLM generation in parallel
-    bank_questions, llm_questions = await asyncio.gather(
-        _pull_bank(), _generate_llm()
-    )
+            llm_questions = None
 
     log_suffix = " (Confidence Builder)" if is_frustrated else ""
 
@@ -1106,8 +1125,29 @@ async def get_pillar_missions(
             if len(merged) < PILLAR_QUESTIONS_COUNT:
                 merged.append(q)
 
-    # If we STILL don't have enough (bank was empty), raise a service error
-    # rather than returning an incomplete set
+    # If we have 0 questions after all attempts, try one last emergency LLM call
+    if len(merged) == 0:
+        logger.warning("EMERGENCY: 0 questions after bank+LLM for %s. Attempting emergency generation.", pillar)
+        try:
+            emergency = await generate_pillar_missions(
+                pillar=pillar,
+                grade_level=grade_level,
+                active_topics=active_topic_names,
+                student_id=student_id,
+                student_weaknesses=[],
+                is_frustrated=False,
+                performance_profile=None,
+                context_chunks=None,
+                count=PILLAR_QUESTIONS_COUNT,
+            )
+            if emergency:
+                for q in emergency:
+                    if isinstance(q, dict) and q.get("question"):
+                        merged.append(q)
+                logger.info("Emergency generation produced %d questions for %s", len(merged), pillar)
+        except Exception as exc:
+            logger.error("Emergency generation also failed for %s: %s", pillar, exc)
+
     if len(merged) == 0:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -1121,7 +1161,9 @@ async def get_pillar_missions(
             len(merged), PILLAR_QUESTIONS_COUNT, pillar,
         )
 
-    # Re-number all questions sequentially
+    # Re-number all questions and normalize answers/audio_text
+    from app.agents.tutor_agent.question_validator import normalize_all_questions
+    normalize_all_questions(merged)
     for i, q in enumerate(merged):
         q["id"] = i + 1
 
@@ -1153,7 +1195,7 @@ async def get_pillar_missions(
 
     # Cache the response for future requests
     if not is_frustrated:
-        await cache_set(cache_key, response.model_dump(), ttl=3600)
+        await cache_set(cache_key, response.model_dump(), ttl=86400)  # 24 hours — same topic/grade gets same questions all day
 
     logger.info(
         "Pillar missions returned for student %s pillar %s: "
@@ -1216,12 +1258,13 @@ async def submit_speaking_answer(
     audio_buffer.name = "recording.webm"
 
     try:
-        whisper_response = await openai_client.audio.transcriptions.create(
-            model="whisper-1",
-            file=audio_buffer,
-            language="en",
-            prompt=_WHISPER_ACCENT_PROMPT,
-        )
+        async with track_llm("missions/submit-speaking", model="whisper-1", student_id=student_id, classroom_id=classroom_id):
+            whisper_response = await openai_client.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_buffer,
+                language="en",
+                prompt=_WHISPER_ACCENT_PROMPT,
+            )
         transcription = whisper_response.text.strip()
     except Exception as exc:
         logger.error(f"Whisper transcription failed: {exc}")
@@ -1239,8 +1282,8 @@ async def submit_speaking_answer(
     )
 
     if is_garbled:
-        student_resp = (
-            supabase.table("students")
+        student_resp = await asyncio.to_thread(
+            lambda: supabase.table("students")
             .select("points")
             .eq("id", student_id)
             .maybe_single()
@@ -1269,33 +1312,36 @@ async def submit_speaking_answer(
     is_correct = similarity >= 0.6
     points_awarded = _POINTS_PER_CORRECT if is_correct else 0
 
-    student_resp = (
-        supabase.table("students")
-        .select("points")
-        .eq("id", student_id)
-        .maybe_single()
-        .execute()
+    student_resp, classroom_resp = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("students")
+            .select("points")
+            .eq("id", student_id)
+            .maybe_single()
+            .execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        ),
     )
     current_points = (student_resp.data.get("points") or 0) if student_resp.data else 0
+    grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     if points_awarded > 0:
-        rpc_result = supabase.rpc("increment_student_points", {
-            "p_student_id": student_id,
-            "p_points": points_awarded,
-        }).execute()
+        rpc_result = await asyncio.to_thread(
+            lambda: supabase.rpc("increment_student_points", {
+                "p_student_id": student_id,
+                "p_points": points_awarded,
+            }).execute()
+        )
         result_data = rpc_result.data[0] if rpc_result.data else {}
         new_total = result_data.get("new_points", current_points + points_awarded)
     else:
         new_total = current_points
-
-    classroom_resp = (
-        supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
-    )
-    grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     background_tasks.add_task(
         log_interaction,
@@ -1314,11 +1360,12 @@ async def submit_speaking_answer(
     # Update daily streak
     await update_streak(student_id)
 
-    # Invalidate caches
+    # Always invalidate profile cache (points changed), debounce the rest
+    background_tasks.add_task(invalidate_profile_cache, student_id)
     background_tasks.add_task(
         debounced_invalidate,
         student_id,
-        [invalidate_profile_cache, invalidate_rewards_cache, invalidate_scores_cache],
+        [invalidate_rewards_cache, invalidate_scores_cache],
     )
 
     return SpeakingSubmissionResponse(
@@ -1395,30 +1442,29 @@ async def get_weekly_progress(student: dict = Depends(get_current_student)):
         return WeeklyProgressResponse(**cached)
 
     # ------------------------------------------------------------------
-    # Step 1: Fetch active week topic
-    # ------------------------------------------------------------------
-    syllabus_resp = (
-        supabase.table("classroom_syllabus")
-        .select("topic_title")
-        .eq("classroom_id", classroom_id)
-        .eq("status", "active")
-        .maybe_single()
-        .execute()
-    )
-    week_topic = syllabus_resp.data["topic_title"] if syllabus_resp.data else None
-
-    # ------------------------------------------------------------------
-    # Step 2: Fetch this week's pillar interactions (rolling 7-day window)
+    # Steps 1+2: Fetch active week topic + this week's interactions in parallel
     # ------------------------------------------------------------------
     seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-    interactions_resp = (
-        supabase.table("student_interactions")
-        .select("pillar")
-        .eq("student_id", student_id)
-        .not_.is_("pillar", "null")
-        .gte("created_at", seven_days_ago)
-        .execute()
+
+    syllabus_resp, interactions_resp = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("classroom_syllabus")
+            .select("topic_title")
+            .eq("classroom_id", classroom_id)
+            .eq("status", "active")
+            .maybe_single()
+            .execute()
+        ),
+        asyncio.to_thread(
+            lambda: supabase.table("student_interactions")
+            .select("pillar")
+            .eq("student_id", student_id)
+            .not_.is_("pillar", "null")
+            .gte("created_at", seven_days_ago)
+            .execute()
+        ),
     )
+    week_topic = syllabus_resp.data["topic_title"] if syllabus_resp.data else None
     rows = interactions_resp.data or []
 
     # ------------------------------------------------------------------
@@ -1448,4 +1494,66 @@ async def get_weekly_progress(student: dict = Depends(get_current_student)):
 
     # Cache for 5 minutes
     await cache_set(cache_key, response.model_dump(), ttl=300)
+    return response
+
+
+# ---------------------------------------------------------------------------
+# GET /daily-pillar-status (How many questions done per pillar TODAY)
+# ---------------------------------------------------------------------------
+
+class DailyPillarStatus(BaseModel):
+    pillar: str
+    done: int
+    limit: int
+    completed: bool
+
+class DailyPillarStatusResponse(BaseModel):
+    pillars: list[DailyPillarStatus]
+
+
+@router.get("/daily-pillar-status", response_model=DailyPillarStatusResponse, summary="Today's per-pillar completion status")
+async def get_daily_pillar_status(student: dict = Depends(get_current_student)):
+    """Return how many mission questions the student answered TODAY per pillar."""
+    supabase = get_supabase_admin()
+    student_id: str = student["sub"]
+
+    cache_key = make_cache_key("daily_pillar_status", student_id)
+    cached = await cache_get(cache_key)
+    if cached:
+        return DailyPillarStatusResponse(**cached)
+
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ).isoformat()
+
+    interactions_resp = await asyncio.to_thread(
+        lambda: supabase.table("student_interactions")
+        .select("pillar")
+        .eq("student_id", student_id)
+        .not_.is_("pillar", "null")
+        .like("interaction_type", "mission_%")
+        .gte("created_at", today_start)
+        .execute()
+    )
+    rows = interactions_resp.data or []
+
+    counts: dict[str, int] = {"reading": 0, "writing": 0, "listening": 0, "speaking": 0}
+    for row in rows:
+        p = row.get("pillar")
+        if p in counts:
+            counts[p] += 1
+
+    DAILY_LIMIT = 10
+    pillars = [
+        DailyPillarStatus(
+            pillar=p,
+            done=min(counts[p], DAILY_LIMIT),
+            limit=DAILY_LIMIT,
+            completed=counts[p] >= DAILY_LIMIT,
+        )
+        for p in ["reading", "writing", "listening", "speaking"]
+    ]
+
+    response = DailyPillarStatusResponse(pillars=pillars)
+    await cache_set(cache_key, response.model_dump(), ttl=60)
     return response

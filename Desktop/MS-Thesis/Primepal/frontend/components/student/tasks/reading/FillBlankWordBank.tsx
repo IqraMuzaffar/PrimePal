@@ -11,7 +11,11 @@ export default function FillBlankWordBank({ question, onAnswer, showFeedback, di
   const handleTap = (id: string) => {
     if (disabled || showFeedback) return;
     setSelected(id);
-    onAnswer(id, id === question.correct_answer);
+    const ca = (question.correct_answer ?? '').toLowerCase().trim();
+    const idMatch = id.toLowerCase().trim() === ca;
+    const opt = options.find(o => o.id === id);
+    const textMatch = opt ? opt.text.toLowerCase().trim() === ca : false;
+    onAnswer(id, idMatch || textMatch);
   };
 
   return (
@@ -23,7 +27,7 @@ export default function FillBlankWordBank({ question, onAnswer, showFeedback, di
             key={opt.id}
             word={opt.text}
             selected={selected === opt.id}
-            correct={showFeedback ? opt.id === question.correct_answer : null}
+            correct={showFeedback ? (opt.id.toLowerCase() === (question.correct_answer ?? '').toLowerCase().trim() || opt.text.toLowerCase().trim() === (question.correct_answer ?? '').toLowerCase().trim()) : null}
             showFeedback={showFeedback}
             disabled={disabled}
             onTap={() => handleTap(opt.id)}

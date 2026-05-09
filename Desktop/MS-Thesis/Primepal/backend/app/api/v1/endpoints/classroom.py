@@ -509,6 +509,8 @@ async def invalidate_classroom_missions_cache(classroom_id: str) -> None:
     """
     Invalidate all cached missions for students in this classroom.
     Called when teacher changes active topics to ensure students get fresh missions.
+    Also invalidates puzzle palace and story time caches so next student
+    request triggers fresh generation with the new topics.
     """
     from app.core.cache import cache_delete_pattern
     from app.core.supabase_client import get_supabase_admin
@@ -538,7 +540,19 @@ async def invalidate_classroom_missions_cache(classroom_id: str) -> None:
                 deleted = await cache_delete_pattern(pattern)
                 total_deleted += deleted
 
-        logger.info(f"Cache invalidation: cleared {total_deleted} mission caches for classroom {classroom_id}")
+        # Invalidate puzzle palace cache for this classroom (keyed by classroom_id)
+        pp_deleted = await cache_delete_pattern(f"puzzle_palace:{classroom_id}:*")
+        total_deleted += pp_deleted
+
+        # Invalidate story time cache for this classroom (keyed by classroom_id)
+        st_deleted = await cache_delete_pattern(f"story_time:{classroom_id}:*")
+        total_deleted += st_deleted
+
+        logger.info(
+            f"Cache invalidation: cleared {total_deleted} caches "
+            f"(incl. {pp_deleted} puzzle palace, {st_deleted} story time) "
+            f"for classroom {classroom_id}"
+        )
 
     except Exception as exc:
         logger.warning(f"Cache invalidation failed for classroom {classroom_id}: {exc}")

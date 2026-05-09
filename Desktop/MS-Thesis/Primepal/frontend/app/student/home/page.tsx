@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -15,11 +14,12 @@ import AchievementPopup from "@/components/student/AchievementPopup";
 import PageHero from "@/components/student/PageHero";
 import SectionHeading from "@/components/student/SectionHeading";
 import ActivityCard from "@/components/student/ActivityCard";
+import { useGenderTheme } from "@/lib/gender-theme-context";
 
 const ACTIVITY_CARDS = [
   { href: "/student/missions",     icon: "🎯", title: "Daily Missions",  subtitle: "Earn stars across 4 pillars — let's go!", tone: "purple" as const, wide: true,  badge: "NEW" },
   { href: "/student/chat",         icon: "💬", title: "Chat",            subtitle: "Ask PrimePal anything",                   tone: "pink"   as const },
-  { href: "/student/spelling-bee", icon: "🐝", title: "Spelling Bee",    subtitle: "30-second challenge",                     tone: "amber"  as const },
+  { href: "/student/puzzle-palace", icon: "🏰", title: "Puzzle Palace",   subtitle: "5 rooms of word puzzles",                 tone: "amber"  as const },
   { href: "/student/scores",       icon: "📊", title: "My Scores",       subtitle: "See your progress",                       tone: "cyan"   as const },
   { href: "/student/story-time",   icon: "📖", title: "Story Time",      subtitle: "Read & answer",                           tone: "emerald"as const },
 ];
@@ -35,6 +35,7 @@ export default function HomePage() {
   const { data: achievementsData } = useAchievements();
   const { data: pointsBreakdown } = usePointsBreakdown();
 
+  const theme = useGenderTheme();
   const [achievementPopup, setAchievementPopup] = useState<{ name: string; icon: string; tier: "bronze" | "silver" | "gold" } | null>(null);
   const [streakResetBanner, setStreakResetBanner] = useState(false);
 
@@ -102,7 +103,8 @@ export default function HomePage() {
           waveEmoji="👋"
           subtitle={profile?.roll_number ? `Roll No: ${profile.roll_number}` : undefined}
           pills={heroPills}
-          mascot="🦄"
+          mascot={theme.mascotEmoji}
+          className={theme.heroBg}
         />
       )}
 

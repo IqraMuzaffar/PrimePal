@@ -197,7 +197,7 @@ export default function AdminLoginPage() {
 
         {/* Step indicator */}
         <div className="flex justify-center gap-2 mb-6">
-          {(['code', 'signup', 'login'] as LoginStep[]).map((s, i) => (
+          {(['code', 'signup', 'login'] as LoginStep[]).map((s, _i) => (
             <div
               key={s}
               style={{
@@ -258,7 +258,9 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all"
+              className={`w-full text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all duration-200 ${
+                loading ? '' : 'hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(67,97,238,0.50)] active:translate-y-0 active:shadow-[0_2px_8px_rgba(67,97,238,0.30)]'
+              }`}
               style={{
                 padding: '16px 24px',
                 fontSize: 17,
@@ -324,7 +326,9 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all"
+              className={`w-full text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all duration-200 ${
+                loading ? '' : 'hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(67,97,238,0.50)] active:translate-y-0 active:shadow-[0_2px_8px_rgba(67,97,238,0.30)]'
+              }`}
               style={{
                 padding: '16px 24px',
                 fontSize: 17,
@@ -379,7 +383,9 @@ export default function AdminLoginPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all"
+              className={`w-full text-white font-bold rounded-xl flex items-center justify-center gap-2 transition-all duration-200 ${
+                loading ? '' : 'hover:-translate-y-0.5 hover:shadow-[0_8px_30px_rgba(67,97,238,0.50)] active:translate-y-0 active:shadow-[0_2px_8px_rgba(67,97,238,0.30)]'
+              }`}
               style={{
                 padding: '16px 24px',
                 fontSize: 17,
@@ -405,6 +411,31 @@ export default function AdminLoginPage() {
             </p>
           </form>
         )}
+        {/* Back to Home — inside card, visually prominent */}
+        <div className="mt-8 pt-6" style={{ borderTop: '1px solid #eaecf4' }}>
+          <a
+            href="/"
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm transition-all duration-200"
+            style={{
+              color: '#4361ee',
+              backgroundColor: '#eef2ff',
+              border: '1px solid #c7d2fe',
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = '#e0e7ff';
+              e.currentTarget.style.transform = 'translateY(-1px)';
+              e.currentTarget.style.boxShadow = '0 4px 12px rgba(67,97,238,0.15)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = '#eef2ff';
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = 'none';
+            }}
+          >
+            <span style={{ fontSize: 16 }}>🏠</span>
+            Back to Home
+          </a>
+        </div>
       </div>
     </div>
   );

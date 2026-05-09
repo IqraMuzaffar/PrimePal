@@ -219,6 +219,30 @@ export default function TeacherLoginPage() {
             Enter your class code here
           </a>
         </p>
+
+        {/* Back to home */}
+        <a
+          href="/"
+          className="mt-4 flex items-center justify-center gap-2 w-full py-3 rounded-xl font-bold text-sm transition-all duration-200"
+          style={{
+            color: '#4361ee',
+            backgroundColor: '#eef2ff',
+            border: '1px solid #c7d2fe',
+          }}
+          onMouseOver={(e) => {
+            e.currentTarget.style.backgroundColor = '#e0e7ff';
+            e.currentTarget.style.transform = 'translateY(-1px)';
+            e.currentTarget.style.boxShadow = '0 4px 12px rgba(67,97,238,0.15)';
+          }}
+          onMouseOut={(e) => {
+            e.currentTarget.style.backgroundColor = '#eef2ff';
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
+          <span style={{ fontSize: 16 }}>🏠</span>
+          Back to Home
+        </a>
       </div>
     </div>
   );

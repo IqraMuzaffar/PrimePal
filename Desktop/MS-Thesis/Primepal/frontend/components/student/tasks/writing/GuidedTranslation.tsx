@@ -25,10 +25,14 @@ export default function GuidedTranslation({ question, onAnswer, showFeedback, di
     if (disabled || submitted) return;
     setSubmitted(true);
     const correctOrder = question.correct_order ?? [];
-    // Case-insensitive comparison and trim whitespace
-    const isCorrect = selectedWords.length === correctOrder.length &&
-      selectedWords.every((w, i) => w.toLowerCase().trim() === correctOrder[i].toLowerCase().trim());
-    onAnswer(selectedWords.join(' '), isCorrect);
+    const correctSentence = (question.correct_answer ?? '').toLowerCase().trim();
+    const studentSentence = selectedWords.join(' ').toLowerCase().trim();
+
+    const orderMatch = selectedWords.length === correctOrder.length &&
+      selectedWords.every((w, i) => w.toLowerCase().trim() === (correctOrder[i] ?? '').toLowerCase().trim());
+    const sentenceMatch = correctSentence.length > 0 && studentSentence === correctSentence;
+
+    onAnswer(selectedWords.join(' '), orderMatch || sentenceMatch);
   };
 
   const correctOrder = question.correct_order ?? [];

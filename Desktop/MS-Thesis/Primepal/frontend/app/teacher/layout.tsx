@@ -45,12 +45,25 @@ const PAGE_TITLES: Record<string, string> = {
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const [email, setEmail] = useState<string | null>(null);
+  const [email, setEmail] = useState<string | null>(() => {
+    // Sync read from Supabase's local storage cache to avoid flash
+    if (typeof window !== "undefined") {
+      try {
+        const key = Object.keys(localStorage).find(k => k.startsWith("sb-") && k.endsWith("-auth-token"));
+        if (key) {
+          const data = JSON.parse(localStorage.getItem(key) || "{}");
+          return data?.user?.email ?? null;
+        }
+      } catch { /* ignore */ }
+    }
+    return null;
+  });
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setEmail(session?.user?.email ?? null);
     });
+    return () => subscription.unsubscribe();
   }, []);
 
   async function handleLogout() {

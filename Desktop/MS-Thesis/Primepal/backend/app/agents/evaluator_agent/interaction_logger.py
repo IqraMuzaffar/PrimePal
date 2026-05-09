@@ -16,7 +16,7 @@ def log_interaction(
     student_id: str,
     classroom_id: str,
     grade_level: int,
-    interaction_type: str,          # 'chat' | 'mission_mc' | 'mission_fill' | 'spelling_bee'
+    interaction_type: str,          # 'chat' | 'mission_mc' | 'mission_fill' | 'puzzle_palace' | 'mission_speaking'
     original_message: str | None = None,
     translated_message: str | None = None,
     correct: bool | None = None,    # None for chat interactions
