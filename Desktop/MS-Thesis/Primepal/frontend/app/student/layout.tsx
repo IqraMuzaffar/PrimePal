@@ -204,12 +204,13 @@ function StudentLayoutContent({ children }: { children: React.ReactNode }) {
 }
 
 function StudentLayoutWithTheme({ children }: { children: React.ReactNode }) {
-  const { data: profile } = useStudentProfile();
-  const studentName = profile?.student_name
-    ?? (typeof window !== "undefined" ? localStorage.getItem("primepal_student_name") : null);
+  // Use localStorage for instant theme — avoids duplicate useStudentProfile() call
+  const studentName = typeof window !== "undefined"
+    ? localStorage.getItem("primepal_student_name")
+    : null;
 
   return (
-    <GenderThemeProvider studentName={studentName ?? null}>
+    <GenderThemeProvider studentName={studentName}>
       <StudentLayoutContent>{children}</StudentLayoutContent>
     </GenderThemeProvider>
   );

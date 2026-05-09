@@ -46,7 +46,7 @@ function DashboardContent() {
       )).sort()
     : availableSections;
 
-  const loading = classroomsLoading || statsLoading || skillLoading;
+  // Progressive loading: each section renders as its data arrives
 
   // NEW: Calculate match score for classroom sorting
   const getMatchScore = (classroom: TeacherClassroom) => {
@@ -92,7 +92,14 @@ function DashboardContent() {
       </div>
 
       {/* Stats Grid */}
-      {!loading && stats && (
+      {statsLoading && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="bg-white rounded-2xl border border-gray-200 p-6 h-32 animate-pulse" />
+          ))}
+        </div>
+      )}
+      {!statsLoading && stats && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard
             value={stats.total_students}
@@ -133,7 +140,17 @@ function DashboardContent() {
       )}
 
         {/* Skill Breakdown */}
-        {!loading && skillAccuracy && (
+        {skillLoading && (
+          <div className="mb-8">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Skill Breakdown</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 h-24 animate-pulse" />
+              ))}
+            </div>
+          </div>
+        )}
+        {!skillLoading && skillAccuracy && (
           <div className="mb-8">
             <h2 className="text-xl font-bold text-gray-900 mb-4">Skill Breakdown</h2>
 
@@ -182,14 +199,6 @@ function DashboardContent() {
           </div>
         )}
 
-        {/* Loading skeleton */}
-        {loading && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-white rounded-2xl border border-gray-200 p-6 h-32 animate-pulse" />
-            ))}
-          </div>
-        )}
 
         {/* Quick Access Section */}
         <div className="mb-8">
@@ -204,7 +213,7 @@ function DashboardContent() {
             </Link>
           </div>
 
-          {loading ? (
+          {classroomsLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[1, 2, 3, 4].map((i) => (
                 <div key={i} className="bg-white rounded-xl border border-gray-200 p-4 h-32 animate-pulse" />
