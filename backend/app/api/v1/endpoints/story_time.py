@@ -2,13 +2,15 @@
 Feature: Story Time (Student-side reading comprehension)
 
 Endpoints (all require student JWT):
-  GET  /api/v1/story-time/story   — Generate story + 3 comprehension questions
-  POST /api/v1/story-time/answer  — Record answer, award points
+  GET  /api/v1/story-time/story        — Generate story + 3 comprehension questions
+  GET  /api/v1/story-time/daily-status — Check today's usage (attempts used / limit)
+  POST /api/v1/story-time/answer       — Record answer, award points
 """
 
 import asyncio
 import json
 import logging
+from datetime import datetime, timezone
 from openai import AsyncOpenAI, APITimeoutError, APIConnectionError
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -19,7 +21,7 @@ from app.core.rate_limit import limiter
 from app.core.config import settings
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
-from app.core.cache import cache_get, cache_set, make_cache_key, debounced_invalidate
+from app.core.cache import cache_get, cache_set, cache_delete, make_cache_key, debounced_invalidate
 from app.core.llm_tracker import track_llm, log_cache_hit
 from app.agents.evaluator_agent.interaction_logger import log_interaction
 from app.api.v1.endpoints.rewards import invalidate_rewards_cache
@@ -28,6 +30,8 @@ from app.utils.streak import update_streak
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+DAILY_LIMIT = 2  # Max story time sessions per day
 
 client = AsyncOpenAI(
     api_key=settings.OPENAI_API_KEY,
@@ -62,6 +66,70 @@ class AnswerRequest(BaseModel):
 class AnswerResponse(BaseModel):
     points_awarded: int
     new_total: int
+
+
+# ---------------------------------------------------------------------------
+# Daily limit helpers
+# ---------------------------------------------------------------------------
+
+class DailyActivityStatus(BaseModel):
+    attempts_used: int
+    attempts_limit: int
+    can_play: bool
+
+
+async def _count_today_sessions(student_id: str) -> int:
+    supabase = get_supabase_admin()
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ).isoformat()
+    try:
+        resp = await asyncio.to_thread(
+            lambda: supabase.table("student_interactions")
+            .select("id", count="exact")
+            .eq("student_id", student_id)
+            .eq("interaction_type", "story_time_session")
+            .gte("created_at", today_start)
+            .execute()
+        )
+        return resp.count or 0
+    except Exception as exc:
+        logger.warning("Could not count story time sessions: %s", exc)
+        return 0
+
+
+async def _log_session_start(student_id: str, classroom_id: str, grade_level: int):
+    supabase = get_supabase_admin()
+    try:
+        await asyncio.to_thread(
+            lambda: supabase.table("student_interactions")
+            .insert({
+                "student_id": student_id,
+                "classroom_id": classroom_id,
+                "grade_level": grade_level,
+                "interaction_type": "story_time_session",
+                "correct": True,
+            })
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning("Could not log story time session start: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# GET /daily-status
+# ---------------------------------------------------------------------------
+
+@router.get("/daily-status", response_model=DailyActivityStatus, summary="Story Time daily usage")
+async def get_daily_status(student: dict = Depends(get_current_student)):
+    """Return how many Story Time sessions the student has used today."""
+    student_id: str = student["sub"]
+    used = await _count_today_sessions(student_id)
+    return DailyActivityStatus(
+        attempts_used=used,
+        attempts_limit=DAILY_LIMIT,
+        can_play=used < DAILY_LIMIT,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +176,17 @@ async def get_story(request: Request, student: dict = Depends(get_current_studen
         )
     grade_level: int = classroom_resp.data["grade_level"]
 
+    # ------------------------------------------------------------------
+    # Check daily limit
+    # ------------------------------------------------------------------
+    student_id = student["sub"]
+    sessions_used = await _count_today_sessions(student_id)
+    if sessions_used >= DAILY_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Daily limit reached ({DAILY_LIMIT} sessions per day). Come back tomorrow!",
+        )
+
     # Fallback: if no active syllabus week, use active topics from teacher selection
     if not syllabus_resp or not syllabus_resp.data:
         topics_resp = await asyncio.to_thread(
@@ -143,8 +222,9 @@ async def get_story(request: Request, student: dict = Depends(get_current_studen
     cached = await cache_get(cache_key)
     if cached:
         logger.info(f"Cache hit for story time: {cache_key}")
-        student_id = student["sub"]
         await log_cache_hit("story_time/story", student_id=student_id, classroom_id=classroom_id)
+        # Log session start even on cache hit (counts toward daily limit)
+        await _log_session_start(student_id, classroom_id, grade_level)
         return StoryResponse(**cached)
 
     # ------------------------------------------------------------------
@@ -169,7 +249,6 @@ Return ONLY valid JSON (no markdown code blocks).
 }}
 """
 
-    student_id = student["sub"]
     try:
         # 25-second timeout for LLM call (gpt-4o-mini can be slow on cold starts)
         async with track_llm("story_time/story", model="gpt-4o-mini", student_id=student_id, classroom_id=classroom_id) as tracker:
@@ -250,6 +329,9 @@ Return ONLY valid JSON (no markdown code blocks).
 
     # Cache for 24 hours (same topic/grade will get same story)
     await cache_set(cache_key, response.model_dump(), ttl=86400)
+
+    # Log session start (counts toward daily limit)
+    await _log_session_start(student_id, classroom_id, grade_level)
 
     return response
 

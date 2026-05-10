@@ -2,7 +2,8 @@
 Feature: Puzzle Palace — /api/v1/puzzle-palace
 
 Endpoints (student JWT required):
-  GET /api/v1/puzzle-palace/rooms — Generate 10 questions across 5 rooms (2 per room)
+  GET  /api/v1/puzzle-palace/rooms  — Generate 10 questions across 5 rooms (2 per room)
+  GET  /api/v1/puzzle-palace/daily-status — Check today's usage (attempts used / limit)
 
 Each room maps to a specific task_type and pillar. Questions are generated
 via the existing generate_pillar_missions() LLM pipeline with RAG grounding.
@@ -12,6 +13,7 @@ Answer completion is handled by the existing /missions/complete endpoint.
 import asyncio
 import hashlib
 import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
@@ -23,13 +25,15 @@ from app.api.v1.endpoints.classroom import get_active_topics
 from app.api.v1.endpoints.missions import MissionQuestionOut, _strip_answer
 from app.agents.tutor_agent.mission_generator import generate_pillar_missions
 from app.agents.tutor_agent.chatbot import retrieve_grade_filtered_chunks
-from app.core.cache import cache_get, cache_set, make_cache_key
+from app.core.cache import cache_get, cache_set, cache_delete, make_cache_key
 from app.core.llm_tracker import log_cache_hit
 from app.core.security import get_current_student
 from app.core.supabase_client import get_supabase_admin
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+DAILY_LIMIT = 2  # Max puzzle palace sessions per day
 
 # ---------------------------------------------------------------------------
 # Room definitions — fixed order
@@ -59,6 +63,70 @@ class RoomOut(BaseModel):
 class PuzzlePalaceResponse(BaseModel):
     rooms: list[RoomOut]
     topic: str
+
+
+class DailyActivityStatus(BaseModel):
+    attempts_used: int
+    attempts_limit: int
+    can_play: bool
+
+
+# ---------------------------------------------------------------------------
+# Helper: count today's sessions for a student
+# ---------------------------------------------------------------------------
+
+async def _count_today_sessions(student_id: str) -> int:
+    supabase = get_supabase_admin()
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ).isoformat()
+    try:
+        resp = await asyncio.to_thread(
+            lambda: supabase.table("student_interactions")
+            .select("id", count="exact")
+            .eq("student_id", student_id)
+            .eq("interaction_type", "puzzle_palace_session")
+            .gte("created_at", today_start)
+            .execute()
+        )
+        return resp.count or 0
+    except Exception as exc:
+        logger.warning("Could not count puzzle palace sessions: %s", exc)
+        return 0
+
+
+async def _log_session_start(student_id: str, classroom_id: str, grade_level: int):
+    supabase = get_supabase_admin()
+    try:
+        await asyncio.to_thread(
+            lambda: supabase.table("student_interactions")
+            .insert({
+                "student_id": student_id,
+                "classroom_id": classroom_id,
+                "grade_level": grade_level,
+                "interaction_type": "puzzle_palace_session",
+                "correct": True,
+            })
+            .execute()
+        )
+    except Exception as exc:
+        logger.warning("Could not log puzzle palace session start: %s", exc)
+
+
+# ---------------------------------------------------------------------------
+# GET /daily-status
+# ---------------------------------------------------------------------------
+
+@router.get("/daily-status", response_model=DailyActivityStatus, summary="Puzzle Palace daily usage")
+async def get_daily_status(student: dict = Depends(get_current_student)):
+    """Return how many Puzzle Palace sessions the student has used today."""
+    student_id: str = student["sub"]
+    used = await _count_today_sessions(student_id)
+    return DailyActivityStatus(
+        attempts_used=used,
+        attempts_limit=DAILY_LIMIT,
+        can_play=used < DAILY_LIMIT,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -110,6 +178,16 @@ async def get_puzzle_palace_rooms(
     grade_level: int = resp.data["grade_level"]
 
     # ------------------------------------------------------------------
+    # Step 1b: Check daily limit
+    # ------------------------------------------------------------------
+    sessions_used = await _count_today_sessions(student_id)
+    if sessions_used >= DAILY_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Daily limit reached ({DAILY_LIMIT} sessions per day). Come back tomorrow!",
+        )
+
+    # ------------------------------------------------------------------
     # Step 2: Resolve active topics
     # ------------------------------------------------------------------
     active_topic_objs = await get_active_topics(classroom_id, grade_level, supabase)
@@ -128,6 +206,8 @@ async def get_puzzle_palace_rooms(
     if cached:
         logger.info("Cache hit for puzzle palace: %s", cache_key)
         await log_cache_hit("puzzle_palace/rooms", student_id=student_id, classroom_id=classroom_id)
+        # Log session start even on cache hit (counts toward daily limit)
+        await _log_session_start(student_id, classroom_id, grade_level)
         return PuzzlePalaceResponse(**cached)
 
     # ------------------------------------------------------------------
@@ -267,12 +347,17 @@ async def get_puzzle_palace_rooms(
     # Cache for 1 hour
     await cache_set(cache_key, response.model_dump(), ttl=86400)  # 24 hours
 
+    # Log session start (counts toward daily limit)
+    await _log_session_start(student_id, classroom_id, grade_level)
+
     total_qs = sum(len(r.questions) for r in rooms)
     logger.info(
-        "Puzzle Palace returned %d questions across %d rooms for student %s",
+        "Puzzle Palace returned %d questions across %d rooms for student %s (session %d/%d today)",
         total_qs,
         len(rooms),
         student_id,
+        sessions_used + 1,
+        DAILY_LIMIT,
     )
 
     return response

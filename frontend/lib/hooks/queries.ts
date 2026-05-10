@@ -96,6 +96,8 @@ export const queryKeys = {
   pointsBreakdown: ["pointsBreakdown"] as const,
   myScores: (timeRange: string) => ["myScores", timeRange] as const,
   dailyPillarStatus: ["dailyPillarStatus"] as const,
+  puzzlePalaceDailyStatus: ["puzzlePalaceDailyStatus"] as const,
+  storyTimeDailyStatus: ["storyTimeDailyStatus"] as const,
 };
 
 export function useStudentProfile() {
@@ -167,13 +169,14 @@ interface EvalQuestion {
 }
 
 
-export function useStoryTime() {
+export function useStoryTime(enabled: boolean = true) {
   return useQuery({
     queryKey: queryKeys.storyTime,
     queryFn: () => studentFetch<StoryData>("/story-time/story"),
     staleTime: 10 * 60 * 1000,
     retry: 1,
     retryDelay: 2000,
+    enabled,
   });
 }
 
@@ -247,5 +250,27 @@ export function useMyScores(timeRange: string = "everything") {
     queryKey: queryKeys.myScores(timeRange),
     queryFn: () => studentFetch<MyScoresData>(`/student/my-scores?time_range=${timeRange}`),
     staleTime: 30 * 1000,
+  });
+}
+
+export interface DailyActivityStatus {
+  attempts_used: number;
+  attempts_limit: number;
+  can_play: boolean;
+}
+
+export function usePuzzlePalaceDailyStatus() {
+  return useQuery({
+    queryKey: queryKeys.puzzlePalaceDailyStatus,
+    queryFn: () => studentFetch<DailyActivityStatus>("/puzzle-palace/daily-status"),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useStoryTimeDailyStatus() {
+  return useQuery({
+    queryKey: queryKeys.storyTimeDailyStatus,
+    queryFn: () => studentFetch<DailyActivityStatus>("/story-time/daily-status"),
+    staleTime: 60 * 1000,
   });
 }

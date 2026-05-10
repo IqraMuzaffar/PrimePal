@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, ArrowLeft, CheckCircle2, XCircle, Trophy, Home, RotateCcw } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle2, XCircle, Trophy, Home, RotateCcw, Lock } from 'lucide-react';
 import TaskRouter from '@/components/student/tasks/TaskRouter';
 import PageHero from '@/components/student/PageHero';
 import { useMissionComplete } from '@/lib/hooks/mutations';
+import { usePuzzlePalaceDailyStatus, queryKeys } from '@/lib/hooks/queries';
 import { studentFetch } from '@/lib/api-helpers';
 import { MissionQuestion } from '@/types/missions';
 
@@ -62,6 +63,12 @@ export default function PuzzlePalacePage() {
   const queryClient = useQueryClient();
   const completeMission = useMissionComplete();
 
+  /* ---------- daily status ---------- */
+  const { data: dailyStatus } = usePuzzlePalaceDailyStatus();
+  const canPlay = dailyStatus?.can_play ?? true;
+  const attemptsUsed = dailyStatus?.attempts_used ?? 0;
+  const attemptsLimit = dailyStatus?.attempts_limit ?? 2;
+
   /* ---------- data fetch ---------- */
   const {
     data,
@@ -73,6 +80,7 @@ export default function PuzzlePalacePage() {
     queryFn: () => studentFetch<PuzzlePalaceData>('/puzzle-palace/rooms'),
     staleTime: Infinity,
     retry: 1,
+    enabled: canPlay,
   });
 
   /* ---------- game state ---------- */
@@ -158,12 +166,60 @@ export default function PuzzlePalacePage() {
     setCurrentRoomAnswers([]);
     setTotalScore(0);
     queryClient.invalidateQueries({ queryKey: ['puzzlePalaceRooms'] });
+    queryClient.invalidateQueries({ queryKey: queryKeys.puzzlePalaceDailyStatus });
     refetch();
   }
 
   /* ================================================================ */
   /*  RENDER: Loading                                                  */
   /* ================================================================ */
+
+  /* ================================================================ */
+  /*  RENDER: Daily limit reached                                     */
+  /* ================================================================ */
+
+  if (!canPlay) {
+    return (
+      <div className="min-h-screen pb-10">
+        <PageHero
+          label="PUZZLE PALACE"
+          name="Puzzle Palace"
+          waveEmoji="\uD83C\uDFF0"
+          subtitle="Daily limit reached"
+          mascot="\uD83C\uDFF0"
+        />
+        <div className="flex items-center justify-center px-4 mt-12">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl shadow-[0_24px_48px_rgba(0,0,0,0.12)] border-2 border-amber-200 p-8 max-w-md w-full text-center"
+          >
+            <Lock className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+            <h2 className="font-baloo font-extrabold text-2xl text-slate-800 mb-2">
+              Come Back Tomorrow!
+            </h2>
+            <p className="font-nunito text-slate-500 mb-4">
+              You&apos;ve played <span className="font-bold text-amber-600">{attemptsUsed}/{attemptsLimit}</span> times today.
+              Your daily Puzzle Palace sessions are used up.
+            </p>
+            <div className="bg-amber-50 rounded-2xl px-4 py-3 mb-6">
+              <p className="font-nunito text-sm text-amber-700">
+                Try <span className="font-bold">Daily Missions</span> or <span className="font-bold">Chat</span> to keep earning stars!
+              </p>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => router.push('/student/home')}
+              className="w-full py-4 rounded-2xl font-baloo font-extrabold text-lg text-white bg-gradient-to-r from-violet-500 to-pink-500 shadow-[0_6px_0_#7c3aed,0_8px_18px_rgba(139,92,246,0.3)] active:translate-y-1 active:shadow-[0_2px_0_#7c3aed] transition-all"
+            >
+              Back Home
+            </motion.button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
@@ -237,11 +293,19 @@ export default function PuzzlePalacePage() {
             })}
           </div>
 
+          {dailyStatus && (
+            <div className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 text-center mt-2">
+              <p className="font-nunito font-semibold text-sm text-amber-700">
+                {attemptsLimit - attemptsUsed} of {attemptsLimit} plays remaining today
+              </p>
+            </div>
+          )}
+
           <motion.button
             whileHover={{ scale: 1.03 }}
             whileTap={{ scale: 0.97, translateY: '4px' }}
             onClick={() => setPhase('playing')}
-            className="w-full mt-6 py-4 rounded-2xl font-baloo font-extrabold text-xl text-white bg-gradient-to-r from-violet-500 to-pink-500 shadow-[0_6px_0_#7c3aed,0_8px_18px_rgba(139,92,246,0.3)] active:translate-y-1 active:shadow-[0_2px_0_#7c3aed] transition-all"
+            className="w-full mt-4 py-4 rounded-2xl font-baloo font-extrabold text-xl text-white bg-gradient-to-r from-violet-500 to-pink-500 shadow-[0_6px_0_#7c3aed,0_8px_18px_rgba(139,92,246,0.3)] active:translate-y-1 active:shadow-[0_2px_0_#7c3aed] transition-all"
           >
             Enter the Palace!
           </motion.button>

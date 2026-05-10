@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Volume2, ArrowLeft } from 'lucide-react';
+import { Volume2, ArrowLeft, Lock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
-import { useStoryTime, queryKeys } from '@/lib/hooks/queries';
+import { useStoryTime, useStoryTimeDailyStatus, queryKeys } from '@/lib/hooks/queries';
 import PageHero from '@/components/student/PageHero';
 
 type GameState = 'loading' | 'reading' | 'questioning' | 'finished';
@@ -14,7 +14,11 @@ type GameState = 'loading' | 'reading' | 'questioning' | 'finished';
 export default function StoryTimePage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const { data: storyData, isLoading: storyLoading, error: storyError, refetch: refetchStory } = useStoryTime();
+  const { data: dailyStatus } = useStoryTimeDailyStatus();
+  const canPlay = dailyStatus?.can_play ?? true;
+  const attemptsUsed = dailyStatus?.attempts_used ?? 0;
+  const attemptsLimit = dailyStatus?.attempts_limit ?? 2;
+  const { data: storyData, isLoading: storyLoading, error: storyError, refetch: refetchStory } = useStoryTime(canPlay);
 
   const [gameState, setGameState] = useState<GameState>('loading');
   const [story, setStory] = useState<typeof storyData | null>(null);
@@ -122,6 +126,47 @@ export default function StoryTimePage() {
     }
   }
 
+  /* ================================================================ */
+  /*  RENDER: Daily limit reached                                     */
+  /* ================================================================ */
+
+  if (!canPlay) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-emerald-50 to-green-50 pb-10">
+        <PageHero label="STORY TIME" name="Read & Discover" subtitle="Daily limit reached" mascot="📖" />
+        <div className="flex items-center justify-center px-4 mt-12">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl shadow-[0_24px_48px_rgba(0,0,0,0.12)] border-2 border-emerald-200 p-8 max-w-md w-full text-center"
+          >
+            <Lock className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
+            <h2 className="font-baloo font-extrabold text-2xl text-slate-800 mb-2">
+              Come Back Tomorrow!
+            </h2>
+            <p className="font-nunito text-slate-500 mb-4">
+              You&apos;ve read <span className="font-bold text-emerald-600">{attemptsUsed}/{attemptsLimit}</span> stories today.
+              Your daily Story Time sessions are used up.
+            </p>
+            <div className="bg-emerald-50 rounded-2xl px-4 py-3 mb-6">
+              <p className="font-nunito text-sm text-emerald-700">
+                Try <span className="font-bold">Daily Missions</span> or <span className="font-bold">Chat</span> to keep earning stars!
+              </p>
+            </div>
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => router.push('/student/home')}
+              className="w-full py-4 rounded-2xl font-baloo font-extrabold text-lg text-white bg-gradient-to-r from-emerald-500 to-green-500 shadow-[0_6px_0_#059669,0_8px_18px_rgba(16,185,129,0.3)] active:translate-y-1 active:shadow-[0_2px_0_#059669] transition-all"
+            >
+              Back Home
+            </motion.button>
+          </motion.div>
+        </div>
+      </div>
+    );
+  }
+
   if (gameState === 'loading') {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-emerald-50 to-green-50 px-4">
@@ -222,6 +267,7 @@ export default function StoryTimePage() {
                 setGameStarted(false);
                 setGameState('loading');
                 queryClient.invalidateQueries({ queryKey: queryKeys.storyTime });
+                queryClient.invalidateQueries({ queryKey: queryKeys.storyTimeDailyStatus });
               }}
               className="flex-1 px-4 py-3 bg-emerald-500 text-white font-bold rounded-lg hover:bg-emerald-600 transition-colors"
             >

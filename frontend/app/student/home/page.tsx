@@ -8,6 +8,8 @@ import {
   useDailySummary,
   useAchievements,
   usePointsBreakdown,
+  usePuzzlePalaceDailyStatus,
+  useStoryTimeDailyStatus,
   type AchievementProgress,
 } from "@/lib/hooks/queries";
 import AchievementPopup from "@/components/student/AchievementPopup";
@@ -16,7 +18,7 @@ import SectionHeading from "@/components/student/SectionHeading";
 import ActivityCard from "@/components/student/ActivityCard";
 import { useGenderTheme } from "@/lib/gender-theme-context";
 
-const ACTIVITY_CARDS = [
+const BASE_ACTIVITY_CARDS = [
   { href: "/student/missions",     icon: "🎯", title: "Daily Missions",  subtitle: "Earn stars across 4 pillars — let's go!", tone: "purple" as const, wide: true,  badge: "NEW" },
   { href: "/student/chat",         icon: "💬", title: "Chat",            subtitle: "Ask PrimePal anything",                   tone: "pink"   as const },
   { href: "/student/puzzle-palace", icon: "🏰", title: "Puzzle Palace",   subtitle: "5 rooms of word puzzles",                 tone: "amber"  as const },
@@ -34,6 +36,8 @@ export default function HomePage() {
   const { data: dailySummary } = useDailySummary();
   const { data: achievementsData } = useAchievements();
   const { data: pointsBreakdown } = usePointsBreakdown();
+  const { data: puzzleStatus } = usePuzzlePalaceDailyStatus();
+  const { data: storyStatus } = useStoryTimeDailyStatus();
 
   const theme = useGenderTheme();
   const [achievementPopup, setAchievementPopup] = useState<{ name: string; icon: string; tier: "bronze" | "silver" | "gold" } | null>(null);
@@ -56,6 +60,31 @@ export default function HomePage() {
     ?? (typeof window !== "undefined" ? localStorage.getItem("primepal_student_name") : null)
     ?? "Champion";
   const firstName = name.split(" ")[0];
+
+  // Build activity cards with daily status indicators
+  const ACTIVITY_CARDS = BASE_ACTIVITY_CARDS.map((card) => {
+    if (card.href === "/student/puzzle-palace" && puzzleStatus) {
+      const remaining = puzzleStatus.attempts_limit - puzzleStatus.attempts_used;
+      return {
+        ...card,
+        subtitle: remaining > 0
+          ? `5 rooms of word puzzles (${remaining} plays left)`
+          : "Done for today!",
+        badge: remaining === 0 ? "DONE" : undefined,
+      };
+    }
+    if (card.href === "/student/story-time" && storyStatus) {
+      const remaining = storyStatus.attempts_limit - storyStatus.attempts_used;
+      return {
+        ...card,
+        subtitle: remaining > 0
+          ? `Read & answer (${remaining} plays left)`
+          : "Done for today!",
+        badge: remaining === 0 ? "DONE" : undefined,
+      };
+    }
+    return card;
+  });
 
   const todayPoints = dailySummary?.today_points ?? 0;
   const heroPills = [
