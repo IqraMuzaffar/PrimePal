@@ -694,14 +694,18 @@ async def get_student_profile(
 
     data = student_resp.data
 
-    missions_count_resp = await asyncio.to_thread(
-        lambda: supabase.table("student_interactions")
-        .select("id", count="exact")
-        .eq("student_id", student_id)
-        .like("interaction_type", "mission%")
-        .execute()
-    )
-    missions_done = missions_count_resp.count or 0
+    try:
+        missions_count_resp = await asyncio.to_thread(
+            lambda: supabase.table("student_interactions")
+            .select("id", count="exact")
+            .eq("student_id", student_id)
+            .like("interaction_type", "mission%")
+            .execute()
+        )
+        missions_done = missions_count_resp.count or 0
+    except Exception as exc:
+        logger.warning("Failed to count missions for student %s: %s", student_id, exc)
+        missions_done = 0
 
     response = StudentProfileResponse(
         student_id=student_id,
