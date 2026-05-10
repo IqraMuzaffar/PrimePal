@@ -136,15 +136,39 @@ function AchievementCard({ achievement }: { achievement: Achievement }) {
 
 export default function AchievementsPage() {
   const router = useRouter();
-  const { data, isLoading: loading, error } = useAchievements();
+  const { data, isLoading: loading, error, refetch } = useAchievements();
 
   const achievements: Achievement[] = data?.achievements ?? [];
   const unlocked = achievements.filter((a) => a.unlocked);
   const locked = achievements.filter((a) => !a.unlocked);
 
   if (error) {
-    router.push("/student/play");
-    return null;
+    return (
+      <div className="space-y-6 pb-10">
+        <PageHero label="YOUR BADGES" name="Trophy Cabinet" subtitle="Collect them all!" mascot="🏆" />
+        <div className="flex items-center justify-center py-16">
+          <div className="bg-white rounded-2xl border border-red-200 p-8 max-w-sm text-center shadow-sm">
+            <div className="text-4xl mb-3">🏆</div>
+            <p className="text-gray-700 font-semibold mb-2">Could not load badges</p>
+            <p className="text-sm text-gray-500 mb-5">Something went wrong. Please try again.</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => refetch()}
+                className="px-4 py-2 bg-emerald-500 text-white font-semibold rounded-lg hover:bg-emerald-600 transition-colors"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => router.push("/student/home")}
+                className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Home
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

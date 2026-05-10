@@ -127,6 +127,7 @@ export function useAchievements() {
     queryKey: queryKeys.achievements,
     queryFn: () => studentFetch<AchievementsResponse>("/achievements/me"),
     staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 }
 
@@ -171,6 +172,8 @@ export function useStoryTime() {
     queryKey: queryKeys.storyTime,
     queryFn: () => studentFetch<StoryData>("/story-time/story"),
     staleTime: 10 * 60 * 1000,
+    retry: 1,
+    retryDelay: 2000,
   });
 }
 

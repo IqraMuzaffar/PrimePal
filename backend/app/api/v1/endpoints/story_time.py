@@ -9,7 +9,7 @@ Endpoints (all require student JWT):
 import asyncio
 import json
 import logging
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, APITimeoutError, APIConnectionError
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
 from starlette.requests import Request
@@ -31,7 +31,7 @@ router = APIRouter()
 
 client = AsyncOpenAI(
     api_key=settings.OPENAI_API_KEY,
-    timeout=10.0,  # 10-second timeout for all OpenAI calls
+    timeout=30.0,  # Let asyncio.wait_for handle the real timeout
 )
 
 # ---------------------------------------------------------------------------
@@ -77,27 +77,31 @@ async def get_story(request: Request, student: dict = Depends(get_current_studen
     supabase = get_supabase_admin()
     classroom_id: str = student["classroom_id"]
 
-    classroom_resp, syllabus_resp = await asyncio.gather(
-        asyncio.to_thread(
-            lambda: supabase.table("classrooms")
-            .select("grade_level")
-            .eq("id", classroom_id)
-            .maybe_single()
-            .execute()
-        ),
-        asyncio.to_thread(
-            lambda: supabase.table("classroom_syllabus")
-            .select("topic_title, week_number")
-            .eq("classroom_id", classroom_id)
-            .eq("status", "active")
-            .order("week_number")
-            .limit(1)
-            .maybe_single()
-            .execute()
-        ),
-    )
+    try:
+        classroom_resp, syllabus_resp = await asyncio.gather(
+            asyncio.to_thread(
+                lambda: supabase.table("classrooms")
+                .select("grade_level")
+                .eq("id", classroom_id)
+                .maybe_single()
+                .execute()
+            ),
+            asyncio.to_thread(
+                lambda: supabase.table("classroom_syllabus")
+                .select("topic_title, week_number")
+                .eq("classroom_id", classroom_id)
+                .eq("status", "active")
+                .order("week_number")
+                .limit(1)
+                .maybe_single()
+                .execute()
+            ),
+        )
+    except Exception:
+        classroom_resp = None
+        syllabus_resp = None
 
-    if not classroom_resp.data:
+    if not classroom_resp or not classroom_resp.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Classroom not found",
@@ -105,7 +109,7 @@ async def get_story(request: Request, student: dict = Depends(get_current_studen
     grade_level: int = classroom_resp.data["grade_level"]
 
     # Fallback: if no active syllabus week, use active topics from teacher selection
-    if not syllabus_resp.data:
+    if not syllabus_resp or not syllabus_resp.data:
         topics_resp = await asyncio.to_thread(
             lambda: supabase.table("classroom_active_topics")
             .select("topic_id")
@@ -167,7 +171,7 @@ Return ONLY valid JSON (no markdown code blocks).
 
     student_id = student["sub"]
     try:
-        # 12-second timeout for LLM call (consistent with missions endpoints)
+        # 25-second timeout for LLM call (gpt-4o-mini can be slow on cold starts)
         async with track_llm("story_time/story", model="gpt-4o-mini", student_id=student_id, classroom_id=classroom_id) as tracker:
             response = await asyncio.wait_for(
                 client.chat.completions.create(
@@ -176,7 +180,7 @@ Return ONLY valid JSON (no markdown code blocks).
                     temperature=0.7,
                     max_tokens=800,
                 ),
-                timeout=12.0,
+                timeout=25.0,
             )
             tracker.set_usage(response.usage)
 
@@ -211,23 +215,29 @@ Return ONLY valid JSON (no markdown code blocks).
                 correct_index=q["correct_index"],
             ))
 
-    except asyncio.TimeoutError:
-        logger.error(f"Story generation timeout (12s) for topic: {topic_title}")
+    except (asyncio.TimeoutError, APITimeoutError):
+        logger.error(f"Story generation timeout for topic: {topic_title}")
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Story generation timed out. Please try again.",
+        )
+    except APIConnectionError as exc:
+        logger.error(f"OpenAI connection error for story: {exc}")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI service temporarily unavailable. Please try again.",
         )
     except json.JSONDecodeError as exc:
         logger.error(f"Failed to parse LLM response for story: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate story",
+            detail="Failed to generate story. Please try again.",
         )
     except Exception as exc:
         logger.error(f"Failed to generate story: {exc}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to generate story",
+            detail="Failed to generate story. Please try again.",
         )
 
     response = StoryResponse(

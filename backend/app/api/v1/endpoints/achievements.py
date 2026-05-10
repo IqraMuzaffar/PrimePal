@@ -95,15 +95,18 @@ def _get_student_stats(student_id: str) -> dict[str, int]:
     supabase = get_supabase_admin()
 
     # Fetch student record
-    student_resp = (
-        supabase.table("students")
-        .select("points, current_streak")
-        .eq("id", student_id)
-        .maybe_single()
-        .execute()
-    )
+    try:
+        student_resp = (
+            supabase.table("students")
+            .select("points, current_streak")
+            .eq("id", student_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception:
+        student_resp = None
 
-    if not student_resp.data:
+    if not student_resp or not student_resp.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Student record not found",
@@ -134,10 +137,30 @@ def _get_student_stats(student_id: str) -> dict[str, int]:
         "streak": streak,
     }
 
-    rpc_result = supabase.rpc(
-        "get_student_achievement_stats", {"p_student_id": student_id}
-    ).execute()
-    pillar_counts = rpc_result.data if rpc_result.data else {}
+    # Try RPC first, fall back to direct query if RPC doesn't exist
+    pillar_counts: dict[str, int] = {}
+    try:
+        rpc_result = supabase.rpc(
+            "get_student_achievement_stats", {"p_student_id": student_id}
+        ).execute()
+        pillar_counts = rpc_result.data if rpc_result.data else {}
+    except Exception:
+        # RPC not deployed — count per-pillar correct interactions directly
+        logger.warning("get_student_achievement_stats RPC unavailable, using fallback query")
+        for pillar in ("reading", "writing", "listening", "speaking"):
+            try:
+                count_resp = (
+                    supabase.table("student_interactions")
+                    .select("id", count="exact")
+                    .eq("student_id", student_id)
+                    .eq("pillar", pillar)
+                    .eq("correct", True)
+                    .execute()
+                )
+                pillar_counts[f"{pillar}_correct"] = count_resp.count or 0
+            except Exception:
+                pillar_counts[f"{pillar}_correct"] = 0
+
     stats["missions_reading"] = pillar_counts.get("reading_correct", 0)
     stats["missions_writing"] = pillar_counts.get("writing_correct", 0)
     stats["missions_listening"] = pillar_counts.get("listening_correct", 0)
