@@ -125,15 +125,15 @@ class SemanticQualityValidator:
 
         if critical_count > 0:
             score = 0.0
-        elif warning_count > 2:
+        elif warning_count > 3:
             score = 0.3
         elif warning_count > 0:
             score = 0.7
         else:
             score = 1.0
 
-        # Question is valid if score >= 0.6 (or no critical issues in non-strict mode)
-        is_valid = score >= 0.6 and (not self.strict_mode or critical_count == 0)
+        # Question is valid if no critical issues (warnings alone don't reject)
+        is_valid = critical_count == 0 if not self.strict_mode else (score >= 0.6)
 
         return QualityResult(
             is_valid=is_valid,
@@ -208,15 +208,16 @@ class SemanticQualityValidator:
                 suggestion="Change to objective factual question",
             ))
 
-        # Check for vague completion questions
+        # Check for vague completion questions — only flag if no options provided
+        # (fill_blank_word_bank with options is intentional and not ambiguous)
         vague_patterns = [
             "is ___",
             "was ___",
             "are ___",
             "were ___",
         ]
-        if any(pattern in question_text for pattern in vague_patterns):
-            # This could be OK if there's context, but flag as warning
+        has_options = bool(question.get("options") or question.get("image_options"))
+        if any(pattern in question_text for pattern in vague_patterns) and not has_options:
             issues.append(QualityIssue(
                 severity="warning",
                 check_name="answer_ambiguity",
@@ -239,8 +240,17 @@ class SemanticQualityValidator:
         question_text = question.get("question", "").lower()
 
         # Check for abstract concept indicators
+        # Only flag truly meta-cognitive terms, not common words that
+        # happen to appear in ABSTRACT_CONCEPT_INDICATORS (like "sentence",
+        # "group", "type", "kind", "same", "different")
+        META_COGNITIVE_ONLY = {
+            "noun", "verb", "adjective", "adverb", "pronoun", "preposition",
+            "article", "conjunction", "clause", "predicate",
+            "identify", "classify", "categorize", "analyze",
+            "contrast", "evaluate", "distinguish",
+        }
         found_abstract = [
-            term for term in ABSTRACT_CONCEPT_INDICATORS
+            term for term in META_COGNITIVE_ONLY
             if term in question_text
         ]
 
@@ -260,7 +270,9 @@ class SemanticQualityValidator:
             ))
 
         # Check for "does NOT belong" questions (requires abstract categorization)
-        if "not belong" in question_text or "doesn't belong" in question_text:
+        # Skip this check for odd_one_out tasks — it's a core reading task type
+        if ("not belong" in question_text or "doesn't belong" in question_text) \
+                and question.get("task_type") != "odd_one_out":
             if grade_level <= 2:
                 issues.append(QualityIssue(
                     severity="critical",

@@ -1167,11 +1167,29 @@ async def get_pillar_missions(
         )
 
     if len(merged) < PILLAR_QUESTIONS_COUNT:
+        deficit = PILLAR_QUESTIONS_COUNT - len(merged)
         logger.warning(
-            "Returning %d/%d questions for %s (bank under-populated). "
-            "Pre-generation should be triggered.",
-            len(merged), PILLAR_QUESTIONS_COUNT, pillar,
+            "Only %d/%d questions for %s after all fallbacks. "
+            "Attempting LLM top-up for %d more.",
+            len(merged), PILLAR_QUESTIONS_COUNT, pillar, deficit,
         )
+        try:
+            topup = await generate_pillar_missions(
+                pillar=pillar,
+                grade_level=grade_level,
+                active_topics=active_topic_names,
+                student_id=student_id,
+                student_weaknesses=[],
+                is_frustrated=False,
+                performance_profile=None,
+                context_chunks=context_chunks,
+                count=deficit,
+            )
+            if topup:
+                merged = merge_bank_and_llm(merged, topup, pillar, PILLAR_QUESTIONS_COUNT)
+                logger.info("LLM top-up brought total to %d for %s", len(merged), pillar)
+        except Exception as exc:
+            logger.error("LLM top-up failed for %s: %s", pillar, exc)
 
     # Re-number all questions and normalize answers/audio_text
     from app.agents.tutor_agent.question_validator import normalize_all_questions
