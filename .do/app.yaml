@@ -7,8 +7,8 @@ services:
       repo: IqraMuzaffar/PrimePal
       branch: main
       deploy_on_push: true
-    source_dir: Desktop/MS-Thesis/Primepal/backend
-    dockerfile_path: Desktop/MS-Thesis/Primepal/backend/Dockerfile
+    source_dir: backend
+    dockerfile_path: backend/Dockerfile
     http_port: 8000
     instance_count: 1
     instance_size_slug: professional-xs
