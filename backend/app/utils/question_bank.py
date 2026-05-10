@@ -873,3 +873,147 @@ async def enforce_bank_ceiling(
         )
 
     return len(ids_to_delete)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 5. STALE BANK REFRESH (triggered organically on student requests)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+STALE_THRESHOLD = 3        # min times_served before a slot is considered stale
+REFRESH_BATCH_SIZE = 10    # how many stale questions to replace per refresh
+REFRESH_COOLDOWN_KEY_PREFIX = "bank_refresh"  # cache key to prevent rapid re-triggers
+
+
+async def refresh_stale_slots(
+    classroom_id: str,
+    grade_level: int,
+    pillar: str,
+    topics: list[str],
+) -> dict[str, Any]:
+    """
+    Replace the most-served questions in stale bank slots with fresh LLM ones.
+
+    A slot is "stale" when its LEAST-served question has times_served >= STALE_THRESHOLD,
+    meaning every question in the slot has been seen at least STALE_THRESHOLD times.
+
+    Strategy:
+      1. For each topic, check min(times_served) in the slot.
+      2. If stale, delete the REFRESH_BATCH_SIZE most-served rows.
+      3. Generate REFRESH_BATCH_SIZE fresh questions via LLM.
+      4. Insert them (times_served = 0), keeping total <= ceiling.
+
+    Called as a background task from the pillar missions endpoint so it
+    never blocks the student's request.
+
+    Returns summary dict with refresh stats.
+    """
+    from app.core.cache import cache_get, cache_set
+
+    # Cooldown: don't refresh the same classroom+pillar more than once per hour
+    cooldown_key = f"{REFRESH_COOLDOWN_KEY_PREFIX}:{classroom_id}:{pillar}"
+    if await cache_get(cooldown_key):
+        return {"status": "cooldown", "pillar": pillar}
+
+    supabase = get_supabase_admin()
+    refreshed_topics = []
+    total_deleted = 0
+    total_inserted = 0
+
+    for topic in topics:
+        try:
+            # Check staleness: what's the minimum times_served in this slot?
+            min_resp = await asyncio.to_thread(
+                lambda t=topic: supabase.table("question_bank")
+                .select("times_served")
+                .eq("grade_level", grade_level)
+                .eq("pillar", pillar)
+                .eq("topic", t)
+                .eq("classroom_id", classroom_id)
+                .order("times_served", desc=False)
+                .limit(1)
+                .execute()
+            )
+            rows = min_resp.data or []
+            if not rows:
+                continue
+
+            min_served = rows[0].get("times_served", 0)
+            if min_served < STALE_THRESHOLD:
+                continue  # slot still has fresh questions
+
+            # Slot is stale — delete the most-served questions
+            most_served_resp = await asyncio.to_thread(
+                lambda t=topic: supabase.table("question_bank")
+                .select("id")
+                .eq("grade_level", grade_level)
+                .eq("pillar", pillar)
+                .eq("topic", t)
+                .eq("classroom_id", classroom_id)
+                .order("times_served", desc=True)
+                .limit(REFRESH_BATCH_SIZE)
+                .execute()
+            )
+            ids_to_delete = [r["id"] for r in (most_served_resp.data or [])]
+
+            if ids_to_delete:
+                await asyncio.to_thread(
+                    lambda ids=ids_to_delete: supabase.table("question_bank")
+                    .delete()
+                    .in_("id", ids)
+                    .execute()
+                )
+                total_deleted += len(ids_to_delete)
+
+            # Generate fresh replacements
+            try:
+                fresh = await generate_pillar_missions(
+                    pillar=pillar,
+                    grade_level=grade_level,
+                    active_topics=[topic],
+                    student_id="bank_refresh",
+                    student_weaknesses=[],
+                    is_frustrated=False,
+                    performance_profile=None,
+                    count=REFRESH_BATCH_SIZE,
+                )
+                if fresh:
+                    valid = [q for q in fresh if isinstance(q, dict) and q.get("question")]
+                    inserted = await _bulk_insert(
+                        grade_level, pillar, topic, classroom_id, valid[:REFRESH_BATCH_SIZE]
+                    )
+                    total_inserted += inserted
+                    refreshed_topics.append(topic)
+
+                    logger.info(
+                        "bank_refresh: slot (%d, %s, %s) — deleted %d stale, inserted %d fresh",
+                        grade_level, pillar, topic, len(ids_to_delete), inserted,
+                    )
+            except Exception as exc:
+                logger.error(
+                    "bank_refresh: LLM generation failed for (%d, %s, %s): %s",
+                    grade_level, pillar, topic, exc,
+                )
+
+            # Enforce ceiling after insert (race-condition safety)
+            await enforce_bank_ceiling(classroom_id, grade_level, pillar, topic)
+
+        except Exception as exc:
+            logger.error(
+                "bank_refresh: failed for topic '%s' in (%d, %s): %s",
+                topic, grade_level, pillar, exc,
+            )
+
+    # Set cooldown (1 hour) to prevent hammering
+    if refreshed_topics:
+        await cache_set(cooldown_key, True, ttl=3600)
+
+    summary = {
+        "status": "refreshed" if refreshed_topics else "fresh",
+        "classroom_id": classroom_id,
+        "pillar": pillar,
+        "topics_refreshed": refreshed_topics,
+        "deleted": total_deleted,
+        "inserted": total_inserted,
+    }
+    logger.info("bank_refresh summary: %s", summary)
+    return summary

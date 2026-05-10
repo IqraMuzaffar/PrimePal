@@ -1468,3 +1468,114 @@ async def delete_topic(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to delete topic: {str(e)}")
+
+
+# ─────────────────────────────────────────────────────────────
+# AUTO-ASSIGN DEFAULT TOPICS & POPULATE QUESTION BANK
+# ─────────────────────────────────────────────────────────────
+
+@router.post("/auto-assign-topics")
+async def auto_assign_default_topics(
+    current_admin: dict = Depends(get_current_admin),
+):
+    """
+    For every classroom that has NO active topics assigned, assign ALL SNC topics
+    for that classroom's grade level, then trigger question bank population.
+
+    This is a one-time bootstrap endpoint to ensure grades 2-5 (and any new
+    classrooms) have topics and a populated question bank.
+    """
+    from app.utils.question_bank import populate_question_bank
+
+    supabase_admin = get_supabase_admin()
+
+    # 1. Get all classrooms
+    classrooms_resp = supabase_admin.table("classrooms").select("id, grade_level, class_name").execute()
+    all_classrooms = classrooms_resp.data or []
+
+    if not all_classrooms:
+        return {"message": "No classrooms found", "assigned": 0, "bank_results": []}
+
+    # 2. Get all existing classroom_active_topics to find which classrooms already have assignments
+    existing_resp = supabase_admin.table("classroom_active_topics").select("classroom_id").execute()
+    classrooms_with_topics = {row["classroom_id"] for row in (existing_resp.data or [])}
+
+    # 3. Get all SNC topics grouped by grade
+    topics_resp = supabase_admin.table("snc_topics").select("id, grade_level").order("id").execute()
+    all_topics = topics_resp.data or []
+    topics_by_grade: dict[int, list[int]] = {}
+    for t in all_topics:
+        topics_by_grade.setdefault(t["grade_level"], []).append(t["id"])
+
+    # 4. Assign topics to classrooms that don't have any
+    assigned_classrooms = []
+    for classroom in all_classrooms:
+        cid = classroom["id"]
+        grade = classroom["grade_level"]
+
+        if cid in classrooms_with_topics:
+            continue  # Already has active topics
+
+        grade_topic_ids = topics_by_grade.get(grade, [])
+        if not grade_topic_ids:
+            continue  # No SNC topics for this grade
+
+        # Insert active topic rows
+        rows = [{"classroom_id": cid, "topic_id": tid} for tid in grade_topic_ids]
+        try:
+            supabase_admin.table("classroom_active_topics").insert(rows).execute()
+            assigned_classrooms.append({
+                "classroom_id": cid,
+                "class_name": classroom.get("class_name", ""),
+                "grade_level": grade,
+                "topics_assigned": len(grade_topic_ids),
+            })
+        except Exception as e:
+            assigned_classrooms.append({
+                "classroom_id": cid,
+                "class_name": classroom.get("class_name", ""),
+                "grade_level": grade,
+                "error": str(e),
+            })
+
+    # 5. Populate question bank for ALL classrooms (including previously assigned ones)
+    bank_results = []
+    for classroom in all_classrooms:
+        cid = classroom["id"]
+        try:
+            result = await populate_question_bank(cid)
+            bank_results.append({
+                "classroom_id": cid,
+                "class_name": classroom.get("class_name", ""),
+                "grade_level": classroom["grade_level"],
+                **result,
+            })
+        except Exception as e:
+            bank_results.append({
+                "classroom_id": cid,
+                "class_name": classroom.get("class_name", ""),
+                "grade_level": classroom["grade_level"],
+                "status": "error",
+                "reason": str(e),
+            })
+
+    # 6. Audit log
+    try:
+        supabase_admin.table("admin_audit_log").insert({
+            "admin_id": current_admin["id"],
+            "action": "auto_assign_topics",
+            "resource_type": "system",
+            "resource_id": "all_classrooms",
+            "details": {
+                "classrooms_assigned": len([c for c in assigned_classrooms if "error" not in c]),
+                "classrooms_skipped": len(all_classrooms) - len(assigned_classrooms),
+            },
+        }).execute()
+    except Exception:
+        pass
+
+    return {
+        "message": f"Assigned topics to {len([c for c in assigned_classrooms if 'error' not in c])} classrooms",
+        "assigned": assigned_classrooms,
+        "bank_results": bank_results,
+    }

@@ -1,0 +1,344 @@
+"""
+Spelling Bee — daily spelling challenge for bonus points.
+
+Rules:
+  - One attempt per day per student.
+  - LLM generates a grade-appropriate difficult word.
+  - Student has 20 seconds to spell it correctly.
+  - Correct answer awards 30 points.
+"""
+from __future__ import annotations
+
+import asyncio
+import logging
+from datetime import datetime, timezone
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from pydantic import BaseModel
+
+from app.core.cache import cache_get, cache_set, make_cache_key, debounced_invalidate
+from app.core.config import settings
+from app.core.security import get_current_student
+from app.core.supabase_client import get_supabase_admin
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter()
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+SPELLING_BEE_POINTS = 30
+DAILY_LIMIT = 1
+TIME_LIMIT_SECONDS = 20
+
+
+# ---------------------------------------------------------------------------
+# Response models
+# ---------------------------------------------------------------------------
+
+class DailyWordResponse(BaseModel):
+    word: str
+    hint: str
+    urdu_hint: str
+    difficulty: str
+    grade_level: int
+    time_limit: int = TIME_LIMIT_SECONDS
+
+
+class SpellingBeeSubmitRequest(BaseModel):
+    word: str  # the original word (from daily-word)
+    answer: str  # student's spelling attempt
+
+
+class SpellingBeeSubmitResponse(BaseModel):
+    is_correct: bool
+    correct_answer: str
+    points_awarded: int
+    new_total: int
+
+
+class DailyActivityStatus(BaseModel):
+    attempts_used: int
+    attempts_limit: int
+    can_play: bool
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+async def _count_today_attempts(student_id: str) -> int:
+    """Count how many spelling bee attempts the student has made today."""
+    supabase = get_supabase_admin()
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ).isoformat()
+
+    resp = await asyncio.to_thread(
+        lambda: supabase.table("student_interactions")
+        .select("id", count="exact")
+        .eq("student_id", student_id)
+        .eq("interaction_type", "spelling_bee")
+        .gte("created_at", today_start)
+        .execute()
+    )
+    return resp.count or 0
+
+
+async def _get_grade_level(classroom_id: str) -> int:
+    """Fetch the grade level for the student's classroom."""
+    supabase = get_supabase_admin()
+    resp = await asyncio.to_thread(
+        lambda: supabase.table("classrooms")
+        .select("grade_level")
+        .eq("id", classroom_id)
+        .maybe_single()
+        .execute()
+    )
+    if resp.data and resp.data.get("grade_level"):
+        return resp.data["grade_level"]
+    return 3  # safe default
+
+
+async def _generate_word(grade_level: int) -> dict:
+    """Generate a challenging spelling word via LLM appropriate for the grade."""
+    from langchain_openai import ChatOpenAI
+    from langchain_core.prompts import ChatPromptTemplate
+
+    grade_vocab = {
+        1: "simple 3-4 letter CVC words (cat, dog, sun, red, big). Difficulty should be slightly challenging for Grade 1.",
+        2: "4-5 letter words with blends and digraphs (ship, tree, black, green, sleep). Slightly above typical Grade 2 level.",
+        3: "5-6 letter words with silent letters or double consonants (knight, rabbit, butter, island, bridge). Challenging for Grade 3.",
+        4: "6-7 letter words with prefixes/suffixes (unhappy, careful, quickly, beautiful, trouble). Challenging for Grade 4.",
+        5: "7-9 letter words with complex patterns (knowledge, shoulder, daughter, elephant, chocolate, Wednesday). Challenging for Grade 5.",
+    }
+    vocab_desc = grade_vocab.get(grade_level, grade_vocab[3])
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", f"""You are a spelling bee word generator for Pakistani primary school Grade {grade_level} students.
+
+Generate exactly ONE challenging English spelling word.
+
+Word requirements:
+- {vocab_desc}
+- Must be a real, common English word that a Grade {grade_level} student would know the meaning of
+- Should be tricky to spell (silent letters, double letters, unusual patterns)
+- Appropriate for Pakistani ESL learners
+
+Respond in EXACTLY this JSON format, nothing else:
+{{"word": "the word in lowercase", "hint": "a short 5-8 word English clue/definition", "urdu_hint": "Urdu translation of the word", "difficulty": "hard"}}"""),
+        ("user", "Generate one spelling bee word now."),
+    ])
+
+    llm = ChatOpenAI(
+        model=settings.CHAT_MODEL,
+        temperature=0.9,  # high variety
+        openai_api_key=settings.OPENAI_API_KEY,
+        max_retries=2,
+        timeout=10.0,
+    )
+
+    chain = prompt | llm
+
+    result = await asyncio.wait_for(
+        chain.ainvoke({}),
+        timeout=12.0,
+    )
+
+    import json
+    content = result.content.strip()
+    # Strip markdown code fences if present
+    if content.startswith("```"):
+        content = content.split("\n", 1)[1] if "\n" in content else content[3:]
+        if content.endswith("```"):
+            content = content[:-3]
+        content = content.strip()
+
+    data = json.loads(content)
+    return {
+        "word": data["word"].strip().lower(),
+        "hint": data["hint"].strip(),
+        "urdu_hint": data.get("urdu_hint", "").strip(),
+        "difficulty": data.get("difficulty", "hard"),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
+
+@router.get("/daily-status", response_model=DailyActivityStatus)
+async def spelling_bee_daily_status(
+    student: dict = Depends(get_current_student),
+):
+    """Check if the student can play today's Spelling Bee."""
+    student_id = student["sub"]
+    attempts = await _count_today_attempts(student_id)
+    return DailyActivityStatus(
+        attempts_used=attempts,
+        attempts_limit=DAILY_LIMIT,
+        can_play=attempts < DAILY_LIMIT,
+    )
+
+
+@router.get("/daily-word", response_model=DailyWordResponse)
+async def get_daily_word(
+    student: dict = Depends(get_current_student),
+):
+    """
+    Get today's Spelling Bee word. Cached per classroom per day so all
+    students in the same class get the same word.
+    """
+    student_id = student["sub"]
+    classroom_id = student["classroom_id"]
+
+    # Check daily limit
+    attempts = await _count_today_attempts(student_id)
+    if attempts >= DAILY_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="You've already attempted today's Spelling Bee! Come back tomorrow.",
+        )
+
+    grade_level = await _get_grade_level(classroom_id)
+
+    # Cache word per classroom per day (all students get same word)
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    cache_key = make_cache_key("spelling_bee", classroom_id, today_str)
+
+    cached = await cache_get(cache_key)
+    if cached:
+        logger.info("Spelling Bee cache hit for classroom %s", classroom_id)
+        return DailyWordResponse(**cached, grade_level=grade_level, time_limit=TIME_LIMIT_SECONDS)
+
+    # Generate new word
+    try:
+        word_data = await _generate_word(grade_level)
+    except Exception as exc:
+        logger.error("Spelling Bee word generation failed: %s", exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not generate today's word. Please try again.",
+        )
+
+    # Cache until end of day (max 24 hours)
+    await cache_set(cache_key, word_data, ttl=86400)
+
+    return DailyWordResponse(
+        word=word_data["word"],
+        hint=word_data["hint"],
+        urdu_hint=word_data["urdu_hint"],
+        difficulty=word_data["difficulty"],
+        grade_level=grade_level,
+        time_limit=TIME_LIMIT_SECONDS,
+    )
+
+
+@router.post("/submit", response_model=SpellingBeeSubmitResponse)
+async def submit_spelling_bee(
+    body: SpellingBeeSubmitRequest,
+    background_tasks: BackgroundTasks,
+    student: dict = Depends(get_current_student),
+):
+    """Submit the student's spelling attempt. Awards 30 points if correct."""
+    student_id = student["sub"]
+    classroom_id = student["classroom_id"]
+
+    # Check daily limit (prevent double submission)
+    attempts = await _count_today_attempts(student_id)
+    if attempts >= DAILY_LIMIT:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Already attempted today's Spelling Bee.",
+        )
+
+    supabase = get_supabase_admin()
+    correct_word = body.word.strip().lower()
+    student_answer = body.answer.strip().lower()
+    is_correct = student_answer == correct_word
+
+    points_awarded = SPELLING_BEE_POINTS if is_correct else 0
+
+    # Fetch current points
+    student_resp = await asyncio.to_thread(
+        lambda: supabase.table("students")
+        .select("points")
+        .eq("id", student_id)
+        .maybe_single()
+        .execute()
+    )
+    current_points = (student_resp.data or {}).get("points", 0)
+
+    # Award points atomically
+    new_total = current_points
+    if points_awarded > 0:
+        try:
+            rpc_result = await asyncio.to_thread(
+                lambda: supabase.rpc("increment_student_points", {
+                    "p_student_id": student_id,
+                    "p_points": points_awarded,
+                }).execute()
+            )
+            result_data = rpc_result.data if rpc_result.data else {}
+            new_total = result_data.get("new_points", current_points + points_awarded)
+        except Exception as exc:
+            logger.warning("RPC increment failed for spelling bee, falling back: %s", exc)
+            new_total = current_points + points_awarded
+            try:
+                await asyncio.to_thread(
+                    lambda: supabase.table("students")
+                    .update({"points": new_total})
+                    .eq("id", student_id)
+                    .execute()
+                )
+            except Exception:
+                pass
+
+    # Get grade level for logging
+    grade_level = await _get_grade_level(classroom_id)
+
+    # Log interaction
+    from app.agents.evaluator_agent.interaction_logger import log_interaction
+    background_tasks.add_task(
+        log_interaction,
+        student_id=student_id,
+        classroom_id=classroom_id,
+        grade_level=grade_level,
+        interaction_type="spelling_bee",
+        original_message=f"word={correct_word}, answer={student_answer}",
+        correct=is_correct,
+        context_used=False,
+        pillar="writing",
+        score=points_awarded,
+    )
+
+    # Update streak
+    from app.utils.streak import update_streak
+    background_tasks.add_task(update_streak, student_id)
+
+    # Invalidate caches
+    from app.api.v1.endpoints.missions import invalidate_profile_cache
+    from app.utils.performance_profile import invalidate_performance_cache
+    from app.api.v1.endpoints.rewards import invalidate_rewards_cache
+    from app.api.v1.endpoints.student_scores import invalidate_scores_cache
+
+    background_tasks.add_task(invalidate_profile_cache, student_id)
+    background_tasks.add_task(
+        debounced_invalidate,
+        student_id,
+        [invalidate_rewards_cache, invalidate_scores_cache],
+    )
+
+    logger.info(
+        "Spelling Bee: student %s answered '%s' for word '%s' — %s (%d pts)",
+        student_id, student_answer, correct_word,
+        "CORRECT" if is_correct else "WRONG", points_awarded,
+    )
+
+    return SpellingBeeSubmitResponse(
+        is_correct=is_correct,
+        correct_answer=correct_word,
+        points_awarded=points_awarded,
+        new_total=new_total,
+    )

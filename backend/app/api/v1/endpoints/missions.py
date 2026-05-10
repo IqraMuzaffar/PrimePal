@@ -702,6 +702,10 @@ async def submit_batch(
             [invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
         )
 
+        # Check and unlock any newly earned achievements
+        from app.api.v1.endpoints.achievements import check_and_unlock_achievements
+        background_tasks.add_task(check_and_unlock_achievements, student_id)
+
     # Check pillar completion after batch processing
     pillar_completed = False
     pillar_done_count = 0
@@ -1121,23 +1125,37 @@ async def get_pillar_missions(
         # Check student-specific cache first
         cached = await cache_get(cache_key)
         if cached:
-            logger.info(f"Cache hit for pillar missions (student): {cache_key}")
-            await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
-            return PillarMissionsResponse(**cached)
+            cached_questions = cached.get("questions", [])
+            if len(cached_questions) >= PILLAR_QUESTIONS_COUNT:
+                logger.info(f"Cache hit for pillar missions (student): {cache_key}")
+                await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
+                return PillarMissionsResponse(**cached)
+            else:
+                logger.warning(
+                    "Stale student cache for %s: only %d/%d questions. Skipping cache.",
+                    cache_key, len(cached_questions), PILLAR_QUESTIONS_COUNT,
+                )
 
         # Fallback: check generic classroom-level cache (pre-generated)
         generic_key = _build_generic_cache_key(classroom_id, pillar, topics_hash)
         generic_cached = await cache_get(generic_key)
         if generic_cached:
-            logger.info(f"Cache hit for pillar missions (generic): {generic_key}")
-            await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
-            background_tasks.add_task(
-                _generate_personalized_missions,
-                student_id, classroom_id, pillar, grade_level,
-                active_topic_names, student_weaknesses, performance_profile,
-                cache_key,
-            )
-            return PillarMissionsResponse(**generic_cached)
+            generic_questions = generic_cached.get("questions", [])
+            if len(generic_questions) >= PILLAR_QUESTIONS_COUNT:
+                logger.info(f"Cache hit for pillar missions (generic): {generic_key}")
+                await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
+                background_tasks.add_task(
+                    _generate_personalized_missions,
+                    student_id, classroom_id, pillar, grade_level,
+                    active_topic_names, student_weaknesses, performance_profile,
+                    cache_key,
+                )
+                return PillarMissionsResponse(**generic_cached)
+            else:
+                logger.warning(
+                    "Stale generic cache for %s: only %d/%d questions. Skipping cache.",
+                    generic_key, len(generic_questions), PILLAR_QUESTIONS_COUNT,
+                )
 
     # ------------------------------------------------------------------
     # Step 3: Pull 5 questions from question_bank (instant) + start LLM (parallel)
@@ -1178,6 +1196,13 @@ async def get_pillar_missions(
     except Exception as exc:
         logger.warning("Bank pull failed, LLM will generate all %d: %s", PILLAR_QUESTIONS_COUNT, exc)
         bank_questions = []
+
+    # Trigger stale bank refresh in background (non-blocking)
+    from app.utils.question_bank import refresh_stale_slots
+    background_tasks.add_task(
+        refresh_stale_slots,
+        classroom_id, grade_level, pillar, active_topic_names,
+    )
 
     # How many does LLM need to generate? (10 - bank_count)
     # Over-generate by 30% to compensate for validation/topic-alignment losses
@@ -1378,6 +1403,25 @@ async def get_pillar_missions(
         except Exception as exc:
             logger.error("Last resort LLM generation failed for %s: %s", pillar, exc)
 
+    # ------------------------------------------------------------------
+    # Step 7c: ABSOLUTE GUARANTEE — pad to exactly PILLAR_QUESTIONS_COUNT
+    # by recycling existing questions if all generation paths fell short.
+    # A repeated question is better than a missing question.
+    # ------------------------------------------------------------------
+    if 0 < len(merged) < PILLAR_QUESTIONS_COUNT:
+        deficit = PILLAR_QUESTIONS_COUNT - len(merged)
+        logger.warning(
+            "PADDING: Only %d/%d for %s after ALL fallbacks. "
+            "Recycling %d existing questions to guarantee count.",
+            len(merged), PILLAR_QUESTIONS_COUNT, pillar, deficit,
+        )
+        import copy
+        idx = 0
+        while len(merged) < PILLAR_QUESTIONS_COUNT:
+            recycled = copy.deepcopy(merged[idx % len(merged)])
+            merged.append(recycled)
+            idx += 1
+
     # Re-number all questions and normalize answers/audio_text
     from app.agents.tutor_agent.question_validator import normalize_all_questions
     normalize_all_questions(merged)
@@ -1410,9 +1454,14 @@ async def get_pillar_missions(
         weakness_focus_questions=weakness_focus_count,
     )
 
-    # Cache the response for future requests
-    if not is_frustrated:
+    # Cache the response for future requests — only if we have the full count
+    if not is_frustrated and len(mission_questions) >= PILLAR_QUESTIONS_COUNT:
         await cache_set(cache_key, response.model_dump(), ttl=14400)  # 4 hours — per-student, refreshes within a school day
+    elif not is_frustrated:
+        logger.warning(
+            "NOT caching pillar missions for %s %s: only %d/%d questions",
+            student_id, pillar, len(mission_questions), PILLAR_QUESTIONS_COUNT,
+        )
 
     logger.info(
         "Pillar missions returned for student %s pillar %s: "

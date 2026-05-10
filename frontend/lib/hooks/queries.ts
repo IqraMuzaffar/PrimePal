@@ -98,6 +98,7 @@ export const queryKeys = {
   dailyPillarStatus: ["dailyPillarStatus"] as const,
   puzzlePalaceDailyStatus: ["puzzlePalaceDailyStatus"] as const,
   storyTimeDailyStatus: ["storyTimeDailyStatus"] as const,
+  spellingBeeDailyStatus: ["spellingBeeDailyStatus"] as const,
 };
 
 export function useStudentProfile() {
@@ -271,6 +272,14 @@ export function useStoryTimeDailyStatus() {
   return useQuery({
     queryKey: queryKeys.storyTimeDailyStatus,
     queryFn: () => studentFetch<DailyActivityStatus>("/story-time/daily-status"),
+    staleTime: 60 * 1000,
+  });
+}
+
+export function useSpellingBeeDailyStatus() {
+  return useQuery({
+    queryKey: queryKeys.spellingBeeDailyStatus,
+    queryFn: () => studentFetch<DailyActivityStatus>("/spelling-bee/daily-status"),
     staleTime: 60 * 1000,
   });
 }

@@ -7,13 +7,16 @@ interface QuestionTimerProps {
   initialSeconds: number;
   onTimeUp: () => void;
   paused?: boolean;
+  onTick?: (secondsLeft: number) => void;
 }
 
-export default function QuestionTimer({ initialSeconds, onTimeUp, paused = false }: QuestionTimerProps) {
+export default function QuestionTimer({ initialSeconds, onTimeUp, paused = false, onTick }: QuestionTimerProps) {
   const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
   const { isOnline } = useNetworkStatus();
   const onTimeUpRef = useRef(onTimeUp);
   onTimeUpRef.current = onTimeUp;
+  const onTickRef = useRef(onTick);
+  onTickRef.current = onTick;
 
   // Timer is paused when offline OR when parent says paused
   const isPaused = !isOnline || paused;
@@ -28,10 +31,9 @@ export default function QuestionTimer({ initialSeconds, onTimeUp, paused = false
 
     const interval = setInterval(() => {
       setSecondsLeft((prev) => {
-        if (prev <= 1) {
-          return 0;
-        }
-        return prev - 1;
+        const next = prev <= 1 ? 0 : prev - 1;
+        onTickRef.current?.(next);
+        return next;
       });
     }, 1000);
 

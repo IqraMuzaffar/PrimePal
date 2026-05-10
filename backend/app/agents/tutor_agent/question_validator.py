@@ -580,21 +580,30 @@ def merge_bank_and_llm(
     llm_questions = _dedup_within(llm_questions)
     bank_questions = _dedup_within(bank_questions)
 
-    # --- Step 2: De-duplicate across sources ---
+    # --- Step 2: De-duplicate across sources (count-aware) ---
     # LLM questions take priority: if a bank question is similar to an LLM
-    # question, drop the bank version.
+    # question, drop the bank version — but only if we have enough total
+    # questions to still reach target_count.
     llm_texts = [_question_text_key(q) for q in llm_questions]
+    total_available = len(llm_questions) + len(bank_questions)
 
     deduped_bank: list[dict] = []
+    dropped_dups = 0
     for bq in bank_questions:
         bq_text = _question_text_key(bq)
         is_dup = any(_are_similar(bq_text, lt) for lt in llm_texts)
-        if is_dup:
+        if is_dup and (total_available - dropped_dups - 1) >= target_count:
             logger.debug(
                 f"Merge: dropping duplicate bank question: "
                 f"{bq.get('question', '')[:50]}..."
             )
+            dropped_dups += 1
         else:
+            if is_dup:
+                logger.debug(
+                    f"Merge: keeping near-duplicate bank question to meet target count: "
+                    f"{bq.get('question', '')[:50]}..."
+                )
             deduped_bank.append(bq)
 
     # --- Step 3: Index by task_type (with unique indices for tracking) ---

@@ -10,6 +10,7 @@ import {
   usePointsBreakdown,
   usePuzzlePalaceDailyStatus,
   useStoryTimeDailyStatus,
+  useSpellingBeeDailyStatus,
   type AchievementProgress,
 } from "@/lib/hooks/queries";
 import AchievementPopup from "@/components/student/AchievementPopup";
@@ -24,9 +25,10 @@ const BASE_ACTIVITY_CARDS = [
   { href: "/student/puzzle-palace", icon: "🏰", title: "Puzzle Palace",   subtitle: "5 rooms of word puzzles",                 tone: "amber"  as const },
   { href: "/student/scores",       icon: "📊", title: "My Scores",       subtitle: "See your progress",                       tone: "cyan"   as const },
   { href: "/student/story-time",   icon: "📖", title: "Story Time",      subtitle: "Read & answer",                           tone: "emerald"as const },
+  { href: "/student/spelling-bee", icon: "🐝", title: "Spelling Bee",    subtitle: "Spell it right for 30 pts!",              tone: "rose"   as const },
 ];
 
-const STAGGER = ["", "[animation-delay:50ms]", "[animation-delay:100ms]", "[animation-delay:150ms]", "[animation-delay:200ms]"];
+const STAGGER = ["", "[animation-delay:50ms]", "[animation-delay:100ms]", "[animation-delay:150ms]", "[animation-delay:200ms]", "[animation-delay:250ms]"];
 
 export default function HomePage() {
   const router = useRouter();
@@ -38,6 +40,7 @@ export default function HomePage() {
   const { data: pointsBreakdown } = usePointsBreakdown();
   const { data: puzzleStatus } = usePuzzlePalaceDailyStatus();
   const { data: storyStatus } = useStoryTimeDailyStatus();
+  const { data: spellingBeeStatus } = useSpellingBeeDailyStatus();
 
   const theme = useGenderTheme();
   const [achievementPopup, setAchievementPopup] = useState<{ name: string; icon: string; tier: "bronze" | "silver" | "gold" } | null>(null);
@@ -81,6 +84,15 @@ export default function HomePage() {
           ? `Read & answer (${remaining} plays left)`
           : "Done for today!",
         badge: remaining === 0 ? "DONE" : undefined,
+      };
+    }
+    if (card.href === "/student/spelling-bee" && spellingBeeStatus) {
+      return {
+        ...card,
+        subtitle: spellingBeeStatus.can_play
+          ? "Spell it right for 30 pts!"
+          : "Done for today!",
+        badge: !spellingBeeStatus.can_play ? "DONE" : undefined,
       };
     }
     return card;

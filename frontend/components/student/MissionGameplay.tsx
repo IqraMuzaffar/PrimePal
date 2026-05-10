@@ -1,11 +1,51 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import QuestionTimer from './QuestionTimer';
 import TaskRouter from './tasks/TaskRouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MissionQuestion, getTimerSeconds } from '@/types/missions';
 import { Star, ArrowRight } from 'lucide-react';
+
+// ---------------------------------------------------------------------------
+// Session persistence helpers (localStorage)
+// ---------------------------------------------------------------------------
+interface SavedSession {
+  pillar: string;
+  questionIds: number[];
+  currentIndex: number;
+  results: GameResult[];
+  timerSecondsLeft: number;
+  savedAt: number; // epoch ms
+}
+
+const SESSION_KEY = 'primepal_mission_session';
+const SESSION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+
+function saveSession(session: SavedSession) {
+  try { localStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch {}
+}
+
+function loadSession(pillar: string, questionIds: number[]): SavedSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const s: SavedSession = JSON.parse(raw);
+    if (
+      s.pillar !== pillar ||
+      Date.now() - s.savedAt > SESSION_TTL_MS ||
+      JSON.stringify(s.questionIds) !== JSON.stringify(questionIds)
+    ) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+    return s;
+  } catch { return null; }
+}
+
+function clearSession() {
+  try { localStorage.removeItem(SESSION_KEY); } catch {}
+}
 
 interface MissionGameplayProps {
   questions: MissionQuestion[];
@@ -151,20 +191,61 @@ function MissionSummary({ results, questions, onContinue }: {
   );
 }
 
-export default function MissionGameplay({ questions, onComplete }: MissionGameplayProps) {
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [results, setResults] = useState<GameResult[]>([]);
+export default function MissionGameplay({ questions, pillar, onComplete }: MissionGameplayProps) {
+  const questionIds = questions.map(q => q.id);
+  const saved = useRef(loadSession(pillar ?? '', questionIds)).current;
+
+  const [currentIndex, setCurrentIndex] = useState(saved?.currentIndex ?? 0);
+  const [results, setResults] = useState<GameResult[]>(saved?.results ?? []);
   const [showFeedback, setShowFeedback] = useState(false);
   const [_timerKey, setTimerKey] = useState(0);
   const [showSummary, setShowSummary] = useState(false);
   const [lastScore, setLastScore] = useState<{ points: number; isCorrect: boolean } | null>(null);
+  const [resumedTimerSeconds, setResumedTimerSeconds] = useState<number | null>(saved?.timerSecondsLeft ?? null);
+  const timerSecondsRef = useRef<number>(0);
 
   const currentQuestion = questions[currentIndex];
   const isLastQuestion = currentIndex === questions.length - 1;
   const taskType = currentQuestion?.task_type ?? currentQuestion?.type ?? 'multiple_choice';
-  const timerSeconds = getTimerSeconds(taskType);
+  const defaultTimerSeconds = getTimerSeconds(taskType);
+  const timerSeconds = resumedTimerSeconds !== null ? resumedTimerSeconds : defaultTimerSeconds;
+
+  // Persist session on every state change
+  useEffect(() => {
+    if (showSummary) { clearSession(); return; }
+    saveSession({
+      pillar: pillar ?? '',
+      questionIds,
+      currentIndex,
+      results,
+      timerSecondsLeft: timerSecondsRef.current || timerSeconds,
+      savedAt: Date.now(),
+    });
+  }, [currentIndex, results, showSummary]);
+
+  // Save on visibility change (tab switch / screen change)
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden' && !showSummary) {
+        saveSession({
+          pillar: pillar ?? '',
+          questionIds,
+          currentIndex,
+          results,
+          timerSecondsLeft: timerSecondsRef.current || timerSeconds,
+          savedAt: Date.now(),
+        });
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => document.removeEventListener('visibilitychange', handleVisibility);
+  }, [currentIndex, results, showSummary, timerSeconds]);
 
   const runningScore = results.reduce((sum, r) => sum + (r.is_correct ? r.points_value : 0), 0);
+
+  const handleTimerTick = useCallback((secondsLeft: number) => {
+    timerSecondsRef.current = secondsLeft;
+  }, []);
 
   const advance = useCallback((_newResults: GameResult[]) => {
     if (isLastQuestion) {
@@ -174,6 +255,8 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
       setShowFeedback(false);
       setTimerKey(k => k + 1);
       setLastScore(null);
+      setResumedTimerSeconds(null); // use default timer for next question
+      timerSecondsRef.current = 0;
     }
   }, [isLastQuestion]);
 
@@ -204,7 +287,7 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
       <MissionSummary
         results={results}
         questions={questions}
-        onContinue={() => onComplete(results)}
+        onContinue={() => { clearSession(); onComplete(results); }}
       />
     );
   }
@@ -249,6 +332,7 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
             initialSeconds={timerSeconds}
             onTimeUp={handleTimeUp}
             paused={showFeedback}
+            onTick={handleTimerTick}
           />
         )}
 
