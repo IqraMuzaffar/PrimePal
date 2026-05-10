@@ -8,7 +8,11 @@ Table: public.student_interactions
 Columns: student_id, classroom_id, grade_level, interaction_type,
          original_message, translated_message, correct, context_used, pillar, created_at
 """
+import logging
+
 from app.core.supabase_client import get_supabase_admin
+
+logger = logging.getLogger(__name__)
 
 
 def log_interaction(
@@ -50,6 +54,6 @@ def log_interaction(
                 "score": score,
             }
         ).execute()
-    except Exception:
+    except Exception as exc:
         # Logging is best-effort; never raise to the caller
-        pass
+        logger.error("Failed to log interaction for student %s: %s", student_id, exc)

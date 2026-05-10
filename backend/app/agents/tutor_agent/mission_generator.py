@@ -479,7 +479,13 @@ def validate_topic_alignment(questions: list[dict], active_topics: list[str], pi
 
     # Task types exempt from topic validation — these are action/instruction-based
     # and don't need to reference topic vocabulary directly
-    TOPIC_EXEMPT_TYPES = {"simon_says", "repeat_after_me", "finish_the_sentence"}
+    TOPIC_EXEMPT_TYPES = {
+        "simon_says", "repeat_after_me", "finish_the_sentence",
+        # Writing task types use fixed instruction text in `question` field;
+        # topic vocabulary lives in word_bank/correct_order/correct_answer
+        # which are already checked in searchable_text
+        "sentence_scramble", "missing_letter", "guided_translation",
+    }
 
     for q in questions:
         # Exempt certain task types from topic validation

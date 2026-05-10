@@ -596,14 +596,38 @@ async def submit_batch(
     final_total = student_resp.data.get("points") or 0
     if processed > 0:
         total_points_earned = current_points - (student_resp.data.get("points") or 0)
-        rpc_result = await asyncio.to_thread(
-            lambda: supabase.rpc("increment_student_points", {
-                "p_student_id": student_id,
-                "p_points": total_points_earned,
-            }).execute()
-        )
-        result_data = rpc_result.data[0] if rpc_result.data else {}
-        final_total = result_data.get("new_points", current_points)
+        try:
+            rpc_result = await asyncio.to_thread(
+                lambda: supabase.rpc("increment_student_points", {
+                    "p_student_id": student_id,
+                    "p_points": total_points_earned,
+                }).execute()
+            )
+            result_data = rpc_result.data[0] if rpc_result.data else {}
+            final_total = result_data.get("new_points", current_points)
+            if not rpc_result.data:
+                logger.error(
+                    "increment_student_points RPC returned no data for student %s "
+                    "(points=%d). Check if RPC function exists in database.",
+                    student_id, total_points_earned,
+                )
+        except Exception as exc:
+            logger.error(
+                "Failed to increment points for student %s: %s. "
+                "Falling back to direct UPDATE.",
+                student_id, exc,
+            )
+            # Fallback: direct UPDATE if RPC doesn't exist
+            try:
+                await asyncio.to_thread(
+                    lambda: supabase.table("students")
+                    .update({"points": current_points})
+                    .eq("id", student_id)
+                    .execute()
+                )
+                final_total = current_points
+            except Exception as fallback_exc:
+                logger.error("Fallback points update also failed: %s", fallback_exc)
 
         # Update daily streak after batch processing
         await update_streak(student_id)
