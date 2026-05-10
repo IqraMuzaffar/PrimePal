@@ -19,12 +19,14 @@ interface SidebarProps {
   userEmail?: string;
   userRole?: string;
   onLogout?: () => void;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
 }
 
 const EXPANDED_W = 268;
 const COLLAPSED_W = 72;
 
-export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }: SidebarProps) {
+export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout, mobileOpen = false, onMobileClose }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
@@ -44,12 +46,21 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
     pathname === href || pathname.startsWith(href + '/');
 
   return (
+    <>
+    {/* Mobile backdrop */}
+    {mobileOpen && (
+      <div className="fixed inset-0 z-40 bg-black/40 md:hidden" onClick={onMobileClose} />
+    )}
     <div
-      className="flex flex-col relative shrink-0 h-screen select-none"
+      className={[
+        "flex flex-col relative shrink-0 h-screen select-none",
+        "fixed inset-y-0 left-0 z-50 md:relative md:z-auto",
+        mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
+      ].join(" ")}
       style={{
-        width: collapsed ? COLLAPSED_W : EXPANDED_W,
+        width: collapsed && !mobileOpen ? COLLAPSED_W : EXPANDED_W,
         backgroundColor: designTokens.colors.dark,
-        transition: 'width 240ms cubic-bezier(.4,0,.2,1)',
+        transition: 'width 240ms cubic-bezier(.4,0,.2,1), transform 240ms cubic-bezier(.4,0,.2,1)',
         boxShadow: '3px 0 24px rgba(0,0,0,0.28)',
         overflow: 'hidden',
       }}
@@ -107,6 +118,7 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
             <div key={item.href} className="relative" title={collapsed ? item.label : undefined}>
               <Link
                 href={item.href}
+                onClick={onMobileClose}
                 onMouseEnter={() => setHoveredItem(item.href)}
                 onMouseLeave={() => setHoveredItem(null)}
                 className="flex items-center gap-3 w-full relative"
@@ -306,6 +318,7 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout }:
         )}
       </button>
     </div>
+    </>
   );
 }
 

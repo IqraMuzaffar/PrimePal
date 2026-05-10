@@ -45,6 +45,7 @@ const PAGE_TITLES: Record<string, string> = {
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [email, setEmail] = useState<string | null>(() => {
     // Sync read from Supabase's local storage cache to avoid flash
     if (typeof window !== "undefined") {
@@ -87,9 +88,11 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
         userEmail={email || undefined}
         userRole="Teacher"
         onLogout={handleLogout}
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar pageTitle={pageTitle} userEmail={email || undefined} />
+        <TopBar pageTitle={pageTitle} userEmail={email || undefined} onMenuToggle={() => setMobileOpen(true)} />
         <main className="flex-1 overflow-auto" style={{ backgroundColor: '#f0f2f8', backgroundImage: 'radial-gradient(circle at 20% 0%, rgba(67,97,238,0.04) 0%, transparent 60%)' }}>
           {children}
         </main>

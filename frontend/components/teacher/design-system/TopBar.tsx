@@ -2,15 +2,16 @@
 
 "use client";
 
-import { Bell, CalendarDays } from 'lucide-react';
+import { Bell, CalendarDays, Menu } from 'lucide-react';
 import { designTokens } from '@/lib/design-tokens';
 
 interface TopBarProps {
   pageTitle: string;
   userEmail?: string;
+  onMenuToggle?: () => void;
 }
 
-export function TopBar({ pageTitle, userEmail }: TopBarProps) {
+export function TopBar({ pageTitle, userEmail, onMenuToggle }: TopBarProps) {
   const today = new Date();
   const _dateString = today.toLocaleDateString('en-US', {
     weekday: 'long',
@@ -25,7 +26,7 @@ export function TopBar({ pageTitle, userEmail }: TopBarProps) {
 
   return (
     <div
-      className="flex items-center px-8 gap-4 shrink-0"
+      className="flex items-center px-4 md:px-8 gap-3 md:gap-4 shrink-0"
       style={{
         height: 72,
         backgroundColor: '#fff',
@@ -35,6 +36,16 @@ export function TopBar({ pageTitle, userEmail }: TopBarProps) {
     >
       {/* Left: Title + Date */}
       <div className="flex-1 flex items-center gap-4">
+        {onMenuToggle && (
+          <button
+            onClick={onMenuToggle}
+            className="md:hidden flex items-center justify-center rounded-lg hover:bg-gray-100 transition-colors"
+            style={{ width: 40, height: 40 }}
+            aria-label="Open menu"
+          >
+            <Menu size={22} strokeWidth={2} color={designTokens.colors.dark} />
+          </button>
+        )}
         {/* Accent bar */}
         <div
           style={{
@@ -60,7 +71,7 @@ export function TopBar({ pageTitle, userEmail }: TopBarProps) {
 
         {/* Date chip — sits between title and right actions */}
         <div
-          className="flex items-center gap-2 ml-4"
+          className="hidden sm:flex items-center gap-2 ml-4"
           style={{
             backgroundColor: '#f4f5fb',
             border: '1px solid #e4e7f2',

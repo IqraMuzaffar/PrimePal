@@ -47,6 +47,7 @@ export default function AdminLayout({
   const [loading, setLoading] = useState(true);
   const [authenticated, setAuthenticated] = useState(false);
   const [adminName, setAdminName] = useState("");
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const isLoginPage = pathname === "/admin/login";
 
@@ -111,9 +112,11 @@ export default function AdminLayout({
         userEmail={adminName}
         userRole="Administrator"
         onLogout={handleLogout}
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
       />
       <div className="flex-1 flex flex-col overflow-hidden">
-        <TopBar pageTitle={pageTitle} userEmail={adminName} />
+        <TopBar pageTitle={pageTitle} userEmail={adminName} onMenuToggle={() => setMobileOpen(true)} />
         <main className="flex-1 overflow-auto" style={{ backgroundColor: '#0e1525' }}>
           {children}
         </main>
