@@ -36,7 +36,7 @@ export default function AdminLoginPage() {
   const [fullName, setFullName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [step, setStep] = useState<LoginStep>("code");
+  const [step, setStep] = useState<LoginStep>("login");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -399,14 +399,14 @@ export default function AdminLoginPage() {
               {loading ? "Signing in…" : "Sign in"}
             </button>
             <p className="text-center mt-4" style={{ fontSize: 14, color: '#8896b8' }}>
-              New admin?{" "}
+              Not registered yet?{" "}
               <button
                 type="button"
                 onClick={() => { setError(""); setStep("code"); }}
                 className="font-semibold"
                 style={{ color: '#4361ee', background: 'none', border: 'none', cursor: 'pointer' }}
               >
-                Enter invite code
+                Sign up with invite code
               </button>
             </p>
           </form>
