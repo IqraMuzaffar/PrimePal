@@ -109,14 +109,18 @@ async def get_classroom_avatars(class_code: str) -> List[AvatarResponse]:
     # Convert to uppercase for case-insensitive lookup
     class_code_upper = class_code.upper()
 
-    classroom_res = (
-        supabase.table("classrooms")
-        .select("id")
-        .eq("class_code", class_code_upper)
-        .maybe_single()
-        .execute()
-    )
-    if not classroom_res.data:
+    try:
+        classroom_res = (
+            supabase.table("classrooms")
+            .select("id")
+            .eq("class_code", class_code_upper)
+            .maybe_single()
+            .execute()
+        )
+    except Exception:
+        classroom_res = None
+
+    if not classroom_res or not classroom_res.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No classroom found for class code '{class_code}'",
@@ -149,14 +153,18 @@ async def student_login(request: StudentLoginRequest) -> TokenResponse:
     # Convert to uppercase for case-insensitive lookup
     class_code_upper = request.class_code.upper()
 
-    classroom_res = (
-        supabase.table("classrooms")
-        .select("id")
-        .eq("class_code", class_code_upper)
-        .maybe_single()
-        .execute()
-    )
-    if not classroom_res.data:
+    try:
+        classroom_res = (
+            supabase.table("classrooms")
+            .select("id")
+            .eq("class_code", class_code_upper)
+            .maybe_single()
+            .execute()
+        )
+    except Exception:
+        classroom_res = None
+
+    if not classroom_res or not classroom_res.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"No classroom found for class code '{request.class_code}'",
@@ -164,15 +172,19 @@ async def student_login(request: StudentLoginRequest) -> TokenResponse:
 
     classroom_id: str = classroom_res.data["id"]
 
-    student_res = (
-        supabase.table("students")
-        .select("id, secret_pin")
-        .eq("id", request.student_id)
-        .eq("classroom_id", classroom_id)
-        .maybe_single()
-        .execute()
-    )
-    if not student_res.data:
+    try:
+        student_res = (
+            supabase.table("students")
+            .select("id, secret_pin")
+            .eq("id", request.student_id)
+            .eq("classroom_id", classroom_id)
+            .maybe_single()
+            .execute()
+        )
+    except Exception:
+        student_res = None
+
+    if not student_res or not student_res.data:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Student does not belong to this classroom",
