@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/backend/**)",
+      "Bash(python -m app.api.v1.endpoints.teacher)",
+      "Bash(cd /c/Users/Iqra Muzaffar/Desktop/MS-Thesis/Primepal/backend)",
+      "Bash(netstat -ano)",
+      "Bash(curl -s http://127.0.0.1:8000/health)",
+      "Bash(curl -s http://127.0.0.1:8000/api/v1/teacher/analytics)",
+      "Bash(curl -s http://127.0.0.1:8000/docs)",
+      "Bash(python -m pytest tests/ -v --tb=short -k \"teacher\")",
+      "Bash(python -m json.tool)",
+      "Bash(python -m pytest tests/test_classroom.py -v --tb=short)",
+      "Bash(npm run:*)",
+      "Bash(python -m pytest tests/test_missions.py::TestGetDailyMission -v --tb=short)",
+      "Bash(python -m pytest tests/test_topics.py -v --tb=short)"
+    ]
+  }
+}

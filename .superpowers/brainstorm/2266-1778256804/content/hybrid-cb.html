@@ -1,0 +1,285 @@
+<h2>C + a touch of B — animated mockup</h2>
+<p class="subtitle">Pastel base &amp; airy spacing from C, but with B's saturated card gradients, decorative shapes, and lots of life. Hover anything that moves — animations are live in the preview below.</p>
+
+<style>
+  /* ─── Page chrome ─── */
+  .pp-frame {
+    border:3px solid #e2e8f0; border-radius:22px; overflow:hidden; margin-top:14px;
+    background:#fff; box-shadow:0 18px 48px rgba(15,23,42,0.08);
+  }
+  .pp-nav {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 22px; background:#fff; border-bottom:1px solid #f1f5f9;
+  }
+  .pp-nav .logo { display:flex; align-items:center; gap:8px; font-weight:900; font-size:18px; color:#1e293b; }
+  .pp-nav .logo .star { display:inline-block; animation: spin 8s linear infinite; }
+  .pp-nav .links { display:flex; gap:6px; }
+  .pp-nav .link { padding:8px 14px; border-radius:999px; font-weight:800; font-size:13px; color:#475569; transition:all .2s; }
+  .pp-nav .link:hover { background:#f1f5f9; transform:translateY(-1px); }
+  .pp-nav .link.active { background:linear-gradient(135deg,#fbcfe8,#ddd6fe); color:#831843; box-shadow:0 4px 12px rgba(236,72,153,0.18); }
+  .pp-nav .right { display:flex; gap:8px; align-items:center; }
+  .pp-nav .chip { display:flex; align-items:center; gap:6px; padding:6px 12px; border-radius:999px; font-weight:800; font-size:13px; }
+  .pp-nav .streak { background:linear-gradient(135deg,#fed7aa,#fdba74); color:#7c2d12; }
+  .pp-nav .points { background:linear-gradient(135deg,#fef3c7,#fde68a); color:#78350f; }
+
+  .pp-body {
+    background:linear-gradient(180deg,#fafaf9 0%,#fdf4ff 60%,#ecfeff 100%);
+    padding:28px; display:flex; flex-direction:column; gap:24px;
+  }
+
+  /* ─── Hero ─── */
+  .hero {
+    position:relative; overflow:hidden;
+    background:linear-gradient(135deg,#fce7f3 0%,#ddd6fe 50%,#cffafe 100%);
+    border-radius:28px; padding:32px 36px; min-height:170px;
+    display:flex; align-items:center; justify-content:space-between;
+    box-shadow:0 12px 40px rgba(168,85,247,0.10);
+  }
+  .hero::before {
+    content:""; position:absolute; right:-40px; top:-40px;
+    width:180px; height:180px; border-radius:50%;
+    background:radial-gradient(circle,#fbbf24 0%,rgba(251,191,36,0.0) 70%);
+    animation: pulse 4s ease-in-out infinite;
+  }
+  .hero::after {
+    content:""; position:absolute; right:60px; bottom:-30px;
+    width:100px; height:100px; border-radius:50%;
+    background:radial-gradient(circle,#a78bfa 0%,rgba(167,139,250,0.0) 70%); opacity:0.5;
+    animation: pulse 5s ease-in-out infinite reverse;
+  }
+  .hero .label { font-size:12px; font-weight:900; letter-spacing:2.5px; color:#831843; opacity:0.7; }
+  .hero .name { font-size:42px; font-weight:900; color:#1e293b; line-height:1; margin-top:6px; letter-spacing:-1px; }
+  .hero .name .wave { display:inline-block; transform-origin:70% 70%; animation: wave 2.5s ease-in-out infinite; }
+  .hero .roll { font-size:13px; color:#64748b; margin-top:6px; font-weight:600; }
+  .hero .pills { display:flex; gap:10px; margin-top:14px; }
+  .hero .pill {
+    background:#fff; padding:8px 14px; border-radius:999px; font-weight:800; font-size:14px;
+    color:#831843; box-shadow:0 4px 12px rgba(0,0,0,0.06); display:flex; gap:6px; align-items:center;
+  }
+  .hero .pill.today { background:linear-gradient(135deg,#fbbf24,#f59e0b); color:#fff; }
+  .hero .mascot {
+    font-size:96px; position:relative; z-index:1;
+    animation: float 3.5s ease-in-out infinite;
+    filter:drop-shadow(0 12px 18px rgba(168,85,247,0.25));
+  }
+
+  /* ─── Section heading ─── */
+  .sect-h { display:flex; align-items:center; gap:12px; margin-bottom:14px; }
+  .sect-h .badge {
+    width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center;
+    font-size:16px; box-shadow:0 4px 10px rgba(0,0,0,0.08);
+  }
+  .sect-h .badge.b1 { background:linear-gradient(135deg,#fbcfe8,#f9a8d4); }
+  .sect-h .badge.b2 { background:linear-gradient(135deg,#fde68a,#fbbf24); }
+  .sect-h .badge.b3 { background:linear-gradient(135deg,#bfdbfe,#93c5fd); }
+  .sect-h .title { font-weight:900; font-size:14px; letter-spacing:1.5px; color:#0f172a; }
+  .sect-h .rule { flex:1; height:2px; background:linear-gradient(90deg,#e2e8f0,transparent); }
+
+  /* ─── Activity cards ─── */
+  .play-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:16px; }
+  .play-grid .span-2 { grid-column:span 2; }
+  .a-card {
+    position:relative; overflow:hidden; border-radius:22px; padding:22px;
+    color:#fff; min-height:130px; display:flex; flex-direction:column; justify-content:space-between;
+    cursor:pointer; transition:transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s;
+    text-decoration:none;
+  }
+  .a-card:hover { transform:translateY(-6px) rotate(-0.3deg); box-shadow:0 20px 40px rgba(0,0,0,0.18); }
+  .a-card:hover .a-icon { transform:scale(1.15) rotate(-8deg); }
+  .a-card:hover .blob { transform:scale(1.4); }
+  .a-card .blob {
+    position:absolute; right:-30px; top:-30px; width:130px; height:130px; border-radius:50%;
+    background:rgba(255,255,255,0.18); transition:transform .35s ease;
+  }
+  .a-card .a-icon { font-size:36px; transition:transform .35s ease; filter:drop-shadow(0 4px 8px rgba(0,0,0,0.18)); }
+  .a-card .a-title { font-weight:900; font-size:18px; }
+  .a-card .a-sub { font-size:12px; opacity:0.85; font-weight:600; margin-top:2px; }
+  .a-card .a-badge {
+    position:absolute; top:14px; right:14px; background:#fff; color:#be185d;
+    font-weight:900; font-size:10px; padding:3px 8px; border-radius:8px;
+    animation: pulse2 1.6s ease-in-out infinite;
+  }
+  .c-mission { background:linear-gradient(135deg,#a78bfa 0%,#7c3aed 100%); }
+  .c-chat    { background:linear-gradient(135deg,#f472b6 0%,#db2777 100%); }
+  .c-spell   { background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); }
+  .c-scores  { background:linear-gradient(135deg,#22d3ee 0%,#0891b2 100%); }
+  .c-story   { background:linear-gradient(135deg,#34d399 0%,#059669 100%); }
+
+  /* ─── Progress bar ─── */
+  .progress-card {
+    background:#fff; border:1px solid #fde68a; border-radius:20px; padding:18px 22px;
+    display:flex; align-items:center; gap:18px; box-shadow:0 6px 20px rgba(251,191,36,0.10);
+  }
+  .progress-card .icon { font-size:32px; animation: bounce 2s ease-in-out infinite; }
+  .progress-card .text { flex:1; }
+  .progress-card .text .t1 { font-weight:900; font-size:15px; color:#0f172a; }
+  .progress-card .text .t2 { font-size:12px; color:#64748b; font-weight:600; margin-top:2px; }
+  .progress-card .bar-wrap { width:200px; height:12px; border-radius:999px; background:#fef3c7; overflow:hidden; position:relative; }
+  .progress-card .bar { height:100%; width:33%; background:linear-gradient(90deg,#fbbf24,#f59e0b,#ec4899); border-radius:999px; animation: shimmer 3s linear infinite; background-size:200% 100%; }
+  .progress-card .count { font-weight:900; color:#92400e; font-size:14px; }
+
+  /* ─── Badges ─── */
+  .badge-row { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
+  .b-tile {
+    background:#fff; border:2px solid #e2e8f0; border-radius:18px; padding:14px 8px;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    transition:all .25s; cursor:pointer;
+  }
+  .b-tile:hover { transform:translateY(-3px); border-color:#a78bfa; box-shadow:0 8px 20px rgba(167,139,250,0.18); }
+  .b-tile .b-icon { font-size:30px; transition:transform .3s; }
+  .b-tile:hover .b-icon { transform:scale(1.15) rotate(8deg); }
+  .b-tile .b-name { font-size:11px; font-weight:800; color:#1e293b; text-align:center; line-height:1.2; }
+  .b-tile .b-prog { font-size:10px; color:#94a3b8; font-weight:700; }
+  .b-tile.locked { opacity:0.55; }
+  .b-tile.locked .b-icon { filter:grayscale(0.7); }
+
+  /* ─── Animations ─── */
+  @keyframes wave { 0%,60%,100% { transform:rotate(0); } 10% { transform:rotate(14deg); } 20% { transform:rotate(-8deg); } 30% { transform:rotate(14deg); } 40% { transform:rotate(-4deg); } 50% { transform:rotate(10deg); } }
+  @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-12px); } }
+  @keyframes pulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.15); opacity:0.7; } }
+  @keyframes pulse2 { 0%,100% { transform:scale(1); } 50% { transform:scale(1.08); } }
+  @keyframes spin { from { transform:rotate(0); } to { transform:rotate(360deg); } }
+  @keyframes bounce { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-6px); } }
+  @keyframes shimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+  @keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .animate-in { animation: slideUp .5s ease-out both; }
+  .delay-1 { animation-delay:.05s; } .delay-2 { animation-delay:.10s; } .delay-3 { animation-delay:.15s; } .delay-4 { animation-delay:.20s; } .delay-5 { animation-delay:.25s; }
+</style>
+
+<div class="pp-frame">
+  <div class="pp-nav">
+    <div class="logo"><span class="star">⭐</span> <span>PrimePal</span></div>
+    <div class="links">
+      <span class="link active">🏠 Home</span>
+      <span class="link">💬 Chat</span>
+      <span class="link">🎯 Missions</span>
+      <span class="link">📊 Scores</span>
+      <span class="link">🏅 Badges</span>
+    </div>
+    <div class="right">
+      <span class="chip streak">🔥 3</span>
+      <span class="chip points">⭐ 0</span>
+    </div>
+  </div>
+
+  <div class="pp-body">
+    <!-- Hero -->
+    <div class="hero animate-in">
+      <div style="position:relative; z-index:1;">
+        <div class="label">WELCOME BACK!</div>
+        <div class="name">Hi Horain! <span class="wave">👋</span></div>
+        <div class="roll">Roll No: 2024-014 · Grade 4</div>
+        <div class="pills">
+          <span class="pill">⭐ 0 Stars</span>
+          <span class="pill today">+5 today</span>
+        </div>
+      </div>
+      <div class="mascot">🦄</div>
+    </div>
+
+    <!-- Activities -->
+    <div>
+      <div class="sect-h">
+        <div class="badge b1">🎮</div>
+        <div class="title">PLAY NOW</div>
+        <div class="rule"></div>
+      </div>
+      <div class="play-grid">
+        <div class="a-card c-mission span-2 animate-in delay-1">
+          <span class="a-badge">NEW</span>
+          <div class="blob"></div>
+          <div class="a-icon">🎯</div>
+          <div>
+            <div class="a-title">Daily Missions</div>
+            <div class="a-sub">Earn stars across 4 pillars — let's go!</div>
+          </div>
+        </div>
+        <div class="a-card c-chat animate-in delay-2">
+          <div class="blob"></div>
+          <div class="a-icon">💬</div>
+          <div>
+            <div class="a-title">Chat</div>
+            <div class="a-sub">Ask PrimePal anything</div>
+          </div>
+        </div>
+        <div class="a-card c-spell animate-in delay-3">
+          <div class="blob"></div>
+          <div class="a-icon">🐝</div>
+          <div>
+            <div class="a-title">Spelling Bee</div>
+            <div class="a-sub">30-second challenge</div>
+          </div>
+        </div>
+        <div class="a-card c-scores animate-in delay-4">
+          <div class="blob"></div>
+          <div class="a-icon">📊</div>
+          <div>
+            <div class="a-title">My Scores</div>
+            <div class="a-sub">See your progress</div>
+          </div>
+        </div>
+        <div class="a-card c-story animate-in delay-5">
+          <div class="blob"></div>
+          <div class="a-icon">📖</div>
+          <div>
+            <div class="a-title">Story Time</div>
+            <div class="a-sub">Read &amp; answer</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="progress-card animate-in">
+      <span class="icon">🚀</span>
+      <div class="text">
+        <div class="t1">Today's Adventure</div>
+        <div class="t2">Complete 3 activities to keep your streak alive!</div>
+      </div>
+      <div class="bar-wrap"><div class="bar"></div></div>
+      <div class="count">1 / 3</div>
+    </div>
+
+    <!-- Badges -->
+    <div>
+      <div class="sect-h">
+        <div class="badge b2">🏅</div>
+        <div class="title">YOUR BADGES</div>
+        <div class="rule"></div>
+        <span style="font-size:12px; font-weight:800; color:#a78bfa">See all →</span>
+      </div>
+      <div class="badge-row">
+        <div class="b-tile locked"><span class="b-icon">🏅</span><span class="b-name">First Mission</span><span class="b-prog">0/1</span></div>
+        <div class="b-tile locked"><span class="b-icon">📚</span><span class="b-name">Reader</span><span class="b-prog">0/5</span></div>
+        <div class="b-tile locked"><span class="b-icon">🎤</span><span class="b-name">Speaker</span><span class="b-prog">0/5</span></div>
+        <div class="b-tile locked"><span class="b-icon">🐝</span><span class="b-name">Speller</span><span class="b-prog">0/10</span></div>
+        <div class="b-tile locked"><span class="b-icon">🔥</span><span class="b-name">3-Day Streak</span><span class="b-prog">0/3</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <h3 style="font-size:15px;margin-bottom:8px">What's "B" in this hybrid:</h3>
+  <ul>
+    <li><strong>Saturated card gradients</strong> — purple, pink, amber, cyan, emerald (not the muted pastel cards from pure C).</li>
+    <li><strong>Glow blobs</strong> behind the hero (radial sun + lavender bloom).</li>
+    <li><strong>Animated mascot</strong> + waving hand for energy.</li>
+  </ul>
+  <h3 style="font-size:15px;margin:14px 0 8px">What stays "C":</h3>
+  <ul>
+    <li><strong>Pastel hero gradient</strong> (pink → lavender → mint).</li>
+    <li><strong>Soft cream + lavender + cyan page background</strong> (no harsh white).</li>
+    <li><strong>Generous spacing &amp; rounded-2xl/3xl</strong> corners — calm, not chaotic.</li>
+    <li><strong>Light navbar</strong> (not a dark bar like today).</li>
+  </ul>
+  <h3 style="font-size:15px;margin:14px 0 8px">Animations included:</h3>
+  <ul>
+    <li>⭐ logo: slow rotate · 👋 hand: wave · 🦄 mascot: float · 🚀: bounce</li>
+    <li>Hero glow blobs: pulse · Progress bar: shimmer</li>
+    <li>Cards: stagger-in on load, lift+slight-rotate on hover, blob expands, icon scale-rotate</li>
+    <li>NEW badge: pulse · Badges: lift &amp; icon wiggle on hover</li>
+  </ul>
+</div>
+
+<p class="subtitle" style="margin-top:14px">Hover the cards / badges in the preview to feel the motion. Tell me: <strong>love it / tone down / more punch</strong>, or what to change.</p>

@@ -1,0 +1,38 @@
+<h2>Before we design — what's the scope?</h2>
+<p class="subtitle">Your screenshot shows the home page, but the same patterns affect every student page. Let me know how broad this redesign should be.</p>
+
+<div class="options">
+  <div class="option" data-choice="home-only" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Home page only</h3>
+      <p>Polish just the dashboard you screenshotted. Quickest win, but the same empty-space + small-text issues will reappear on Missions, Chat, Scores, etc.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="home-plus-shell" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Home + shared shell <span style="color:#22c55e">(recommended)</span></h3>
+      <p>Redesign the home page <em>and</em> the layout shell (navbar, container width, type scale, color tokens). Every other page automatically benefits without touching them yet.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="full" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Full student-side overhaul</h3>
+      <p>Home + shell + each individual page (Missions, Chat, Spelling Bee, Story Time, Scores, Achievements, Evaluation). Biggest effort, most consistent end result.</p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <h3 style="font-size:16px;margin-bottom:8px">Core issues I'm seeing in the screenshot:</h3>
+  <ul>
+    <li><strong>Container too narrow:</strong> home content is capped at <code>max-w-2xl</code> (~672px) inside a <code>max-w-5xl</code> shell — huge empty side bands on desktop.</li>
+    <li><strong>Type too small for kids:</strong> "Hi Horain!" is only 24-30px — children's apps usually go 36-48px for primary headings.</li>
+    <li><strong>Visual hierarchy is flat:</strong> hero, cards, badges, footer all feel similar in weight.</li>
+    <li><strong>Empty zones:</strong> "0 Stars" + "No badges yet" + a generic quote takes up lots of pixels with little payoff.</li>
+  </ul>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Click an option, or just tell me in the terminal.</p>

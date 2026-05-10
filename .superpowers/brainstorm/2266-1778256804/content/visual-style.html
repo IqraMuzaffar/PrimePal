@@ -1,0 +1,114 @@
+<h2>Pick a visual direction</h2>
+<p class="subtitle">The "personality" of the student side. This drives color tokens, typography weight, gradient usage, and how playful vs. clean things feel. Each card below shows the same hero block in that style.</p>
+
+<style>
+  .style-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 16px; }
+  .style-card { border: 2px solid var(--border, #e5e7eb); border-radius: 16px; overflow: hidden; cursor: pointer; transition: transform .15s, box-shadow .15s; background:#fff; }
+  .style-card:hover { transform: translateY(-3px); box-shadow: 0 12px 28px rgba(0,0,0,0.12); }
+  .style-card.selected { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.3); }
+  .style-preview { padding: 22px; min-height: 170px; display:flex; flex-direction:column; justify-content:center; gap:10px; position:relative; overflow:hidden; }
+  .style-meta { padding: 14px 16px; border-top: 1px solid #f1f5f9; }
+  .style-meta h3 { margin:0 0 4px 0; font-size:16px; }
+  .style-meta p { margin:0; font-size:13px; color:#64748b; line-height:1.4; }
+  .style-meta .palette { display:flex; gap:6px; margin-top:8px; }
+  .style-meta .swatch { width:22px; height:22px; border-radius:6px; border:1px solid rgba(0,0,0,0.08); }
+  .style-card .badge-row { display:flex; gap:6px; margin-top:6px; }
+  .style-card .pill { background:rgba(255,255,255,0.85); padding:4px 10px; border-radius:999px; font-size:11px; font-weight:700; }
+
+  /* A - Warm Storybook (current evolved) */
+  .a-prev { background: linear-gradient(135deg, #fde68a, #fbbf24); color:#451a03; }
+  .a-prev::after { content:""; position:absolute; right:-20px; top:-20px; width:90px; height:90px; border-radius:50%; background: rgba(255,255,255,0.25); }
+  .a-prev .title { font-size: 24px; font-weight: 900; }
+
+  /* B - Candy Pop */
+  .b-prev { background: linear-gradient(135deg, #a855f7 0%, #ec4899 50%, #06b6d4 100%); color:#fff; }
+  .b-prev::after { content:"✨"; position:absolute; right:18px; top:14px; font-size:30px; }
+  .b-prev .title { font-size: 26px; font-weight: 900; text-shadow: 0 2px 6px rgba(0,0,0,0.2); }
+
+  /* C - Soft Pastel Modern */
+  .c-prev { background: linear-gradient(135deg, #fce7f3 0%, #ddd6fe 60%, #cffafe 100%); color:#1e293b; }
+  .c-prev::after { content:""; position:absolute; right:-30px; bottom:-30px; width:120px; height:120px; border-radius:50%; background: rgba(255,255,255,0.55); }
+  .c-prev .title { font-size: 24px; font-weight: 800; }
+
+  /* D - Adventure Sky */
+  .d-prev { background: linear-gradient(180deg, #93c5fd 0%, #60a5fa 60%, #fbbf24 100%); color:#1e3a8a; }
+  .d-prev::after { content:"🪁"; position:absolute; right:18px; top:14px; font-size:32px; }
+  .d-prev::before { content:"☁️"; position:absolute; left:18px; top:8px; font-size:22px; opacity:0.85; }
+  .d-prev .title { font-size: 24px; font-weight: 900; }
+</style>
+
+<div class="style-grid">
+  <div class="style-card" data-choice="a-warm" onclick="toggleSelect(this)">
+    <div class="style-preview a-prev">
+      <div style="font-size:11px; opacity:0.7; font-weight:700">WELCOME BACK!</div>
+      <div class="title">Hi Horain! 🌟</div>
+      <div class="badge-row"><span class="pill">⭐ 0 Stars</span></div>
+    </div>
+    <div class="style-meta">
+      <h3>A · Warm Storybook</h3>
+      <p>Evolved version of today — amber/cream hero, but bigger type, richer textures. Cozy, "primary-school-classroom" feel.</p>
+      <div class="palette">
+        <span class="swatch" style="background:#fbbf24"></span>
+        <span class="swatch" style="background:#fde68a"></span>
+        <span class="swatch" style="background:#fef3c7"></span>
+        <span class="swatch" style="background:#92400e"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="style-card" data-choice="b-candy" onclick="toggleSelect(this)">
+    <div class="style-preview b-prev">
+      <div style="font-size:11px; opacity:0.85; font-weight:700">WELCOME BACK!</div>
+      <div class="title">Hi Horain! 🌟</div>
+      <div class="badge-row"><span class="pill" style="color:#7c3aed">⭐ 0 Stars</span></div>
+    </div>
+    <div class="style-meta">
+      <h3>B · Candy Pop</h3>
+      <p>High-energy gradients (purple → pink → cyan). Modern game-app feel — Duolingo / Khan Kids vibe. Highest visual impact.</p>
+      <div class="palette">
+        <span class="swatch" style="background:#a855f7"></span>
+        <span class="swatch" style="background:#ec4899"></span>
+        <span class="swatch" style="background:#06b6d4"></span>
+        <span class="swatch" style="background:#fbbf24"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="style-card" data-choice="c-pastel" onclick="toggleSelect(this)">
+    <div class="style-preview c-prev">
+      <div style="font-size:11px; opacity:0.65; font-weight:700">WELCOME BACK!</div>
+      <div class="title">Hi Horain! 🌟</div>
+      <div class="badge-row"><span class="pill">⭐ 0 Stars</span></div>
+    </div>
+    <div class="style-meta">
+      <h3>C · Soft Pastel Modern</h3>
+      <p>Mint / peach / lavender pastels, generous whitespace, rounded-2xl. Clean &amp; calm — feels modern but still kid-friendly.</p>
+      <div class="palette">
+        <span class="swatch" style="background:#fce7f3"></span>
+        <span class="swatch" style="background:#ddd6fe"></span>
+        <span class="swatch" style="background:#cffafe"></span>
+        <span class="swatch" style="background:#fbcfe8"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="style-card" data-choice="d-adventure" onclick="toggleSelect(this)">
+    <div class="style-preview d-prev">
+      <div style="font-size:11px; opacity:0.75; font-weight:700">WELCOME BACK!</div>
+      <div class="title">Hi Horain! 🌟</div>
+      <div class="badge-row"><span class="pill">⭐ 0 Stars</span></div>
+    </div>
+    <div class="style-meta">
+      <h3>D · Adventure Sky</h3>
+      <p>Sky-to-sun gradient with cloud/kite illustrations. Each pillar (Reading/Writing/Listening/Speaking) becomes a "world." Most thematic.</p>
+      <div class="palette">
+        <span class="swatch" style="background:#93c5fd"></span>
+        <span class="swatch" style="background:#60a5fa"></span>
+        <span class="swatch" style="background:#fbbf24"></span>
+        <span class="swatch" style="background:#16a34a"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:20px">Click a card or tell me in the terminal. We can also blend two (e.g., "B's energy with A's warmth").</p>

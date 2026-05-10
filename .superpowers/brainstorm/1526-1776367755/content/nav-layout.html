@@ -1,0 +1,136 @@
+<h2>Which navigation layout for the Teacher Portal?</h2>
+<p class="subtitle">All options include: nav links, logout, and a settings area. Pick the layout that feels right for PrimePal.</p>
+
+<style>
+.mock-shell { border: 1.5px solid #e2e8f0; border-radius: 10px; overflow: hidden; font-size: 12px; background: #f8fafc; height: 200px; display: flex; flex-direction: column; }
+.mock-topbar { background: #4f46e5; color: white; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; font-weight: 600; font-size: 11px; flex-shrink: 0; }
+.mock-topbar .nav-links { display: flex; gap: 14px; font-size: 10px; font-weight: 500; opacity: 0.9; }
+.mock-topbar .nav-links span { padding: 3px 7px; border-radius: 5px; }
+.mock-topbar .nav-links span.active { background: rgba(255,255,255,0.2); }
+.mock-topbar .right { display: flex; align-items: center; gap: 10px; font-size: 10px; opacity: 0.85; }
+.mock-body { display: flex; flex: 1; overflow: hidden; }
+.mock-sidebar { background: #1e1b4b; color: white; width: 110px; padding: 10px 0; flex-shrink: 0; }
+.mock-sidebar .brand { padding: 0 12px 10px; font-size: 11px; font-weight: 700; color: #a5b4fc; border-bottom: 1px solid rgba(255,255,255,0.1); margin-bottom: 6px; }
+.mock-sidebar .nav-item { padding: 7px 12px; font-size: 10px; display: flex; align-items: center; gap: 6px; color: rgba(255,255,255,0.65); cursor: pointer; }
+.mock-sidebar .nav-item.active { background: rgba(99,102,241,0.4); color: white; }
+.mock-sidebar .bottom { margin-top: auto; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 6px; }
+.mock-page { flex: 1; padding: 12px; }
+.mock-page-title { font-size: 13px; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
+.mock-cards-row { display: flex; gap: 6px; }
+.mock-card-sm { background: white; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 10px; flex: 1; font-size: 10px; color: #64748b; }
+.mock-card-sm strong { display: block; color: #1e293b; font-size: 11px; margin-bottom: 2px; }
+.top-only .mock-sidebar { display: none; }
+.avatar { width: 22px; height: 22px; border-radius: 50%; background: rgba(255,255,255,0.25); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; }
+</style>
+
+<div class="cards">
+
+  <!-- Option A: Left Sidebar -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-shell">
+        <div class="mock-topbar" style="background:#4f46e5; padding: 6px 12px;">
+          <span style="font-size:11px; font-weight:700; letter-spacing:0.3px;">🎓 PrimePal</span>
+          <div class="avatar">I</div>
+        </div>
+        <div class="mock-body">
+          <div class="mock-sidebar">
+            <div style="padding: 8px 12px 6px; font-size:10px; color:#a5b4fc; font-weight:600; border-bottom:1px solid rgba(255,255,255,0.1); margin-bottom:4px;">Teacher</div>
+            <div class="nav-item active">📊 Dashboard</div>
+            <div class="nav-item">🏫 Classrooms</div>
+            <div class="nav-item">📚 Knowledge Base</div>
+            <div class="nav-item" style="margin-top:30px; border-top:1px solid rgba(255,255,255,0.1); padding-top:8px;">⚙️ Settings</div>
+            <div class="nav-item" style="color:#f87171;">🚪 Logout</div>
+          </div>
+          <div class="mock-page">
+            <div class="mock-page-title">My Classrooms</div>
+            <div class="mock-cards-row">
+              <div class="mock-card-sm"><strong>Grade 3A</strong>12 students</div>
+              <div class="mock-card-sm"><strong>Grade 4B</strong>15 students</div>
+              <div class="mock-card-sm"><strong>Grade 2C</strong>10 students</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Left Sidebar</h3>
+      <p>Persistent vertical nav. All links always visible. Best for apps with many sections. Classic dashboard feel.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Top Navbar only -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-shell top-only" style="flex-direction:column;">
+        <div class="mock-topbar" style="padding: 8px 16px;">
+          <div style="display:flex; align-items:center; gap:16px;">
+            <span style="font-size:11px; font-weight:700;">🎓 PrimePal</span>
+            <div class="nav-links">
+              <span class="active">Dashboard</span>
+              <span>Classrooms</span>
+              <span>Knowledge Base</span>
+            </div>
+          </div>
+          <div class="right">
+            <span>⚙️</span>
+            <span style="color:#fca5a5;">Logout</span>
+            <div class="avatar">I</div>
+          </div>
+        </div>
+        <div class="mock-body" style="flex-direction:column;">
+          <div class="mock-page" style="flex:1;">
+            <div class="mock-page-title">My Classrooms</div>
+            <div class="mock-cards-row">
+              <div class="mock-card-sm"><strong>Grade 3A</strong>12 students</div>
+              <div class="mock-card-sm"><strong>Grade 4B</strong>15 students</div>
+              <div class="mock-card-sm"><strong>Grade 2C</strong>10 students</div>
+              <div class="mock-card-sm"><strong>Grade 5A</strong>18 students</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Top Navbar</h3>
+      <p>Horizontal nav bar at the top. More vertical space for content. Clean and modern. Works well on all screen sizes.</p>
+    </div>
+  </div>
+
+  <!-- Option C: Top Navbar + mini icon sidebar -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mock-shell">
+        <div class="mock-topbar" style="background:#4f46e5; padding: 6px 14px;">
+          <span style="font-size:11px; font-weight:700;">🎓 PrimePal</span>
+          <div class="right">
+            <span style="background:rgba(255,255,255,0.15); padding:2px 8px; border-radius:4px; font-size:10px;">Teacher Portal</span>
+            <div class="avatar">I</div>
+          </div>
+        </div>
+        <div class="mock-body">
+          <div style="background:#312e81; width:44px; display:flex; flex-direction:column; align-items:center; padding:10px 0; gap:14px; flex-shrink:0;">
+            <div style="font-size:14px; background:rgba(255,255,255,0.2); width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center;" title="Dashboard">📊</div>
+            <div style="font-size:14px; opacity:0.6; width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center;">🏫</div>
+            <div style="font-size:14px; opacity:0.6; width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center;">📚</div>
+            <div style="font-size:14px; opacity:0.5; width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; margin-top:auto;">⚙️</div>
+            <div style="font-size:14px; opacity:0.5; width:28px; height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center;">🚪</div>
+          </div>
+          <div class="mock-page">
+            <div class="mock-page-title">My Classrooms</div>
+            <div class="mock-cards-row">
+              <div class="mock-card-sm"><strong>Grade 3A</strong>12 students</div>
+              <div class="mock-card-sm"><strong>Grade 4B</strong>15 students</div>
+              <div class="mock-card-sm"><strong>Grade 2C</strong>10 students</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Icon Sidebar</h3>
+      <p>Slim icon-only sidebar + top brand bar. Compact, gives maximum content space. Hover tooltips show labels.</p>
+    </div>
+  </div>
+
+</div>

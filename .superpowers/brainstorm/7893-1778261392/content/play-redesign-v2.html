@@ -1,0 +1,258 @@
+<h2>Play pages v2 — more color & warmth</h2>
+<p class="subtitle">Added the pastel gradient bg (pink→lavender→mint), colored decorative blobs, richer student cards, gradient accents throughout. Much less "white box on white."</p>
+
+<style>
+  .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:16px; }
+  @media(max-width:1100px) { .steps { grid-template-columns:1fr; } }
+
+  .phone {
+    border:3px solid #e2e8f0; border-radius:28px; overflow:hidden;
+    background:#fff; box-shadow:0 18px 48px rgba(15,23,42,0.08);
+    max-width:380px; margin:0 auto;
+  }
+  .phone-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; background:linear-gradient(135deg,#fce7f3,#ddd6fe,#cffafe); border-bottom:1px solid rgba(167,139,250,0.15);
+  }
+  .phone-header .logo { display:flex; align-items:center; gap:8px; font-weight:900; font-size:18px; color:#1e293b; }
+  .phone-header .logo .star { font-size:24px; animation: spin 8s linear infinite; }
+  .phone-header .teacher { font-size:12px; color:#7c3aed; font-weight:700; background:rgba(255,255,255,0.7); padding:4px 10px; border-radius:999px; }
+
+  .phone-body {
+    background:linear-gradient(180deg,#fdf4ff 0%,#f5f3ff 40%,#ecfeff 100%);
+    padding:24px; display:flex; flex-direction:column; align-items:center; min-height:480px; justify-content:center;
+    position:relative; overflow:hidden;
+  }
+  /* Decorative blobs */
+  .phone-body::before {
+    content:""; position:absolute; top:-40px; right:-40px; width:180px; height:180px; border-radius:50%;
+    background:radial-gradient(circle, rgba(251,191,36,0.3) 0%, transparent 70%);
+    animation: pulse 4s ease-in-out infinite;
+  }
+  .phone-body::after {
+    content:""; position:absolute; bottom:-30px; left:-30px; width:150px; height:150px; border-radius:50%;
+    background:radial-gradient(circle, rgba(167,139,250,0.25) 0%, transparent 70%);
+    animation: pulse 5s ease-in-out infinite reverse;
+  }
+
+  .phone-card {
+    background:rgba(255,255,255,0.85); backdrop-filter:blur(12px); border:2px solid rgba(167,139,250,0.15);
+    border-radius:28px; padding:32px 24px; width:100%;
+    box-shadow:0 24px 48px rgba(168,85,247,0.12); position:relative; overflow:hidden; z-index:1;
+  }
+  .phone-card .shimmer { height:5px; background:linear-gradient(90deg,#a78bfa,#ec4899,#06b6d4,#a78bfa); position:absolute; top:0; left:0; right:0; background-size:200% 100%; animation: shimmer 3s linear infinite; }
+  .step-label { position:absolute; top:14px; right:14px; background:linear-gradient(135deg,#ddd6fe,#fbcfe8); color:#5b21b6; font-size:11px; font-weight:800; padding:4px 10px; border-radius:999px; }
+
+  .mascot { text-align:center; margin-bottom:14px; }
+  .mascot .star { font-size:64px; display:inline-block; animation: float 3.5s ease-in-out infinite; filter:drop-shadow(0 10px 20px rgba(168,85,247,0.3)); }
+  .heading { font-size:24px; font-weight:900; color:#1e293b; text-align:center; margin-bottom:4px; }
+  .subtext { font-size:13px; font-weight:600; color:#64748b; text-align:center; margin-bottom:20px; }
+
+  /* Code input */
+  .code-input {
+    width:100%; text-align:center; font-size:28px; font-weight:900; letter-spacing:0.3em;
+    padding:18px; border-radius:20px; border:3px solid #ddd6fe; background:linear-gradient(135deg,#faf5ff,#fce7f3);
+    color:#1e293b; outline:none; transition:all .2s;
+  }
+  .code-input:focus { border-color:#a78bfa; box-shadow:0 0 0 4px rgba(167,139,250,0.25); background:#faf5ff; }
+  .code-input::placeholder { color:#c4b5fd; }
+
+  /* CTA button */
+  .cta {
+    width:100%; padding:18px; border-radius:20px; border:none; cursor:pointer;
+    background:linear-gradient(135deg,#a78bfa,#7c3aed); color:#fff;
+    font-size:20px; font-weight:900; margin-top:16px;
+    box-shadow:0 6px 0 #5b21b6, 0 8px 24px rgba(124,58,237,0.35);
+    transition:all .15s; position:relative; overflow:hidden;
+  }
+  .cta::after { content:""; position:absolute; top:0; left:0; right:0; height:50%; background:linear-gradient(180deg,rgba(255,255,255,0.2),transparent); border-radius:20px 20px 0 0; }
+  .cta:hover { transform:translateY(-2px); box-shadow:0 8px 0 #5b21b6, 0 12px 32px rgba(124,58,237,0.4); }
+  .cta:active { transform:translateY(3px); box-shadow:0 2px 0 #5b21b6; }
+
+  /* Student list */
+  .student-row {
+    display:flex; align-items:center; gap:14px; padding:14px 18px;
+    border:2px solid #ede9fe; border-radius:20px; margin-bottom:10px;
+    cursor:pointer; transition:all .2s; background:linear-gradient(135deg,rgba(255,255,255,0.9),rgba(250,245,255,0.8));
+  }
+  .student-row:hover { border-color:#a78bfa; background:linear-gradient(135deg,#faf5ff,#fce7f3); transform:translateX(6px); box-shadow:0 8px 20px rgba(167,139,250,0.15); }
+  .student-avatar {
+    width:46px; height:46px; border-radius:16px; display:flex; align-items:center; justify-content:center;
+    font-weight:900; font-size:18px; border:2px solid transparent; transition:all .2s;
+    box-shadow:0 4px 10px rgba(0,0,0,0.06);
+  }
+  .av-violet { background:linear-gradient(135deg,#ddd6fe,#c4b5fd); color:#5b21b6; }
+  .av-pink   { background:linear-gradient(135deg,#fce7f3,#f9a8d4); color:#9d174d; }
+  .av-cyan   { background:linear-gradient(135deg,#cffafe,#67e8f9); color:#0e7490; }
+  .av-amber  { background:linear-gradient(135deg,#fef3c7,#fde68a); color:#92400e; }
+  .student-row:hover .student-avatar { transform:scale(1.08) rotate(-3deg); }
+  .student-name { font-size:17px; font-weight:800; color:#1e293b; }
+  .student-arrow { margin-left:auto; color:#c4b5fd; font-size:20px; font-weight:900; transition:all .2s; }
+  .student-row:hover .student-arrow { color:#7c3aed; transform:translateX(6px); }
+
+  .back-btn {
+    width:100%; padding:14px; border-radius:16px; border:none; cursor:pointer;
+    background:linear-gradient(135deg,#f1f5f9,#e2e8f0); color:#475569; font-weight:800; font-size:15px;
+    margin-top:14px; box-shadow:0 4px 0 #94a3b8; transition:all .15s;
+  }
+  .back-btn:active { transform:translateY(3px); box-shadow:none; }
+
+  /* PIN */
+  .pin-avatar {
+    width:80px; height:80px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:40px; margin:0 auto 10px;
+    background:linear-gradient(135deg,#ddd6fe,#fbcfe8); border:4px solid #c4b5fd;
+    box-shadow:0 8px 24px rgba(167,139,250,0.25);
+  }
+  .pin-name { font-size:18px; font-weight:900; color:#1e293b; text-align:center; }
+  .pin-label { font-size:13px; color:#64748b; font-weight:600; text-align:center; margin-bottom:18px; }
+  .pin-dots { display:flex; gap:12px; justify-content:center; margin-bottom:22px; }
+  .pin-dot {
+    width:56px; height:64px; border-radius:18px; border:3px solid #e2e8f0; display:flex; align-items:center; justify-content:center;
+    font-size:24px; font-weight:900; transition:all .2s; background:#fff;
+  }
+  .pin-dot.filled { border-color:#a78bfa; background:linear-gradient(135deg,#faf5ff,#ede9fe); color:#5b21b6; box-shadow:0 4px 0 #ddd6fe; }
+
+  .keypad { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:18px; }
+  .key {
+    height:56px; border-radius:16px; border:2px solid #ede9fe; background:linear-gradient(180deg,#fff,#faf5ff);
+    font-size:22px; font-weight:900; color:#1e293b; cursor:pointer;
+    box-shadow:0 4px 0 #ddd6fe; transition:all .1s;
+  }
+  .key:hover { background:linear-gradient(180deg,#faf5ff,#ede9fe); border-color:#c4b5fd; }
+  .key:active { transform:translateY(3px); box-shadow:none; }
+  .key.action { font-size:15px; color:#7c3aed; font-weight:800; }
+
+  .links { text-align:center; font-size:12px; color:#94a3b8; font-weight:600; margin-top:16px; }
+  .links a { color:#7c3aed; font-weight:700; text-decoration:none; }
+  .links a:hover { text-decoration:underline; }
+  .safe { text-align:center; font-size:12px; color:#94a3b8; font-weight:600; margin-top:10px; }
+
+  @keyframes spin { from { transform:rotate(0); } to { transform:rotate(360deg); } }
+  @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-10px); } }
+  @keyframes pulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.15); opacity:0.7; } }
+  @keyframes shimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+</style>
+
+<div class="steps">
+  <!-- STEP 1: Enter Code -->
+  <div>
+    <div style="text-align:center;margin-bottom:8px;font-weight:900;font-size:14px;color:#7c3aed;">STEP 1 — Class Code</div>
+    <div class="phone">
+      <div class="phone-header">
+        <div class="logo"><span class="star">⭐</span> PrimePal</div>
+        <span class="teacher">👩‍🏫 Teacher</span>
+      </div>
+      <div class="phone-body">
+        <div class="phone-card">
+          <div class="shimmer"></div>
+          <span class="step-label">Step 1 of 3</span>
+          <div class="mascot"><span class="star">⭐</span></div>
+          <div class="heading">Enter Your Class Code</div>
+          <div class="subtext">Get the code from your teacher</div>
+          <input class="code-input" placeholder="ABC123" value="" readonly>
+          <button class="cta">Let's Go! 🚀</button>
+          <div class="links" style="margin-top:16px">Are you a teacher? <a href="#">Sign in here →</a></div>
+          <div class="safe">🔒 Safe, ad-free learning</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: Select Student -->
+  <div>
+    <div style="text-align:center;margin-bottom:8px;font-weight:900;font-size:14px;color:#7c3aed;">STEP 2 — Pick Yourself</div>
+    <div class="phone">
+      <div class="phone-header">
+        <div class="logo"><span class="star">⭐</span> PrimePal</div>
+        <span class="teacher">👩‍🏫 Teacher</span>
+      </div>
+      <div class="phone-body">
+        <div class="phone-card">
+          <div class="shimmer"></div>
+          <span class="step-label">Step 2 of 3</span>
+          <div class="mascot"><span class="star">⭐</span></div>
+          <div class="heading">Who are you?</div>
+          <div class="subtext">Tap your name below</div>
+
+          <div class="student-row">
+            <div class="student-avatar av-violet">H</div>
+            <span class="student-name">Horain Ali</span>
+            <span class="student-arrow">→</span>
+          </div>
+          <div class="student-row">
+            <div class="student-avatar av-pink">F</div>
+            <span class="student-name">Fatima Khan</span>
+            <span class="student-arrow">→</span>
+          </div>
+          <div class="student-row">
+            <div class="student-avatar av-cyan">A</div>
+            <span class="student-name">Ahmed Raza</span>
+            <span class="student-arrow">→</span>
+          </div>
+          <div class="student-row">
+            <div class="student-avatar av-amber">S</div>
+            <span class="student-name">Sara Malik</span>
+            <span class="student-arrow">→</span>
+          </div>
+
+          <button class="back-btn">← Back to Class Code</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: PIN Entry -->
+  <div>
+    <div style="text-align:center;margin-bottom:8px;font-weight:900;font-size:14px;color:#7c3aed;">STEP 3 — Enter PIN</div>
+    <div class="phone">
+      <div class="phone-header">
+        <div class="logo"><span class="star">⭐</span> PrimePal</div>
+        <span class="teacher">👩‍🏫 Teacher</span>
+      </div>
+      <div class="phone-body">
+        <div class="phone-card">
+          <div class="shimmer"></div>
+          <span class="step-label">Step 3 of 3</span>
+
+          <div class="pin-avatar">🎓</div>
+          <div class="pin-name">Horain Ali</div>
+          <div class="pin-label">Enter your Secret PIN</div>
+
+          <div class="pin-dots">
+            <div class="pin-dot filled">●</div>
+            <div class="pin-dot filled">●</div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+          </div>
+
+          <div class="keypad">
+            <button class="key">1</button><button class="key">2</button><button class="key">3</button>
+            <button class="key">4</button><button class="key">5</button><button class="key">6</button>
+            <button class="key">7</button><button class="key">8</button><button class="key">9</button>
+            <button class="key action">←</button><button class="key">0</button><button class="key action">⌫</button>
+          </div>
+
+          <button class="cta">Let's Go! 🚀</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:28px">
+  <h3 style="font-size:16px;margin-bottom:10px">v2 color upgrades over v1:</h3>
+  <ul>
+    <li><strong>Header:</strong> now has the pastel hero gradient (pink→lavender→cyan) instead of plain white</li>
+    <li><strong>Page bg:</strong> lavender-to-mint gradient with <strong>glowing blobs</strong> (amber top-right, violet bottom-left)</li>
+    <li><strong>Card:</strong> frosted glass effect (white/85% + backdrop-blur) so the gradient/blobs show through</li>
+    <li><strong>Shimmer bar:</strong> now multi-color (violet → pink → cyan) with shimmer animation</li>
+    <li><strong>Code input:</strong> lavender/pink gradient background instead of plain white</li>
+    <li><strong>Student rows:</strong> lavender tint bg, gradient hover (lavender→pink), <strong>rounded-square avatar</strong> with gradient fills</li>
+    <li><strong>Keypad buttons:</strong> lavender gradient bg + violet shadow instead of plain white</li>
+    <li><strong>Button shine:</strong> CTA has a gloss overlay for depth</li>
+    <li><strong>Teacher login pill:</strong> frosted white bg instead of plain text</li>
+  </ul>
+</div>
+
+<p class="subtitle" style="margin-top:14px">Hover the student rows and keypad in Step 2 & 3. Tell me <strong>"good, implement"</strong> or what else to tweak.</p>

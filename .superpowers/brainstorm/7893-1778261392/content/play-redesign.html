@@ -1,0 +1,227 @@
+<h2>Play pages — full pastel redesign</h2>
+<p class="subtitle">All 3 wizard steps updated to match the new system. Amber tones replaced with violet/pink/slate. Open http://localhost:54242 to see.</p>
+
+<style>
+  .steps { display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-top:16px; }
+  @media(max-width:1100px) { .steps { grid-template-columns:1fr; } }
+
+  .phone {
+    border:3px solid #e2e8f0; border-radius:28px; overflow:hidden;
+    background:#fff; box-shadow:0 18px 48px rgba(15,23,42,0.08);
+    max-width:380px; margin:0 auto;
+  }
+  .phone-header {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:14px 20px; background:#fff; border-bottom:1px solid #f1f5f9;
+  }
+  .phone-header .logo { display:flex; align-items:center; gap:8px; font-weight:900; font-size:18px; color:#1e293b; }
+  .phone-header .logo .star { font-size:24px; animation: spin 8s linear infinite; }
+  .phone-header .teacher { font-size:12px; color:#a78bfa; font-weight:700; }
+  .phone-body {
+    background:linear-gradient(180deg,#fafaf9 0%,#fdf4ff 60%,#ecfeff 100%);
+    padding:24px; display:flex; flex-direction:column; align-items:center; min-height:460px; justify-content:center;
+  }
+  .phone-card {
+    background:#fff; border-radius:24px; padding:32px 24px; width:100%;
+    box-shadow:0 24px 48px rgba(168,85,247,0.10); position:relative; overflow:hidden;
+  }
+  .phone-card .shimmer { height:4px; background:linear-gradient(90deg,#a78bfa,#ec4899,#a78bfa); position:absolute; top:0; left:0; right:0; }
+  .step-label { position:absolute; top:12px; right:12px; background:linear-gradient(135deg,#ddd6fe,#fbcfe8); color:#5b21b6; font-size:10px; font-weight:800; padding:3px 8px; border-radius:999px; }
+
+  .mascot { text-align:center; margin-bottom:12px; }
+  .mascot .star { font-size:56px; display:inline-block; animation: float 3.5s ease-in-out infinite; filter:drop-shadow(0 8px 16px rgba(168,85,247,0.25)); }
+  .heading { font-size:22px; font-weight:900; color:#1e293b; text-align:center; margin-bottom:4px; }
+  .subtext { font-size:13px; font-weight:600; color:#64748b; text-align:center; margin-bottom:20px; }
+
+  /* Code input */
+  .code-input {
+    width:100%; text-align:center; font-size:28px; font-weight:900; letter-spacing:0.3em;
+    padding:16px; border-radius:16px; border:3px solid #ddd6fe; background:#faf5ff;
+    color:#1e293b; outline:none; transition:all .2s;
+  }
+  .code-input:focus { border-color:#a78bfa; box-shadow:0 0 0 4px rgba(167,139,250,0.2); }
+  .code-input::placeholder { color:#c4b5fd; }
+
+  /* CTA button */
+  .cta {
+    width:100%; padding:16px; border-radius:16px; border:none; cursor:pointer;
+    background:linear-gradient(135deg,#a78bfa,#7c3aed); color:#fff;
+    font-size:18px; font-weight:900; margin-top:16px;
+    box-shadow:0 6px 0 #5b21b6, 0 8px 18px rgba(124,58,237,0.3);
+    transition:all .15s;
+  }
+  .cta:hover { transform:translateY(-2px); }
+  .cta:active { transform:translateY(2px); box-shadow:0 2px 0 #5b21b6; }
+
+  /* Student list */
+  .student-row {
+    display:flex; align-items:center; gap:12px; padding:14px 16px;
+    border:2px solid #e2e8f0; border-radius:16px; margin-bottom:8px;
+    cursor:pointer; transition:all .15s; background:#fff;
+  }
+  .student-row:hover { border-color:#a78bfa; background:#faf5ff; transform:translateX(4px); }
+  .student-avatar {
+    width:42px; height:42px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-weight:900; font-size:16px; border:2px solid #ddd6fe; transition:all .15s;
+  }
+  .student-row:hover .student-avatar { border-color:#a78bfa; background:linear-gradient(135deg,#ddd6fe,#fbcfe8); color:#5b21b6; }
+  .student-name { font-size:16px; font-weight:800; color:#1e293b; }
+  .student-arrow { margin-left:auto; color:#c4b5fd; font-size:18px; transition:all .15s; }
+  .student-row:hover .student-arrow { color:#7c3aed; transform:translateX(4px); }
+
+  .back-btn {
+    width:100%; padding:12px; border-radius:16px; border:none; cursor:pointer;
+    background:#f1f5f9; color:#475569; font-weight:800; font-size:14px;
+    margin-top:12px; box-shadow:0 3px 0 #94a3b8; transition:all .15s;
+  }
+  .back-btn:active { transform:translateY(2px); box-shadow:none; }
+
+  /* PIN */
+  .pin-avatar { width:72px; height:72px; border-radius:50%; background:linear-gradient(135deg,#ddd6fe,#fbcfe8); display:flex; align-items:center; justify-content:center; font-size:36px; border:4px solid #c4b5fd; margin:0 auto 8px; }
+  .pin-name { font-size:16px; font-weight:800; color:#1e293b; text-align:center; }
+  .pin-label { font-size:13px; color:#64748b; font-weight:600; text-align:center; margin-bottom:16px; }
+  .pin-dots { display:flex; gap:12px; justify-content:center; margin-bottom:20px; }
+  .pin-dot { width:52px; height:60px; border-radius:16px; border:3px solid #e2e8f0; display:flex; align-items:center; justify-content:center; font-size:24px; font-weight:900; transition:all .15s; background:#fff; }
+  .pin-dot.filled { border-color:#a78bfa; background:#faf5ff; color:#5b21b6; box-shadow:0 3px 0 #ddd6fe; }
+
+  .keypad { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px; }
+  .key {
+    height:52px; border-radius:14px; border:2px solid #e2e8f0; background:#fff;
+    font-size:20px; font-weight:900; color:#1e293b; cursor:pointer;
+    box-shadow:0 4px 0 #cbd5e1; transition:all .1s;
+  }
+  .key:hover { background:#faf5ff; border-color:#ddd6fe; }
+  .key:active { transform:translateY(3px); box-shadow:none; }
+  .key.action { font-size:14px; color:#64748b; }
+
+  .links { text-align:center; font-size:12px; color:#94a3b8; font-weight:600; margin-top:16px; }
+  .links a { color:#7c3aed; font-weight:700; }
+  .safe { text-align:center; font-size:12px; color:#94a3b8; font-weight:600; margin-top:12px; }
+
+  @keyframes spin { from { transform:rotate(0); } to { transform:rotate(360deg); } }
+  @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-10px); } }
+</style>
+
+<div class="steps">
+  <!-- STEP 1: Enter Code -->
+  <div>
+    <div style="text-align:center;margin-bottom:8px;font-weight:900;font-size:14px;color:#64748b;">STEP 1 — Class Code</div>
+    <div class="phone">
+      <div class="phone-header">
+        <div class="logo"><span class="star">⭐</span> PrimePal</div>
+        <span class="teacher">👩‍🏫 Teacher Login</span>
+      </div>
+      <div class="phone-body">
+        <div class="phone-card">
+          <div class="shimmer"></div>
+          <span class="step-label">Step 1 of 3</span>
+          <div class="mascot"><span class="star">⭐</span></div>
+          <div class="heading">Enter Your Class Code</div>
+          <div class="subtext">Get the code from your teacher</div>
+          <input class="code-input" placeholder="ABC123" value="" readonly>
+          <button class="cta">Let's Go! 🚀</button>
+          <div class="links" style="margin-top:16px">Are you a teacher? <a href="#">Sign in here →</a></div>
+          <div class="safe">🔒 Safe, ad-free learning</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2: Select Student -->
+  <div>
+    <div style="text-align:center;margin-bottom:8px;font-weight:900;font-size:14px;color:#64748b;">STEP 2 — Pick Yourself</div>
+    <div class="phone">
+      <div class="phone-header">
+        <div class="logo"><span class="star">⭐</span> PrimePal</div>
+        <span class="teacher">👩‍🏫 Teacher Login</span>
+      </div>
+      <div class="phone-body">
+        <div class="phone-card">
+          <div class="shimmer"></div>
+          <span class="step-label">Step 2 of 3</span>
+          <div class="mascot"><span class="star">⭐</span></div>
+          <div class="heading">Who are you?</div>
+          <div class="subtext">Tap your name below</div>
+
+          <div class="student-row">
+            <div class="student-avatar" style="background:#ede9fe; color:#5b21b6;">H</div>
+            <span class="student-name">Horain Ali</span>
+            <span class="student-arrow">→</span>
+          </div>
+          <div class="student-row">
+            <div class="student-avatar" style="background:#fce7f3; color:#9d174d;">F</div>
+            <span class="student-name">Fatima Khan</span>
+            <span class="student-arrow">→</span>
+          </div>
+          <div class="student-row">
+            <div class="student-avatar" style="background:#cffafe; color:#0e7490;">A</div>
+            <span class="student-name">Ahmed Raza</span>
+            <span class="student-arrow">→</span>
+          </div>
+          <div class="student-row">
+            <div class="student-avatar" style="background:#fef3c7; color:#92400e;">S</div>
+            <span class="student-name">Sara Malik</span>
+            <span class="student-arrow">→</span>
+          </div>
+
+          <button class="back-btn">← Back to Class Code</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3: PIN Entry -->
+  <div>
+    <div style="text-align:center;margin-bottom:8px;font-weight:900;font-size:14px;color:#64748b;">STEP 3 — Enter PIN</div>
+    <div class="phone">
+      <div class="phone-header">
+        <div class="logo"><span class="star">⭐</span> PrimePal</div>
+        <span class="teacher">👩‍🏫 Teacher Login</span>
+      </div>
+      <div class="phone-body">
+        <div class="phone-card">
+          <div class="shimmer"></div>
+          <span class="step-label">Step 3 of 3</span>
+
+          <div class="pin-avatar">🎓</div>
+          <div class="pin-name">Horain Ali</div>
+          <div class="pin-label">Enter your Secret PIN</div>
+
+          <div class="pin-dots">
+            <div class="pin-dot filled">●</div>
+            <div class="pin-dot filled">●</div>
+            <div class="pin-dot"></div>
+            <div class="pin-dot"></div>
+          </div>
+
+          <div class="keypad">
+            <button class="key">1</button><button class="key">2</button><button class="key">3</button>
+            <button class="key">4</button><button class="key">5</button><button class="key">6</button>
+            <button class="key">7</button><button class="key">8</button><button class="key">9</button>
+            <button class="key action">←</button><button class="key">0</button><button class="key action">⌫</button>
+          </div>
+
+          <button class="cta">Let's Go! 🚀</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:28px">
+  <h3 style="font-size:16px;margin-bottom:10px">What's changing from current state:</h3>
+  <table style="border-collapse:collapse; font-size:14px; width:100%;">
+    <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 12px; color:#64748b; width:30%">Header</td><td style="font-weight:700">Remove heavy shadow, lighter — match main navbar feel</td></tr>
+    <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 12px; color:#64748b">Shimmer bar</td><td style="font-weight:700">Amber → <span style="color:#7c3aed">violet-to-pink</span> gradient</td></tr>
+    <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 12px; color:#64748b">Code input</td><td style="font-weight:700">Amber borders/focus → <span style="color:#7c3aed">violet</span> borders + lavender bg</td></tr>
+    <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 12px; color:#64748b">Student list</td><td style="font-weight:700">Amber rows → slate borders, <span style="color:#7c3aed">violet hover</span>, colored initial circles (violet/pink/cyan/amber per student)</td></tr>
+    <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 12px; color:#64748b">Student row hover</td><td style="font-weight:700">+ slide-right arrow effect + lavender bg</td></tr>
+    <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 12px; color:#64748b">PIN avatar</td><td style="font-weight:700">Amber circle → <span style="color:#7c3aed">violet/pink gradient</span> circle</td></tr>
+    <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 12px; color:#64748b">PIN dots</td><td style="font-weight:700">Already violet ✓ — just ensure consistent shadow</td></tr>
+    <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 12px; color:#64748b">All text</td><td style="font-weight:700">amber-950/amber-700 → <span style="color:#1e293b">slate-900</span>/<span style="color:#64748b">slate-500</span></td></tr>
+    <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 12px; color:#64748b">Link colors</td><td style="font-weight:700">amber-700 → <span style="color:#7c3aed">violet-600</span></td></tr>
+    <tr><td style="padding:8px 12px; color:#64748b">Step badge</td><td style="font-weight:700">NEW — pastel pill in top-right showing "Step 1/2/3 of 3"</td></tr>
+  </table>
+</div>
+
+<p class="subtitle" style="margin-top:16px">Hover the student rows in Step 2 to see the interaction. Tell me if this looks right and I'll implement it.</p>

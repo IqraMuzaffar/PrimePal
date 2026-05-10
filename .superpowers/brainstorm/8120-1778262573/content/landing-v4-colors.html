@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrimePal — Card Color Options</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Nunito', sans-serif; background: #111; color: white; }
+  .label { display: block; text-align: center; padding: 12px; background: #1a1a2e; color: #7c9eff; font-size: 13px; font-weight: 700; letter-spacing: 0.05em; border-bottom: 1px solid rgba(255,255,255,0.05); }
+
+  .section-title { text-align:center; padding: 24px 20px 8px; font-size: 20px; font-weight: 800; color: white; }
+  .section-sub { text-align:center; padding: 0 20px 20px; font-size: 14px; color: rgba(255,255,255,0.5); font-weight: 600; }
+
+  /* Dark bg strip to simulate landing page */
+  .bg-strip {
+    background: linear-gradient(145deg, #0b1535 0%, #0f1e4a 45%, #162660 100%);
+    padding: 32px 24px;
+    margin: 0 auto 4px;
+    max-width: 800px;
+    position: relative;
+    overflow: hidden;
+  }
+  .bg-strip .blob { position:absolute;top:-60px;right:-60px;width:250px;height:250px;border-radius:50%;background:radial-gradient(circle,rgba(67,97,238,0.18),transparent 70%);pointer-events:none; }
+
+  .bg-strip .option-label {
+    text-align: center;
+    font-size: 13px;
+    font-weight: 800;
+    color: rgba(255,255,255,0.4);
+    letter-spacing: 0.1em;
+    margin-bottom: 16px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .cards-row {
+    display: flex;
+    gap: 16px;
+    position: relative;
+    z-index: 1;
+  }
+
+  .role-card {
+    flex: 1;
+    border-radius: 20px;
+    padding: 24px 20px;
+    position: relative;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s;
+  }
+  .role-card:hover { transform: translateY(-3px); }
+  .role-card .bg-emoji { position:absolute;right:-8px;bottom:-8px;font-size:60px;opacity:0.08;pointer-events:none; }
+  .role-card .top-row { display:flex;align-items:center;gap:10px;margin-bottom:12px; }
+  .role-card .icon-box { width:38px;height:38px;background:rgba(255,255,255,0.2);backdrop-filter:blur(8px);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px; }
+  .role-card .badge { background:rgba(255,255,255,0.2);color:white;font-size:10px;font-weight:800;padding:4px 12px;border-radius:20px;letter-spacing:0.04em; }
+  .role-card h3 { color:white;font-size:20px;font-weight:800;margin-bottom:4px; }
+  .role-card p { color:rgba(255,255,255,0.8);font-size:12px;font-weight:600;line-height:1.5;margin-bottom:14px; }
+  .role-card .cta { display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,0.2);color:white;font-size:13px;font-weight:700;padding:8px 16px;border-radius:10px; }
+
+  /* Option A: Warm — Amber Student + Emerald Teacher */
+  .opt-a .student { background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); box-shadow: 0 12px 36px rgba(217,119,6,0.4); border: 2px solid rgba(252,211,77,0.4); }
+  .opt-a .teacher { background: linear-gradient(135deg, #10b981 0%, #059669 100%); box-shadow: 0 12px 36px rgba(5,150,105,0.4); border: 2px solid rgba(110,231,183,0.4); }
+
+  /* Option B: Vibrant — Rose/Pink Student + Teal Teacher */
+  .opt-b .student { background: linear-gradient(135deg, #f472b6 0%, #db2777 100%); box-shadow: 0 12px 36px rgba(219,39,119,0.4); border: 2px solid rgba(251,146,191,0.4); }
+  .opt-b .teacher { background: linear-gradient(135deg, #2dd4bf 0%, #0d9488 100%); box-shadow: 0 12px 36px rgba(13,148,136,0.4); border: 2px solid rgba(94,234,212,0.4); }
+
+  /* Option C: Bright — Violet+Pink Student + Cyan+Blue Teacher */
+  .opt-c .student { background: linear-gradient(135deg, #c084fc 0%, #a855f7 50%, #9333ea 100%); box-shadow: 0 12px 36px rgba(168,85,247,0.45); border: 2px solid rgba(216,180,254,0.4); }
+  .opt-c .teacher { background: linear-gradient(135deg, #38bdf8 0%, #0ea5e9 50%, #0284c7 100%); box-shadow: 0 12px 36px rgba(14,165,233,0.4); border: 2px solid rgba(125,211,252,0.4); }
+
+  .pick-label {
+    text-align: center;
+    padding: 16px;
+    background: #0d1117;
+    color: #7c9eff;
+    font-size: 14px;
+    font-weight: 700;
+  }
+</style>
+</head>
+<body>
+
+<div class="label">CARD COLOR OPTIONS — Which pair pops against the dark navy background?</div>
+
+<div class="section-title">Pick a Card Color Combo</div>
+<div class="section-sub">All shown on the actual dark navy background so you can judge contrast</div>
+
+<!-- Option A: Warm -->
+<div class="bg-strip" style="border-radius: 16px 16px 0 0;">
+  <div class="blob"></div>
+  <div class="option-label">A — WARM: AMBER + EMERALD</div>
+  <div class="cards-row opt-a">
+    <div class="role-card student">
+      <div class="bg-emoji">🎮</div>
+      <div class="top-row">
+        <div class="icon-box">🎮</div>
+        <span class="badge">LET'S PLAY!</span>
+      </div>
+      <h3>I'm a Student</h3>
+      <p>Enter your class code and start your English adventure!</p>
+      <div class="cta"><span>Enter Class Code</span><span>→</span></div>
+    </div>
+    <div class="role-card teacher">
+      <div class="bg-emoji">📊</div>
+      <div class="top-row">
+        <div class="icon-box">📊</div>
+        <span class="badge">DASHBOARD</span>
+      </div>
+      <h3>I'm a Teacher</h3>
+      <p>Manage classrooms, track progress, and view insights.</p>
+      <div class="cta"><span>Sign In</span><span>→</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Option B: Vibrant -->
+<div class="bg-strip">
+  <div class="blob"></div>
+  <div class="option-label">B — VIBRANT: ROSE/PINK + TEAL</div>
+  <div class="cards-row opt-b">
+    <div class="role-card student">
+      <div class="bg-emoji">🎮</div>
+      <div class="top-row">
+        <div class="icon-box">🎮</div>
+        <span class="badge">LET'S PLAY!</span>
+      </div>
+      <h3>I'm a Student</h3>
+      <p>Enter your class code and start your English adventure!</p>
+      <div class="cta"><span>Enter Class Code</span><span>→</span></div>
+    </div>
+    <div class="role-card teacher">
+      <div class="bg-emoji">📊</div>
+      <div class="top-row">
+        <div class="icon-box">📊</div>
+        <span class="badge">DASHBOARD</span>
+      </div>
+      <h3>I'm a Teacher</h3>
+      <p>Manage classrooms, track progress, and view insights.</p>
+      <div class="cta"><span>Sign In</span><span>→</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- Option C: Bright -->
+<div class="bg-strip" style="border-radius: 0 0 16px 16px;">
+  <div class="blob"></div>
+  <div class="option-label">C — BRIGHT: LIGHT VIOLET + SKY BLUE</div>
+  <div class="cards-row opt-c">
+    <div class="role-card student">
+      <div class="bg-emoji">🎮</div>
+      <div class="top-row">
+        <div class="icon-box">🎮</div>
+        <span class="badge">LET'S PLAY!</span>
+      </div>
+      <h3>I'm a Student</h3>
+      <p>Enter your class code and start your English adventure!</p>
+      <div class="cta"><span>Enter Class Code</span><span>→</span></div>
+    </div>
+    <div class="role-card teacher">
+      <div class="bg-emoji">📊</div>
+      <div class="top-row">
+        <div class="icon-box">📊</div>
+        <span class="badge">DASHBOARD</span>
+      </div>
+      <h3>I'm a Teacher</h3>
+      <p>Manage classrooms, track progress, and view insights.</p>
+      <div class="cta"><span>Sign In</span><span>→</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="pick-label">Which combo stands out best against the dark background? Or mix — e.g. "student from B, teacher from C"</div>
+
+</body>
+</html>

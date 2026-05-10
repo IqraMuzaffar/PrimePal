@@ -1,0 +1,48 @@
+/* Single consolidated Google Fonts request — reduces 2 HTTP calls to 1 */
+@import url('https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Noto+Nastaliq+Urdu&family=Nunito:wght@400;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
+html, body {
+  overflow-x: hidden;
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+.font-urdu {
+  font-family: 'Noto Nastaliq Urdu', serif;
+  line-height: 2;
+}
+
+/* Reduced-motion: respect users who prefer no motion. Disables infinite
+   ambient animations only — interactive transitions still work. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-floatUp,
+  .animate-floatBig,
+  .animate-wave,
+  .animate-pulseSoft,
+  .animate-pulseSoftReverse,
+  .animate-pulse2,
+  .animate-spinSlow,
+  .animate-bounceSoft,
+  .animate-shimmer {
+    animation: none !important;
+  }
+}

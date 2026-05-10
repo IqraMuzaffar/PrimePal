@@ -1,0 +1,23 @@
+INSERT INTO students (id, classroom_id, student_name, father_name, avatar_url, secret_pin, points, roll_number, created_at)
+VALUES
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Muhammad Abdur Rafay', 'Muhammad Shahid', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '010', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Muhammad Zain', 'Abid Hussain', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '014', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Tehreem Fatima', 'Muhammad Shahbaz', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '026', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Fatima', 'Muhammad Ishtiaq', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '044', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Arfa Tahir', 'Tahir Mehmood', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '057', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Adeeba Mehboob', 'Mehboob Ahmed', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '062', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Abu Huraira', 'Azam', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '065', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Muhammad Mouzam', 'Muhammad Rafi', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '078', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Zahra Fatima', 'Nawaz Ashraf', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '080', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Muhammad Abu Bakar', 'Muhammad Mubashir', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '087', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Urwa Azam', 'Muhammad Azam Siddique', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '090', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Mohammad Umair Khan', 'Yasir Khan', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '094', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Shahzaib Ahmad', 'Muhammad Pervaiz', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '108', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Muhammad Umar Waqas', 'Muhammad Waqas', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '126', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Bareera Tariq', 'Tariq Mehmood', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '146', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Hassan', 'Saif', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '188', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Abrish', 'Insaf', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '205', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Mohammad Zayyan Atif', 'Muhammad Atif', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '211', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Muhammad Faizaan', 'Muhammad Asif', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '212', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Zimal Umar', 'Umar Farooq Sandhu', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '225', now()),
+    (gen_random_uuid(), '9d42447e-a1b8-413d-ba53-0d24b4775d80', 'Muhammad Umair', 'Muhammad Farooq', '', LPAD(FLOOR(RANDOM()*10000)::TEXT, 4, '0'), 0, '287', now());

@@ -1,0 +1,101 @@
+<h2>Where should the admin link appear?</h2>
+<p class="subtitle">Now with your professional navy & blue palette. Following the pattern from your teacher login page ("Are you a student?"), where should admin access be?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Footer Text Link — Subtle & Discrete</h3>
+      <div class="mockup" style="margin: 16px 0;">
+        <div class="mockup-body" style="background: linear-gradient(145deg, #0b1535 0%, #0f1e4a 45%, #162660 100%); padding: 40px 24px; position: relative; min-height: 320px; display: flex; flex-direction: column; justify-content: space-between;">
+          <div style="text-align: center; color: white; margin-top: 20px;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: linear-gradient(135deg, #4361ee 0%, #7c9eff 100%); border-radius: 12px; margin-bottom: 16px; font-size: 24px;">P</div>
+            <h4 style="font-size: 42px; font-weight: 900; margin: 8px 0 0 0; letter-spacing: -0.02em;">PrimePal</h4>
+            <p style="color: #93c5fd; margin-top: 8px; font-size: 16px;">Learn English the fun way!</p>
+          </div>
+          <div style="display: flex; gap: 16px; justify-content: center; margin: 24px 0;">
+            <div style="background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%); padding: 28px 24px; border-radius: 20px; flex: 1; max-width: 180px; text-align: center; color: white; font-weight: bold; box-shadow: 0 8px 24px rgba(245,158,11,0.3);">
+              <div style="font-size: 32px; margin-bottom: 8px;">🎮</div>
+              <div style="font-size: 18px;">Student</div>
+            </div>
+            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 28px 24px; border-radius: 20px; flex: 1; max-width: 180px; text-align: center; color: white; font-weight: bold; box-shadow: 0 8px 24px rgba(16,185,129,0.3);">
+              <div style="font-size: 32px; margin-bottom: 8px;">📊</div>
+              <div style="font-size: 18px;">Teacher</div>
+            </div>
+          </div>
+          <div style="text-align: center; margin-top: 16px;">
+            <p style="color: rgba(147,197,253,0.5); font-size: 13px; font-weight: 500;">
+              Are you an admin? <a href="#" style="color: #93c5fd; font-weight: 600; text-decoration: none; border-bottom: 1px solid rgba(147,197,253,0.5);">Sign in here</a>
+            </p>
+          </div>
+        </div>
+      </div>
+      <p style="color: #666; font-size: 14px; margin-top: 12px;"><strong>Matches teacher login pattern exactly.</strong> Small text link at bottom. Keeps focus on student/teacher flow. Admin access is there when needed but doesn't clutter.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Top-Right Badge — Always Visible</h3>
+      <div class="mockup" style="margin: 16px 0;">
+        <div class="mockup-body" style="background: linear-gradient(145deg, #0b1535 0%, #0f1e4a 45%, #162660 100%); padding: 40px 24px; position: relative; min-height: 320px;">
+          <div style="position: absolute; top: 16px; right: 16px;">
+            <a href="#" style="color: white; font-size: 12px; font-weight: 700; background: rgba(67,97,238,0.2); padding: 8px 16px; border-radius: 20px; border: 1.5px solid rgba(67,97,238,0.4); text-decoration: none; backdrop-filter: blur(10px); letter-spacing: 0.03em;">ADMIN</a>
+          </div>
+          <div style="text-align: center; color: white; margin-top: 20px;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: linear-gradient(135deg, #4361ee 0%, #7c9eff 100%); border-radius: 12px; margin-bottom: 16px; font-size: 24px;">P</div>
+            <h4 style="font-size: 42px; font-weight: 900; margin: 8px 0 0 0; letter-spacing: -0.02em;">PrimePal</h4>
+            <p style="color: #93c5fd; margin-top: 8px; font-size: 16px;">Learn English the fun way!</p>
+          </div>
+          <div style="display: flex; gap: 16px; justify-content: center; margin-top: 40px;">
+            <div style="background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%); padding: 28px 24px; border-radius: 20px; flex: 1; max-width: 180px; text-align: center; color: white; font-weight: bold; box-shadow: 0 8px 24px rgba(245,158,11,0.3);">
+              <div style="font-size: 32px; margin-bottom: 8px;">🎮</div>
+              <div style="font-size: 18px;">Student</div>
+            </div>
+            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 28px 24px; border-radius: 20px; flex: 1; max-width: 180px; text-align: center; color: white; font-weight: bold; box-shadow: 0 8px 24px rgba(16,185,129,0.3);">
+              <div style="font-size: 32px; margin-bottom: 8px;">📊</div>
+              <div style="font-size: 18px;">Teacher</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="color: #666; font-size: 14px; margin-top: 12px;"><strong>More discoverable.</strong> Pill badge in corner. Easier for admins to spot. Common pattern for secondary access.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Third Card — Equal Treatment</h3>
+      <div class="mockup" style="margin: 16px 0;">
+        <div class="mockup-body" style="background: linear-gradient(145deg, #0b1535 0%, #0f1e4a 45%, #162660 100%); padding: 40px 24px; position: relative; min-height: 320px;">
+          <div style="text-align: center; color: white; margin-top: 20px;">
+            <div style="display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; background: linear-gradient(135deg, #4361ee 0%, #7c9eff 100%); border-radius: 12px; margin-bottom: 16px; font-size: 24px;">P</div>
+            <h4 style="font-size: 42px; font-weight: 900; margin: 8px 0 0 0; letter-spacing: -0.02em;">PrimePal</h4>
+            <p style="color: #93c5fd; margin-top: 8px; font-size: 16px;">Learn English the fun way!</p>
+          </div>
+          <div style="display: flex; gap: 12px; justify-content: center; margin-top: 32px;">
+            <div style="background: linear-gradient(135deg, #f59e0b 0%, #f97316 100%); padding: 24px 16px; border-radius: 16px; flex: 1; max-width: 140px; text-align: center; color: white; font-weight: bold; box-shadow: 0 6px 20px rgba(245,158,11,0.25);">
+              <div style="font-size: 28px; margin-bottom: 6px;">🎮</div>
+              <div style="font-size: 15px;">Student</div>
+            </div>
+            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 24px 16px; border-radius: 16px; flex: 1; max-width: 140px; text-align: center; color: white; font-weight: bold; box-shadow: 0 6px 20px rgba(16,185,129,0.25);">
+              <div style="font-size: 28px; margin-bottom: 6px;">📊</div>
+              <div style="font-size: 15px;">Teacher</div>
+            </div>
+            <div style="background: linear-gradient(135deg, #4361ee 0%, #7c9eff 100%); padding: 24px 16px; border-radius: 16px; flex: 1; max-width: 140px; text-align: center; color: white; font-weight: bold; box-shadow: 0 6px 20px rgba(67,97,238,0.25);">
+              <div style="font-size: 28px; margin-bottom: 6px;">🛡️</div>
+              <div style="font-size: 15px;">Admin</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p style="color: #666; font-size: 14px; margin-top: 12px;"><strong>Treats all roles equally.</strong> Admin gets same prominence as Student/Teacher. More balanced but takes more space.</p>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top: 24px; padding: 16px; background: #eff6ff; border-left: 4px solid #4361ee; border-radius: 4px; font-size: 14px; color: #1e40af;">
+  <strong>💡 Recommendation:</strong> Option A matches your existing teacher login pattern exactly ("Are you a student?"). Keeps admin discrete since it's used less frequently.
+</p>

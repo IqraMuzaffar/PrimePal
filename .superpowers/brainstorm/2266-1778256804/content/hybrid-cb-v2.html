@@ -1,0 +1,288 @@
+<h2>C + B hybrid — bigger version</h2>
+<p class="subtitle">Same direction, but everything scaled up: navbar height, logo, nav links, card icons, headings, badges. Built for primary-school kids — finger-friendly &amp; easy to read.</p>
+
+<style>
+  /* ─── Page chrome ─── */
+  .pp-frame {
+    border:3px solid #e2e8f0; border-radius:24px; overflow:hidden; margin-top:14px;
+    background:#fff; box-shadow:0 18px 48px rgba(15,23,42,0.08);
+  }
+  .pp-nav {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:18px 28px; background:#fff; border-bottom:1px solid #f1f5f9;
+    min-height:74px;
+  }
+  .pp-nav .logo { display:flex; align-items:center; gap:12px; font-weight:900; font-size:24px; color:#1e293b; }
+  .pp-nav .logo .star { display:inline-block; font-size:32px; animation: spin 8s linear infinite; }
+  .pp-nav .links { display:flex; gap:8px; }
+  .pp-nav .link {
+    padding:12px 20px; border-radius:999px; font-weight:800; font-size:16px; color:#475569;
+    transition:all .2s; display:flex; align-items:center; gap:8px;
+  }
+  .pp-nav .link .l-icon { font-size:20px; }
+  .pp-nav .link:hover { background:#f1f5f9; transform:translateY(-1px); }
+  .pp-nav .link.active { background:linear-gradient(135deg,#fbcfe8,#ddd6fe); color:#831843; box-shadow:0 4px 14px rgba(236,72,153,0.18); }
+  .pp-nav .right { display:flex; gap:10px; align-items:center; }
+  .pp-nav .chip { display:flex; align-items:center; gap:8px; padding:10px 16px; border-radius:999px; font-weight:900; font-size:16px; }
+  .pp-nav .streak { background:linear-gradient(135deg,#fed7aa,#fdba74); color:#7c2d12; }
+  .pp-nav .points { background:linear-gradient(135deg,#fef3c7,#fde68a); color:#78350f; }
+  .pp-nav .out {
+    background:linear-gradient(135deg,#fecaca,#fca5a5); color:#7f1d1d;
+    padding:10px 16px; border-radius:999px; font-weight:800; font-size:14px; cursor:pointer;
+  }
+
+  .pp-body {
+    background:linear-gradient(180deg,#fafaf9 0%,#fdf4ff 60%,#ecfeff 100%);
+    padding:36px; display:flex; flex-direction:column; gap:32px;
+  }
+
+  /* ─── Hero ─── */
+  .hero {
+    position:relative; overflow:hidden;
+    background:linear-gradient(135deg,#fce7f3 0%,#ddd6fe 50%,#cffafe 100%);
+    border-radius:32px; padding:40px 48px; min-height:220px;
+    display:flex; align-items:center; justify-content:space-between;
+    box-shadow:0 12px 40px rgba(168,85,247,0.10);
+  }
+  .hero::before {
+    content:""; position:absolute; right:-50px; top:-50px;
+    width:240px; height:240px; border-radius:50%;
+    background:radial-gradient(circle,#fbbf24 0%,rgba(251,191,36,0.0) 70%);
+    animation: pulse 4s ease-in-out infinite;
+  }
+  .hero::after {
+    content:""; position:absolute; right:80px; bottom:-50px;
+    width:140px; height:140px; border-radius:50%;
+    background:radial-gradient(circle,#a78bfa 0%,rgba(167,139,250,0.0) 70%); opacity:0.5;
+    animation: pulse 5s ease-in-out infinite reverse;
+  }
+  .hero .label { font-size:14px; font-weight:900; letter-spacing:3px; color:#831843; opacity:0.75; }
+  .hero .name { font-size:54px; font-weight:900; color:#1e293b; line-height:1.05; margin-top:10px; letter-spacing:-1.5px; }
+  .hero .name .wave { display:inline-block; transform-origin:70% 70%; animation: wave 2.5s ease-in-out infinite; }
+  .hero .roll { font-size:16px; color:#64748b; margin-top:10px; font-weight:600; }
+  .hero .pills { display:flex; gap:12px; margin-top:20px; }
+  .hero .pill {
+    background:#fff; padding:12px 20px; border-radius:999px; font-weight:900; font-size:18px;
+    color:#831843; box-shadow:0 6px 16px rgba(0,0,0,0.06); display:flex; gap:8px; align-items:center;
+  }
+  .hero .pill.today { background:linear-gradient(135deg,#fbbf24,#f59e0b); color:#fff; }
+  .hero .mascot {
+    font-size:130px; position:relative; z-index:1;
+    animation: float 3.5s ease-in-out infinite;
+    filter:drop-shadow(0 14px 22px rgba(168,85,247,0.25));
+  }
+
+  /* ─── Section heading ─── */
+  .sect-h { display:flex; align-items:center; gap:14px; margin-bottom:18px; }
+  .sect-h .badge {
+    width:42px; height:42px; border-radius:14px; display:flex; align-items:center; justify-content:center;
+    font-size:22px; box-shadow:0 4px 12px rgba(0,0,0,0.08);
+  }
+  .sect-h .badge.b1 { background:linear-gradient(135deg,#fbcfe8,#f9a8d4); }
+  .sect-h .badge.b2 { background:linear-gradient(135deg,#fde68a,#fbbf24); }
+  .sect-h .title { font-weight:900; font-size:18px; letter-spacing:1.5px; color:#0f172a; }
+  .sect-h .rule { flex:1; height:2px; background:linear-gradient(90deg,#e2e8f0,transparent); }
+  .sect-h .more { font-size:15px; font-weight:800; color:#a78bfa; cursor:pointer; }
+
+  /* ─── Activity cards ─── */
+  .play-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:20px; }
+  .play-grid .span-2 { grid-column:span 2; }
+  .a-card {
+    position:relative; overflow:hidden; border-radius:26px; padding:28px;
+    color:#fff; min-height:170px; display:flex; flex-direction:column; justify-content:space-between;
+    cursor:pointer; transition:transform .25s cubic-bezier(.34,1.56,.64,1), box-shadow .25s;
+    text-decoration:none;
+  }
+  .a-card:hover { transform:translateY(-6px) rotate(-0.3deg); box-shadow:0 24px 48px rgba(0,0,0,0.18); }
+  .a-card:hover .a-icon { transform:scale(1.15) rotate(-8deg); }
+  .a-card:hover .blob { transform:scale(1.4); }
+  .a-card .blob {
+    position:absolute; right:-40px; top:-40px; width:170px; height:170px; border-radius:50%;
+    background:rgba(255,255,255,0.18); transition:transform .35s ease;
+  }
+  .a-card .a-icon { font-size:54px; transition:transform .35s ease; filter:drop-shadow(0 4px 10px rgba(0,0,0,0.18)); position:relative; z-index:1; }
+  .a-card .a-title { font-weight:900; font-size:24px; line-height:1.1; }
+  .a-card .a-sub { font-size:15px; opacity:0.9; font-weight:600; margin-top:4px; }
+  .a-card .a-text { position:relative; z-index:1; }
+  .a-card .a-badge {
+    position:absolute; top:18px; right:18px; background:#fff; color:#be185d;
+    font-weight:900; font-size:13px; padding:5px 12px; border-radius:10px;
+    animation: pulse2 1.6s ease-in-out infinite; z-index:2;
+  }
+  .c-mission { background:linear-gradient(135deg,#a78bfa 0%,#7c3aed 100%); }
+  .c-chat    { background:linear-gradient(135deg,#f472b6 0%,#db2777 100%); }
+  .c-spell   { background:linear-gradient(135deg,#fbbf24 0%,#f59e0b 100%); }
+  .c-scores  { background:linear-gradient(135deg,#22d3ee 0%,#0891b2 100%); }
+  .c-story   { background:linear-gradient(135deg,#34d399 0%,#059669 100%); }
+
+  /* ─── Progress bar ─── */
+  .progress-card {
+    background:#fff; border:2px solid #fde68a; border-radius:24px; padding:24px 28px;
+    display:flex; align-items:center; gap:24px; box-shadow:0 8px 24px rgba(251,191,36,0.10);
+  }
+  .progress-card .icon { font-size:44px; animation: bounce 2s ease-in-out infinite; }
+  .progress-card .text { flex:1; }
+  .progress-card .text .t1 { font-weight:900; font-size:20px; color:#0f172a; }
+  .progress-card .text .t2 { font-size:14px; color:#64748b; font-weight:600; margin-top:4px; }
+  .progress-card .bar-wrap { width:240px; height:16px; border-radius:999px; background:#fef3c7; overflow:hidden; position:relative; }
+  .progress-card .bar { height:100%; width:33%; background:linear-gradient(90deg,#fbbf24,#f59e0b,#ec4899); border-radius:999px; animation: shimmer 3s linear infinite; background-size:200% 100%; }
+  .progress-card .count { font-weight:900; color:#92400e; font-size:18px; }
+
+  /* ─── Badges ─── */
+  .badge-row { display:grid; grid-template-columns:repeat(5,1fr); gap:16px; }
+  .b-tile {
+    background:#fff; border:2px solid #e2e8f0; border-radius:22px; padding:20px 12px;
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    transition:all .25s; cursor:pointer;
+  }
+  .b-tile:hover { transform:translateY(-4px); border-color:#a78bfa; box-shadow:0 10px 24px rgba(167,139,250,0.18); }
+  .b-tile .b-icon { font-size:42px; transition:transform .3s; }
+  .b-tile:hover .b-icon { transform:scale(1.15) rotate(8deg); }
+  .b-tile .b-name { font-size:14px; font-weight:800; color:#1e293b; text-align:center; line-height:1.2; }
+  .b-tile .b-prog { font-size:12px; color:#94a3b8; font-weight:700; }
+  .b-tile.locked { opacity:0.55; }
+  .b-tile.locked .b-icon { filter:grayscale(0.7); }
+
+  /* ─── Animations ─── */
+  @keyframes wave { 0%,60%,100% { transform:rotate(0); } 10% { transform:rotate(14deg); } 20% { transform:rotate(-8deg); } 30% { transform:rotate(14deg); } 40% { transform:rotate(-4deg); } 50% { transform:rotate(10deg); } }
+  @keyframes float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-14px); } }
+  @keyframes pulse { 0%,100% { transform:scale(1); opacity:1; } 50% { transform:scale(1.15); opacity:0.7; } }
+  @keyframes pulse2 { 0%,100% { transform:scale(1); } 50% { transform:scale(1.08); } }
+  @keyframes spin { from { transform:rotate(0); } to { transform:rotate(360deg); } }
+  @keyframes bounce { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
+  @keyframes shimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+  @keyframes slideUp { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
+  .animate-in { animation: slideUp .5s ease-out both; }
+  .delay-1 { animation-delay:.05s; } .delay-2 { animation-delay:.10s; } .delay-3 { animation-delay:.15s; } .delay-4 { animation-delay:.20s; } .delay-5 { animation-delay:.25s; }
+</style>
+
+<div class="pp-frame">
+  <div class="pp-nav">
+    <div class="logo"><span class="star">⭐</span> <span>PrimePal</span></div>
+    <div class="links">
+      <span class="link active"><span class="l-icon">🏠</span><span>Home</span></span>
+      <span class="link"><span class="l-icon">💬</span><span>Chat</span></span>
+      <span class="link"><span class="l-icon">🎯</span><span>Missions</span></span>
+      <span class="link"><span class="l-icon">📊</span><span>Scores</span></span>
+      <span class="link"><span class="l-icon">🏅</span><span>Badges</span></span>
+    </div>
+    <div class="right">
+      <span class="chip streak">🔥 3</span>
+      <span class="chip points">⭐ 0</span>
+      <span class="out">Out 👋</span>
+    </div>
+  </div>
+
+  <div class="pp-body">
+    <!-- Hero -->
+    <div class="hero animate-in">
+      <div style="position:relative; z-index:1;">
+        <div class="label">WELCOME BACK!</div>
+        <div class="name">Hi Horain! <span class="wave">👋</span></div>
+        <div class="roll">Roll No: 2024-014 · Grade 4</div>
+        <div class="pills">
+          <span class="pill">⭐ 0 Stars</span>
+          <span class="pill today">+5 today</span>
+        </div>
+      </div>
+      <div class="mascot">🦄</div>
+    </div>
+
+    <!-- Activities -->
+    <div>
+      <div class="sect-h">
+        <div class="badge b1">🎮</div>
+        <div class="title">PLAY NOW</div>
+        <div class="rule"></div>
+      </div>
+      <div class="play-grid">
+        <div class="a-card c-mission span-2 animate-in delay-1">
+          <span class="a-badge">NEW</span>
+          <div class="blob"></div>
+          <div class="a-icon">🎯</div>
+          <div class="a-text">
+            <div class="a-title">Daily Missions</div>
+            <div class="a-sub">Earn stars across 4 pillars — let's go!</div>
+          </div>
+        </div>
+        <div class="a-card c-chat animate-in delay-2">
+          <div class="blob"></div>
+          <div class="a-icon">💬</div>
+          <div class="a-text">
+            <div class="a-title">Chat</div>
+            <div class="a-sub">Ask PrimePal anything</div>
+          </div>
+        </div>
+        <div class="a-card c-spell animate-in delay-3">
+          <div class="blob"></div>
+          <div class="a-icon">🐝</div>
+          <div class="a-text">
+            <div class="a-title">Spelling Bee</div>
+            <div class="a-sub">30-second challenge</div>
+          </div>
+        </div>
+        <div class="a-card c-scores animate-in delay-4">
+          <div class="blob"></div>
+          <div class="a-icon">📊</div>
+          <div class="a-text">
+            <div class="a-title">My Scores</div>
+            <div class="a-sub">See your progress</div>
+          </div>
+        </div>
+        <div class="a-card c-story animate-in delay-5">
+          <div class="blob"></div>
+          <div class="a-icon">📖</div>
+          <div class="a-text">
+            <div class="a-title">Story Time</div>
+            <div class="a-sub">Read &amp; answer</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="progress-card animate-in">
+      <span class="icon">🚀</span>
+      <div class="text">
+        <div class="t1">Today's Adventure</div>
+        <div class="t2">Complete 3 activities to keep your streak alive!</div>
+      </div>
+      <div class="bar-wrap"><div class="bar"></div></div>
+      <div class="count">1 / 3</div>
+    </div>
+
+    <!-- Badges -->
+    <div>
+      <div class="sect-h">
+        <div class="badge b2">🏅</div>
+        <div class="title">YOUR BADGES</div>
+        <div class="rule"></div>
+        <span class="more">See all →</span>
+      </div>
+      <div class="badge-row">
+        <div class="b-tile locked"><span class="b-icon">🏅</span><span class="b-name">First Mission</span><span class="b-prog">0/1</span></div>
+        <div class="b-tile locked"><span class="b-icon">📚</span><span class="b-name">Reader</span><span class="b-prog">0/5</span></div>
+        <div class="b-tile locked"><span class="b-icon">🎤</span><span class="b-name">Speaker</span><span class="b-prog">0/5</span></div>
+        <div class="b-tile locked"><span class="b-icon">🐝</span><span class="b-name">Speller</span><span class="b-prog">0/10</span></div>
+        <div class="b-tile locked"><span class="b-icon">🔥</span><span class="b-name">3-Day Streak</span><span class="b-prog">0/3</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top:24px">
+  <h3 style="font-size:16px;margin-bottom:8px">Type &amp; size scale (now locked in):</h3>
+  <table style="border-collapse:collapse; font-size:14px;">
+    <tr><td style="padding:6px 18px 6px 0; color:#64748b;">Navbar height</td><td style="font-weight:800">74px</td></tr>
+    <tr><td style="padding:6px 18px 6px 0; color:#64748b;">Logo</td><td style="font-weight:800">24px (32px star)</td></tr>
+    <tr><td style="padding:6px 18px 6px 0; color:#64748b;">Nav link</td><td style="font-weight:800">16px text + 20px icon</td></tr>
+    <tr><td style="padding:6px 18px 6px 0; color:#64748b;">Hero name "Hi Horain!"</td><td style="font-weight:800">54px</td></tr>
+    <tr><td style="padding:6px 18px 6px 0; color:#64748b;">Mascot</td><td style="font-weight:800">130px</td></tr>
+    <tr><td style="padding:6px 18px 6px 0; color:#64748b;">Card title</td><td style="font-weight:800">24px</td></tr>
+    <tr><td style="padding:6px 18px 6px 0; color:#64748b;">Card icon</td><td style="font-weight:800">54px</td></tr>
+    <tr><td style="padding:6px 18px 6px 0; color:#64748b;">Section heading</td><td style="font-weight:800">18px (42px badge)</td></tr>
+    <tr><td style="padding:6px 18px 6px 0; color:#64748b;">Badge tile icon</td><td style="font-weight:800">42px</td></tr>
+  </table>
+</div>
+
+<p class="subtitle" style="margin-top:14px">Better? Tell me <strong>"good, move on"</strong> to lock the home page and start showing the same system on Missions / Chat / Scores / etc. — or push for bigger / smaller / different.</p>

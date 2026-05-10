@@ -1,0 +1,77 @@
+<h2>Where should the "Admin" link appear?</h2>
+<p class="subtitle">Following the pattern from your teacher login page ("Are you a student?"), let's decide where to place the admin access link on the landing page.</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Footer Link — Subtle & Discrete</h3>
+      <div class="mockup" style="margin: 16px 0;">
+        <div class="mockup-body" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; position: relative; min-height: 300px; display: flex; flex-direction: column; justify-content: space-between;">
+          <div style="text-align: center; color: white;">
+            <h4 style="font-size: 48px; font-weight: 900; margin: 0;">PrimePal</h4>
+            <p style="opacity: 0.9; margin-top: 8px;">Learn English the fun way!</p>
+          </div>
+          <div style="display: flex; gap: 16px; justify-content: center;">
+            <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 24px; border-radius: 16px; flex: 1; max-width: 200px; text-align: center; color: white; font-weight: bold;">Student</div>
+            <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 24px; border-radius: 16px; flex: 1; max-width: 200px; text-align: center; color: white; font-weight: bold;">Teacher</div>
+          </div>
+          <div style="text-align: center; margin-top: 24px;">
+            <p style="color: rgba(255,255,255,0.6); font-size: 13px;">
+              Are you an admin? <a href="#" style="color: white; font-weight: 600; text-decoration: underline;">Sign in here</a>
+            </p>
+          </div>
+        </div>
+      </div>
+      <p style="color: #666; font-size: 14px; margin-top: 12px;">Small text link at the bottom. Doesn't distract from main student/teacher flow. Same pattern as teacher login page.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Top-Right Corner — Quick Access</h3>
+      <div class="mockup" style="margin: 16px 0;">
+        <div class="mockup-body" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; position: relative; min-height: 300px;">
+          <div style="position: absolute; top: 20px; right: 20px;">
+            <a href="#" style="color: white; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.15); padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.3); text-decoration: none; backdrop-filter: blur(10px);">Admin</a>
+          </div>
+          <div style="text-align: center; color: white; padding-top: 20px;">
+            <h4 style="font-size: 48px; font-weight: 900; margin: 0;">PrimePal</h4>
+            <p style="opacity: 0.9; margin-top: 8px;">Learn English the fun way!</p>
+          </div>
+          <div style="display: flex; gap: 16px; justify-content: center; margin-top: 40px;">
+            <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 24px; border-radius: 16px; flex: 1; max-width: 200px; text-align: center; color: white; font-weight: bold;">Student</div>
+            <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 24px; border-radius: 16px; flex: 1; max-width: 200px; text-align: center; color: white; font-weight: bold;">Teacher</div>
+          </div>
+        </div>
+      </div>
+      <p style="color: #666; font-size: 14px; margin-top: 12px;">Pill-shaped button in top-right. More visible, easier to find for admins. Common pattern for secondary actions.</p>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Third Card — Equal Priority</h3>
+      <div class="mockup" style="margin: 16px 0;">
+        <div class="mockup-body" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; position: relative; min-height: 300px;">
+          <div style="text-align: center; color: white;">
+            <h4 style="font-size: 48px; font-weight: 900; margin: 0;">PrimePal</h4>
+            <p style="opacity: 0.9; margin-top: 8px;">Learn English the fun way!</p>
+          </div>
+          <div style="display: flex; gap: 12px; justify-content: center; margin-top: 32px;">
+            <div style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); padding: 20px; border-radius: 16px; flex: 1; max-width: 160px; text-align: center; color: white; font-weight: bold; font-size: 14px;">Student</div>
+            <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%); padding: 20px; border-radius: 16px; flex: 1; max-width: 160px; text-align: center; color: white; font-weight: bold; font-size: 14px;">Teacher</div>
+            <div style="background: linear-gradient(135deg, #4361ee 0%, #7c9eff 100%); padding: 20px; border-radius: 16px; flex: 1; max-width: 160px; text-align: center; color: white; font-weight: bold; font-size: 14px;">Admin</div>
+          </div>
+        </div>
+      </div>
+      <p style="color: #666; font-size: 14px; margin-top: 12px;">Admin gets its own card alongside Student/Teacher. Treats all three roles equally. More prominent but balanced.</p>
+    </div>
+  </div>
+</div>
+
+<p style="margin-top: 24px; padding: 16px; background: #fef3c7; border-left: 4px solid #f59e0b; border-radius: 4px; font-size: 14px; color: #92400e;">
+  <strong>💡 Recommendation:</strong> Option A (footer link) keeps admin access low-key since it's less frequently used than student/teacher access. Options B & C make it more discoverable.
+</p>

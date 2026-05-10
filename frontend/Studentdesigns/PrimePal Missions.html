@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrimePal — Missions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;500;600;700;800&family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+html, body { height:100%; }
+body {
+  background: #f5f0e8;
+  font-family: 'Baloo 2', sans-serif;
+  display: flex; justify-content: center;
+  min-height: 100vh;
+}
+#root { width:100%; max-width:860px; min-height:100vh; }
+
+@keyframes floatUp {
+  0%,100% { transform:translateY(0); }
+  50% { transform:translateY(-5px); }
+}
+@keyframes pulse {
+  0%,100% { transform:scale(1); opacity:1; }
+  50% { transform:scale(1.06); opacity:0.85; }
+}
+@keyframes slideDown {
+  from { opacity:0; transform:translateY(-10px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+@keyframes fillBar {
+  from { width: 0%; }
+  to   { width: var(--target); }
+}
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel">
+
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "studentName": "Fatima Khan",
+  "stars": 120,
+  "streak": 3,
+  "readingDone": 4,
+  "writingDone": 7,
+  "listeningDone": 2,
+  "speakingDone": 0
+}/*EDITMODE-END*/;
+
+/* ─── SHARED ICONS ──────────────────────────────────────── */
+const StarIcon = ({ size=16, color='#fbbf24' }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill={color}>
+    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+  </svg>
+);
+const FlameIcon = ({ size=16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="#f97316">
+    <path d="M12 23c-4.97 0-9-4.03-9-9 0-5.45 4.5-9.93 7.24-12.48.83-.77 2.1-.16 2.1.97v1.92c2.47-1.41 4.66-4.02 4.66-4.02s.8 4.65-1.24 7.61c1.65-.08 3.24-.83 3.24-.83s-1 7.83-7 15.83z"/>
+  </svg>
+);
+
+/* ─── CIRCULAR PROGRESS ─────────────────────────────────── */
+const CircleProgress = ({ done, total=10, size=64, color }) => {
+  const r = (size - 8) / 2;
+  const circ = 2 * Math.PI * r;
+  const pct = done / total;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ transform:'rotate(-90deg)' }}>
+      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="rgba(255,255,255,0.2)" strokeWidth={6} />
+      <circle
+        cx={size/2} cy={size/2} r={r} fill="none"
+        stroke="#fff" strokeWidth={6}
+        strokeDasharray={circ}
+        strokeDashoffset={circ * (1 - pct)}
+        strokeLinecap="round"
+        style={{ transition:'stroke-dashoffset 0.8s ease' }}
+      />
+    </svg>
+  );
+};
+
+/* ─── PILLAR ICON ILLUSTRATIONS ─────────────────────────── */
+const ReadingIcon = ({ size=52 }) => (
+  <svg width={size} height={size} viewBox="0 0 52 52" fill="none">
+    <rect x="8" y="10" width="16" height="32" rx="3" fill="rgba(255,255,255,0.9)" />
+    <rect x="10" y="14" width="12" height="2" rx="1" fill="#3b82f6" />
+    <rect x="10" y="18" width="12" height="2" rx="1" fill="#93c5fd" />
+    <rect x="10" y="22" width="8"  height="2" rx="1" fill="#93c5fd" />
+    <rect x="28" y="10" width="16" height="32" rx="3" fill="rgba(255,255,255,0.75)" />
+    <rect x="30" y="14" width="12" height="2" rx="1" fill="#3b82f6" />
+    <rect x="30" y="18" width="12" height="2" rx="1" fill="#93c5fd" />
+    <rect x="30" y="22" width="8"  height="2" rx="1" fill="#93c5fd" />
+    <path d="M16 10 Q26 6 36 10" stroke="rgba(255,255,255,0.7)" strokeWidth="2" fill="none"/>
+  </svg>
+);
+
+const WritingIcon = ({ size=52 }) => (
+  <svg width={size} height={size} viewBox="0 0 52 52" fill="none">
+    <rect x="10" y="10" width="28" height="34" rx="4" fill="rgba(255,255,255,0.9)" />
+    <rect x="15" y="18" width="18" height="2.5" rx="1.2" fill="#10b981" />
+    <rect x="15" y="23" width="18" height="2.5" rx="1.2" fill="#6ee7b7" />
+    <rect x="15" y="28" width="12" height="2.5" rx="1.2" fill="#6ee7b7" />
+    <path d="M32 36 L44 24 L48 28 L36 40 L30 42 Z" fill="#fbbf24" />
+    <path d="M44 24 L48 28" stroke="#f59e0b" strokeWidth="1.5"/>
+    <path d="M32 36 L36 40" stroke="#f59e0b" strokeWidth="1.5"/>
+  </svg>
+);
+
+const ListeningIcon = ({ size=52 }) => (
+  <svg width={size} height={size} viewBox="0 0 52 52" fill="none">
+    <ellipse cx="26" cy="22" rx="10" ry="12" fill="rgba(255,255,255,0.9)"/>
+    <rect x="22" y="32" width="8" height="6" rx="0" fill="rgba(255,255,255,0.9)"/>
+    <path d="M16 34 Q16 44 26 44 Q36 44 36 34" stroke="rgba(255,255,255,0.9)" strokeWidth="3" fill="none" strokeLinecap="round"/>
+    <rect x="23.5" y="44" width="5" height="4" rx="1" fill="rgba(255,255,255,0.9)"/>
+    <rect x="18" y="46" width="16" height="3" rx="1.5" fill="rgba(255,255,255,0.9)"/>
+    <rect x="23" y="18" width="6" height="2" rx="1" fill="#f59e0b"/>
+    <rect x="23" y="22" width="6" height="2" rx="1" fill="#f59e0b"/>
+    <rect x="23" y="26" width="6" height="2" rx="1" fill="#fde68a"/>
+  </svg>
+);
+
+const SpeakingIcon = ({ size=52 }) => (
+  <svg width={size} height={size} viewBox="0 0 52 52" fill="none">
+    <ellipse cx="26" cy="20" rx="10" ry="12" fill="rgba(255,255,255,0.9)"/>
+    <rect x="22" y="30" width="8" height="5" fill="rgba(255,255,255,0.9)"/>
+    <path d="M15 32 Q15 44 26 44 Q37 44 37 32" stroke="rgba(255,255,255,0.9)" strokeWidth="3" fill="none" strokeLinecap="round"/>
+    <rect x="23.5" y="44" width="5" height="4" rx="1" fill="rgba(255,255,255,0.9)"/>
+    <rect x="18" y="46" width="16" height="3" rx="1.5" fill="rgba(255,255,255,0.9)"/>
+    {/* Sound waves */}
+    <path d="M40 20 Q44 24 40 28" stroke="rgba(255,255,255,0.7)" strokeWidth="2.5" fill="none" strokeLinecap="round"/>
+    <path d="M43 16 Q50 24 43 32" stroke="rgba(255,255,255,0.45)" strokeWidth="2" fill="none" strokeLinecap="round"/>
+  </svg>
+);
+
+/* ─── TASK TYPE CHIP ─────────────────────────────────────── */
+const TaskChip = ({ label }) => (
+  <span style={{
+    background:'rgba(255,255,255,0.18)',
+    border:'1px solid rgba(255,255,255,0.3)',
+    borderRadius:10, padding:'2px 9px',
+    fontFamily:'Nunito', fontWeight:600, fontSize:10.5, color:'rgba(255,255,255,0.9)',
+    whiteSpace:'nowrap',
+  }}>{label}</span>
+);
+
+/* ─── PILLAR CARD ────────────────────────────────────────── */
+const pillars = [
+  {
+    id: 'reading',
+    label: 'Reading',
+    grad: 'linear-gradient(140deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%)',
+    shadow: '#1e3a8a',
+    Icon: ReadingIcon,
+    tasks: ['Sentence-Picture Match','Odd One Out','Fill in the Blank','True / False'],
+    doneKey: 'readingDone',
+    tip: 'Match words to pictures!',
+  },
+  {
+    id: 'writing',
+    label: 'Writing',
+    grad: 'linear-gradient(140deg, #064e3b 0%, #059669 60%, #10b981 100%)',
+    shadow: '#064e3b',
+    Icon: WritingIcon,
+    tasks: ['Sentence Scramble','Missing Letter','Guided Translation'],
+    doneKey: 'writingDone',
+    tip: 'Put sentences in order!',
+  },
+  {
+    id: 'listening',
+    label: 'Listening',
+    grad: 'linear-gradient(140deg, #78350f 0%, #d97706 60%, #f59e0b 100%)',
+    shadow: '#78350f',
+    Icon: ListeningIcon,
+    tasks: ['Listen & Choose','Simon Says','Listen & Spell'],
+    doneKey: 'listeningDone',
+    tip: 'Hear it, then choose!',
+  },
+  {
+    id: 'speaking',
+    label: 'Speaking',
+    grad: 'linear-gradient(140deg, #881337 0%, #e11d48 60%, #f43f5e 100%)',
+    shadow: '#881337',
+    Icon: SpeakingIcon,
+    tasks: ['Repeat After Me','What is this?','Finish the Sentence'],
+    doneKey: 'speakingDone',
+    tip: 'Speak out loud!',
+  },
+];
+
+const TOTAL = 10;
+
+const PillarCard = ({ pillar, done, expanded, onToggle }) => {
+  const pct = Math.round((done / TOTAL) * 100);
+  const complete = done >= TOTAL;
+
+  return (
+    <div style={{ display:'flex', flexDirection:'column', gap:0 }}>
+      {/* Main card */}
+      <div
+        onClick={onToggle}
+        style={{
+          background: pillar.grad,
+          borderRadius: expanded ? '20px 20px 0 0' : 20,
+          padding: '20px 20px 18px',
+          cursor: 'pointer',
+          boxShadow: `0 7px 0 ${pillar.shadow}, 0 10px 28px ${pillar.shadow}55`,
+          transition: 'transform 0.14s, box-shadow 0.14s, border-radius 0.2s',
+          position:'relative', overflow:'hidden',
+          border: expanded ? '2px solid rgba(255,255,255,0.25)' : '1.5px solid rgba(255,255,255,0.15)',
+          borderBottom: expanded ? 'none' : undefined,
+        }}
+        onMouseEnter={e => { if(!expanded){ e.currentTarget.style.transform='translateY(-3px)'; e.currentTarget.style.boxShadow=`0 10px 0 ${pillar.shadow}, 0 14px 32px ${pillar.shadow}66`; }}}
+        onMouseLeave={e => { e.currentTarget.style.transform='translateY(0)'; e.currentTarget.style.boxShadow=`0 7px 0 ${pillar.shadow}, 0 10px 28px ${pillar.shadow}55`; }}
+      >
+        {/* Shine */}
+        <div style={{ position:'absolute',top:0,left:0,right:0,height:'38%', background:'linear-gradient(180deg,rgba(255,255,255,0.18) 0%,transparent 100%)', borderRadius:'20px 20px 0 0', pointerEvents:'none' }}/>
+
+        {complete && (
+          <div style={{ position:'absolute',top:10,right:12, background:'#fbbf24', borderRadius:10, padding:'2px 10px', fontFamily:'Baloo 2', fontWeight:800, fontSize:10, color:'#78350f' }}>✓ DONE!</div>
+        )}
+
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
+          {/* Left: icon + info */}
+          <div style={{ display:'flex', flexDirection:'column', gap:10, flex:1 }}>
+            <div style={{ animation:'floatUp 3.5s ease-in-out infinite' }}>
+              <pillar.Icon size={50} />
+            </div>
+            <div>
+              <h3 style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:20, color:'#fff', textShadow:'0 1px 4px rgba(0,0,0,0.2)', lineHeight:1 }}>{pillar.label}</h3>
+              <p style={{ fontFamily:'Nunito', fontWeight:600, fontSize:11.5, color:'rgba(255,255,255,0.75)', marginTop:3 }}>{pillar.tip}</p>
+            </div>
+          </div>
+
+          {/* Right: progress ring */}
+          <div style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:4 }}>
+            <div style={{ position:'relative', width:64, height:64 }}>
+              <CircleProgress done={done} total={TOTAL} size={64} />
+              <div style={{ position:'absolute', inset:0, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center' }}>
+                <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:15, color:'#fff', lineHeight:1 }}>{done}</span>
+                <span style={{ fontFamily:'Nunito', fontSize:9, color:'rgba(255,255,255,0.7)', lineHeight:1 }}>/{TOTAL}</span>
+              </div>
+            </div>
+            <span style={{ fontFamily:'Nunito', fontWeight:700, fontSize:10, color:'rgba(255,255,255,0.8)' }}>{pct}% done</span>
+          </div>
+        </div>
+
+        {/* Progress bar */}
+        <div style={{ marginTop:14, background:'rgba(255,255,255,0.2)', borderRadius:8, height:7, overflow:'hidden' }}>
+          <div style={{
+            height:'100%', borderRadius:8,
+            background:'linear-gradient(90deg,rgba(255,255,255,0.9),rgba(255,255,255,0.7))',
+            width:`${pct}%`,
+            transition:'width 0.8s ease',
+          }}/>
+        </div>
+
+        {/* Footer row */}
+        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginTop:12 }}>
+          <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+            {pillar.tasks.slice(0,2).map(t => <TaskChip key={t} label={t} />)}
+          </div>
+          <div style={{
+            background: complete ? '#fbbf24' : 'rgba(255,255,255,0.22)',
+            border: '1.5px solid rgba(255,255,255,0.4)',
+            borderRadius:14, padding:'5px 14px',
+            fontFamily:'Baloo 2', fontWeight:800, fontSize:12,
+            color: complete ? '#78350f' : '#fff',
+            cursor:'pointer', whiteSpace:'nowrap',
+            transition:'background 0.15s',
+          }}>
+            {complete ? '🔁 Redo' : done > 0 ? '▶ Continue →' : '▶ Start →'}
+          </div>
+        </div>
+      </div>
+
+      {/* Expanded task list */}
+      {expanded && (
+        <div style={{
+          background:'#fff',
+          borderRadius:'0 0 20px 20px',
+          border:'2px solid rgba(255,255,255,0.25)',
+          borderTop:'none',
+          padding:'14px 20px 18px',
+          animation:'slideDown 0.2s ease',
+          boxShadow:`0 7px 0 ${pillar.shadow}, 0 10px 28px ${pillar.shadow}33`,
+        }}>
+          <p style={{ fontFamily:'Baloo 2', fontWeight:700, fontSize:11, color:'#78350f', letterSpacing:1.2, textTransform:'uppercase', marginBottom:10 }}>All Task Types</p>
+          <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+            {pillar.tasks.map((t, i) => {
+              const taskDone = i < done;
+              return (
+                <div key={t} style={{
+                  display:'flex', alignItems:'center', gap:10,
+                  background: taskDone ? '#f0fdf4' : '#fafafa',
+                  borderRadius:12, padding:'8px 14px',
+                  border: taskDone ? '1.5px solid #bbf7d0' : '1.5px solid #e5e7eb',
+                }}>
+                  <div style={{
+                    width:22, height:22, borderRadius:'50%',
+                    background: taskDone ? '#10b981' : '#e5e7eb',
+                    display:'flex', alignItems:'center', justifyContent:'center',
+                    fontFamily:'Baloo 2', fontWeight:800, fontSize:11,
+                    color: taskDone ? '#fff' : '#9ca3af',
+                    flexShrink:0,
+                  }}>{taskDone ? '✓' : i+1}</div>
+                  <span style={{ fontFamily:'Nunito', fontWeight:600, fontSize:13, color: taskDone ? '#065f46' : '#374151' }}>{t}</span>
+                  {i === done && (
+                    <span style={{ marginLeft:'auto', background:'#fef3c7', border:'1.5px solid #fde68a', borderRadius:8, padding:'1px 8px', fontFamily:'Baloo 2', fontSize:9, fontWeight:800, color:'#92400e' }}>NEXT</span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+/* ─── NAV ───────────────────────────────────────────────── */
+const Nav = ({ streak }) => {
+  const [active, setActive] = React.useState('Missions');
+  return (
+    <nav style={{
+      background:'#78350f', height:56,
+      padding:'0 24px', display:'flex', alignItems:'center', justifyContent:'space-between',
+      position:'sticky', top:0, zIndex:100,
+      boxShadow:'0 3px 16px rgba(0,0,0,0.25)',
+    }}>
+      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <svg width="28" height="28" viewBox="0 0 28 28" style={{ animation:'floatUp 3s ease-in-out infinite' }}>
+          <polygon points="14,2 17.5,10.5 27,10.5 19.5,16 22,25 14,20 6,25 8.5,16 1,10.5 10.5,10.5" fill="#f59e0b"/>
+          <polygon points="14,2 17.5,10.5 27,10.5 19.5,16 22,25 14,20 6,25 8.5,16 1,10.5 10.5,10.5" fill="none" stroke="#d97706" strokeWidth="0.8"/>
+        </svg>
+        <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:20, color:'#fef3c7', letterSpacing:'-0.3px' }}>PrimePal</span>
+      </div>
+      <div style={{ display:'flex', gap:4 }}>
+        {['Home','Chat','Missions','Quests','Leaderboard'].map(n => (
+          <button key={n} onClick={()=>setActive(n)} style={{
+            padding:'5px 14px', borderRadius:24, border:'none', cursor:'pointer',
+            background: active===n ? '#fbbf24' : 'rgba(255,255,255,0.1)',
+            color: active===n ? '#78350f' : 'rgba(254,243,199,0.9)',
+            fontFamily:'Baloo 2', fontWeight:700, fontSize:13,
+            boxShadow: active===n ? '0 3px 10px rgba(251,191,36,0.4)' : 'none',
+            transition:'all 0.15s',
+          }}>{n}</button>
+        ))}
+      </div>
+      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:5, background:'rgba(255,255,255,0.12)', border:'1.5px solid rgba(251,191,36,0.4)', borderRadius:24, padding:'4px 12px' }}>
+          <FlameIcon size={15} />
+          <span style={{ fontFamily:'Baloo 2', fontWeight:700, fontSize:13, color:'#fef3c7' }}>{streak} day streak</span>
+        </div>
+        <div style={{
+          width:34, height:34, borderRadius:'50%',
+          background:'linear-gradient(135deg,#fbbf24,#f59e0b)',
+          display:'flex', alignItems:'center', justifyContent:'center',
+          fontFamily:'Baloo 2', fontWeight:800, fontSize:13, color:'#fff',
+          border:'2px solid #d97706', cursor:'pointer',
+          boxShadow:'0 2px 8px rgba(245,158,11,0.4)',
+        }}>F</div>
+      </div>
+    </nav>
+  );
+};
+
+/* ─── DAILY PROGRESS BANNER ─────────────────────────────── */
+const ProgressBanner = ({ total, done }) => {
+  const allDone = done >= total;
+  return (
+    <div style={{
+      margin:'20px 20px 0',
+      background: allDone
+        ? 'linear-gradient(120deg,#064e3b,#059669)'
+        : 'linear-gradient(120deg,#fef3c7 0%,#fde68a 60%,#fcd34d 100%)',
+      borderRadius:20,
+      padding:'18px 24px',
+      display:'flex', alignItems:'center', justifyContent:'space-between',
+      border: allDone ? '2px solid #10b981' : '2.5px solid #fbbf24',
+      boxShadow: allDone ? '0 6px 24px rgba(5,150,105,0.25)' : '0 6px 24px rgba(245,158,11,0.2)',
+    }}>
+      <div>
+        <p style={{ fontFamily:'Nunito', fontWeight:600, fontSize:12, color: allDone ? 'rgba(255,255,255,0.75)' : '#92400e', marginBottom:4 }}>
+          {allDone ? '🎉 Amazing — all missions complete today!' : "Today's Mission Progress"}
+        </p>
+        <h2 style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:22, color: allDone ? '#fff' : '#78350f', lineHeight:1 }}>
+          {done} <span style={{ fontWeight:500, fontSize:16, opacity:0.7 }}>of {total} pillars started</span>
+        </h2>
+        <div style={{ display:'flex', gap:6, marginTop:10, alignItems:'center' }}>
+          {['Reading','Writing','Listening','Speaking'].map((p,i) => {
+            const vals = [done >= 1, done >= 2, done >= 3, done >= 4];
+            return (
+              <div key={p} style={{
+                display:'flex', alignItems:'center', gap:4,
+                background: vals[i] ? (allDone ? 'rgba(255,255,255,0.25)' : '#fff') : 'rgba(255,255,255,0.3)',
+                borderRadius:12, padding:'3px 10px',
+                border: vals[i] ? (allDone ? '1px solid rgba(255,255,255,0.4)' : '1.5px solid #fde68a') : '1.5px solid rgba(255,255,255,0.2)',
+                opacity: vals[i] ? 1 : 0.5,
+              }}>
+                <span style={{ fontSize:11 }}>
+                  {['📖','✏️','🎧','🎤'][i]}
+                </span>
+                <span style={{ fontFamily:'Nunito', fontWeight:700, fontSize:10, color: allDone ? '#fff' : '#78350f' }}>{p}</span>
+                {vals[i] && <span style={{ fontSize:10 }}>✓</span>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+      <div style={{ textAlign:'center' }}>
+        <div style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:32, color: allDone ? '#fbbf24' : '#78350f', lineHeight:1 }}>
+          {Math.round((done/total)*100)}%
+        </div>
+        <div style={{ fontFamily:'Nunito', fontWeight:600, fontSize:11, color: allDone ? 'rgba(255,255,255,0.7)' : '#a16207', marginTop:2 }}>complete</div>
+        <div style={{ display:'flex', alignItems:'center', gap:4, justifyContent:'center', marginTop:6 }}>
+          <StarIcon size={14} />
+          <span style={{ fontFamily:'Baloo 2', fontWeight:700, fontSize:13, color: allDone ? '#fbbf24' : '#b45309' }}>+30 stars today</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─── MAIN APP ──────────────────────────────────────────── */
+function App() {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const [expanded, setExpanded] = React.useState(null);
+
+  const { streak, readingDone, writingDone, listeningDone, speakingDone } = tweaks;
+  const doneMap = { readingDone, writingDone, listeningDone, speakingDone };
+  const startedCount = [readingDone, writingDone, listeningDone, speakingDone].filter(v => v > 0).length;
+
+  return (
+    <div style={{ background:'#f5f0e8', minHeight:'100vh' }}>
+      <Nav streak={streak} />
+
+      <div style={{ padding:'0 20px 32px' }}>
+        <ProgressBanner total={4} done={startedCount} />
+
+        {/* Section header */}
+        <div style={{ display:'flex', alignItems:'center', gap:10, margin:'22px 0 14px' }}>
+          <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:11, color:'#b45309', letterSpacing:1.5, textTransform:'uppercase' }}>Choose a Pillar</span>
+          <div style={{ flex:1, height:1.5, background:'linear-gradient(90deg,#fde68a,transparent)' }}/>
+          <span style={{ fontFamily:'Nunito', fontWeight:600, fontSize:11, color:'#a16207' }}>Tap any card to see tasks</span>
+        </div>
+
+        {/* 2×2 grid */}
+        <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:14 }}>
+          {pillars.map(p => (
+            <PillarCard
+              key={p.id}
+              pillar={p}
+              done={doneMap[p.doneKey]}
+              expanded={expanded === p.id}
+              onToggle={() => setExpanded(expanded === p.id ? null : p.id)}
+            />
+          ))}
+        </div>
+
+        {/* Hint footer */}
+        <div style={{
+          marginTop:18,
+          background:'linear-gradient(90deg,#fef3c7,#fffbf0)',
+          borderRadius:16, padding:'12px 20px',
+          display:'flex', alignItems:'center', gap:10,
+          border:'1.5px solid #fde68a',
+        }}>
+          <span style={{ fontSize:20 }}>💡</span>
+          <span style={{ fontFamily:'Baloo 2', fontWeight:700, fontSize:13, color:'#92400e' }}>
+            Complete all 4 pillars every day to keep your streak alive!
+          </span>
+          <div style={{ marginLeft:'auto', display:'flex', alignItems:'center', gap:4 }}>
+            <FlameIcon size={14} />
+            <span style={{ fontFamily:'Baloo 2', fontWeight:800, fontSize:13, color:'#b45309' }}>{streak}</span>
+          </div>
+        </div>
+      </div>
+
+      <TweaksPanel>
+        <TweakNumber id="streak"       label="Day streak"          value={tweaks.streak}       onChange={v=>setTweak('streak',v)}       min={0} max={30} />
+        <TweakSlider id="readingDone"  label="Reading tasks done"  value={tweaks.readingDone}  onChange={v=>setTweak('readingDone',v)}  min={0} max={10} step={1} />
+        <TweakSlider id="writingDone"  label="Writing tasks done"  value={tweaks.writingDone}  onChange={v=>setTweak('writingDone',v)}  min={0} max={10} step={1} />
+        <TweakSlider id="listeningDone" label="Listening tasks done" value={tweaks.listeningDone} onChange={v=>setTweak('listeningDone',v)} min={0} max={10} step={1} />
+        <TweakSlider id="speakingDone" label="Speaking tasks done"  value={tweaks.speakingDone} onChange={v=>setTweak('speakingDone',v)} min={0} max={10} step={1} />
+      </TweaksPanel>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>

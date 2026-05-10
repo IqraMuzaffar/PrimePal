@@ -1,0 +1,246 @@
+"""
+Feature 5 + Feature 7: The Guardrailed Adaptive Tutor — /api/v1/chat
+
+Flow:
+  POST /api/v1/chat
+    ↓  Authenticate student (custom JWT → student_id, classroom_id)
+    ↓  Resolve classroom → grade_level  (the guardrail key)
+    ↓  Translate student message to English via gpt-4o-mini  (Feature 7)
+    ↓  Embed translated query → vector search snc_knowledge_base filtered by grade_level
+    ↓  LLM + SNC context + adaptive system prompt → TutorResponse
+    ↓  Return a single adaptive reply (bilingual or English based on student input)
+
+The grade_level filter is resolved server-side from the student's JWT and
+classroom record — the frontend never sends or controls the grade.
+"""
+import asyncio
+import json
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
+from langchain_core.messages import HumanMessage, AIMessage
+from pydantic import BaseModel, Field
+from starlette.requests import Request
+
+from app.core.rate_limit import limiter
+
+from app.core.security import get_current_student
+from app.core.supabase_client import get_supabase_admin
+from app.agents.tutor_agent.chatbot import (
+    translate_to_english,
+    translate_to_urdu,
+    retrieve_grade_filtered_chunks,
+    get_guardrailed_response,
+    stream_guardrailed_response,
+)
+from app.agents.evaluator_agent.interaction_logger import log_interaction
+from app.core.llm_tracker import track_llm
+
+router = APIRouter()
+
+
+class ChatMessage(BaseModel):
+    role: str = Field(..., pattern=r"^(student|tutor)$")
+    content: str = Field(..., min_length=1, max_length=1000)
+
+
+class ChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=1000)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=10)
+
+
+class ChatResponse(BaseModel):
+    reply: str            # adaptive reply (bilingual or English based on student input)
+    grade_level: int
+    context_used: bool    # True when SNC chunks were found for this grade
+    translated_query: str  # the English translation of the student's query
+
+
+class UrduRequest(BaseModel):
+    text: str = Field(..., min_length=1, max_length=2000)
+
+
+class UrduResponse(BaseModel):
+    urdu: str
+
+
+def _convert_history(history: list[ChatMessage]) -> list[HumanMessage | AIMessage]:
+    """Convert ChatMessage list to LangChain message objects."""
+    messages = []
+    for msg in history:
+        if msg.role == "student":
+            messages.append(HumanMessage(content=msg.content))
+        else:
+            messages.append(AIMessage(content=msg.content))
+    return messages
+
+
+@router.post("", response_model=ChatResponse, summary="Guardrailed adaptive student chat")
+@limiter.limit("20/minute")
+async def chat(
+    request: Request,
+    body: ChatRequest,
+    background_tasks: BackgroundTasks,
+    student: dict = Depends(get_current_student),
+):
+    """
+    Send a student message and receive a grade-appropriate, SNC-grounded reply.
+
+    The reply language adapts to the student's input:
+    - Student writes in English → pure English reply
+    - Student writes in Roman Urdu / Minglish → bilingual Minglish reply
+    """
+    student_id: str = student["sub"]
+    classroom_id: str = student["classroom_id"]
+    supabase = get_supabase_admin()
+
+    async def _tracked_translate():
+        async with track_llm("chat/translate", model="gpt-4o-mini", student_id=student_id, classroom_id=classroom_id):
+            return await translate_to_english(body.message)
+
+    classroom_resp, translated_query = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        ),
+        _tracked_translate(),
+    )
+
+    if not classroom_resp.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Classroom not found for this student",
+        )
+    grade_level: int = classroom_resp.data["grade_level"]
+
+    context_chunks = await retrieve_grade_filtered_chunks(
+        query=translated_query,
+        grade_level=grade_level,
+        supabase_admin_client=supabase,
+    )
+
+    async with track_llm("chat/respond", model="gpt-4o", student_id=student_id, classroom_id=classroom_id):
+        tutor_response = await get_guardrailed_response(
+            original_message=body.message,
+            translated_message=translated_query,
+            grade_level=grade_level,
+            context_chunks=context_chunks,
+            history=_convert_history(body.history),
+        )
+
+    background_tasks.add_task(
+        log_interaction,
+        student_id=student_id,
+        classroom_id=classroom_id,
+        grade_level=grade_level,
+        interaction_type="chat",
+        original_message=body.message,
+        translated_message=translated_query,
+        correct=None,
+        context_used=len(context_chunks) > 0,
+    )
+
+    return ChatResponse(
+        reply=tutor_response.reply,
+        grade_level=grade_level,
+        context_used=len(context_chunks) > 0,
+        translated_query=translated_query,
+    )
+
+
+@router.post("/stream", summary="Streaming guardrailed adaptive student chat (SSE)")
+async def chat_stream(
+    body: ChatRequest,
+    student: dict = Depends(get_current_student),
+):
+    """
+    Stream a grade-appropriate, SNC-grounded reply token by token.
+
+    Returns a text/event-stream response with SSE events:
+      - {"type": "status", "content": "Thinking..."}
+      - {"type": "token", "content": "<token>"}  (repeated)
+      - {"type": "done"}
+    """
+    student_id: str = student["sub"]
+    classroom_id: str = student["classroom_id"]
+    supabase = get_supabase_admin()
+
+    async def _tracked_translate():
+        async with track_llm("chat/translate", model="gpt-4o-mini", student_id=student_id, classroom_id=classroom_id):
+            return await translate_to_english(body.message)
+
+    classroom_resp, translated_query = await asyncio.gather(
+        asyncio.to_thread(
+            lambda: supabase.table("classrooms")
+            .select("grade_level")
+            .eq("id", classroom_id)
+            .maybe_single()
+            .execute()
+        ),
+        _tracked_translate(),
+    )
+
+    if not classroom_resp.data:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Classroom not found for this student",
+        )
+    grade_level: int = classroom_resp.data["grade_level"]
+
+    context_chunks = await retrieve_grade_filtered_chunks(
+        query=translated_query,
+        grade_level=grade_level,
+        supabase_admin_client=supabase,
+    )
+
+    lc_history = _convert_history(body.history)
+
+    # TODO: Add track_llm for streaming chat — needs post-stream hook
+    async def event_stream():
+        yield f"data: {json.dumps({'type': 'status', 'content': 'Thinking...'})}\n\n"
+
+        try:
+            accumulated_response: list[str] = []
+            async for token in stream_guardrailed_response(
+                original_message=body.message,
+                translated_message=translated_query,
+                context_chunks=context_chunks,
+                grade_level=grade_level,
+                history=lc_history,
+            ):
+                accumulated_response.append(token)
+                yield f"data: {json.dumps({'type': 'token', 'content': token})}\n\n"
+
+            yield f"data: {json.dumps({'type': 'done'})}\n\n"
+        except Exception:
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Oops! Something went wrong. Please try again!'})}\n\n"
+
+        await asyncio.to_thread(
+            log_interaction,
+            student_id=student["sub"],
+            classroom_id=classroom_id,
+            grade_level=grade_level,
+            interaction_type="chat",
+            original_message=body.message,
+            translated_message=translated_query,
+            correct=None,
+            context_used=len(context_chunks) > 0,
+        )
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+
+@router.post("/urdu", response_model=UrduResponse, summary="Translate reply to Urdu script")
+async def chat_urdu(
+    body: UrduRequest,
+    student: dict = Depends(get_current_student),
+):
+    """Translate a tutor reply into Urdu script (نستعلیق) on demand."""
+    student_id: str = student["sub"]
+    classroom_id: str = student["classroom_id"]
+    async with track_llm("chat/urdu", model="gpt-4o-mini", student_id=student_id, classroom_id=classroom_id):
+        urdu_text = await translate_to_urdu(body.text)
+    return UrduResponse(urdu=urdu_text)

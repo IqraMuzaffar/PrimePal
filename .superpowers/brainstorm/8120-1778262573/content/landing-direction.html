@@ -1,0 +1,191 @@
+<h2>Landing Page Design Direction</h2>
+<p class="subtitle">Which overall approach feels right for PrimePal?</p>
+
+<div class="cards">
+  <!-- Option A -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: linear-gradient(145deg, #0b1535 0%, #162660 100%); padding: 24px; min-height: 340px; position: relative; overflow: hidden;">
+      <!-- Ambient blobs -->
+      <div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(67,97,238,0.2),transparent 70%)"></div>
+      <div style="position:absolute;bottom:-30px;left:-30px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(124,158,255,0.15),transparent 70%)"></div>
+
+      <!-- Nav -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:32px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:32px;height:32px;background:linear-gradient(135deg,#4361ee,#7c9eff);border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:14px;">P</div>
+          <span style="color:white;font-weight:800;font-size:16px;">PrimePal</span>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <span style="color:rgba(255,255,255,0.5);font-size:11px;">Admin</span>
+        </div>
+      </div>
+
+      <!-- Hero -->
+      <div style="text-align:center;margin-bottom:24px;">
+        <div style="font-size:12px;color:#7c9eff;font-weight:700;letter-spacing:0.1em;margin-bottom:8px;">AI-POWERED ESL PLATFORM</div>
+        <div style="font-size:28px;font-weight:900;color:white;line-height:1.1;margin-bottom:8px;">Learn English<br>the Fun Way</div>
+        <div style="font-size:11px;color:rgba(255,255,255,0.6);max-width:280px;margin:0 auto;">Helping Pakistani primary students master Reading, Writing & Speaking through AI-guided missions</div>
+      </div>
+
+      <!-- Pillar badges -->
+      <div style="display:flex;justify-content:center;gap:8px;margin-bottom:20px;">
+        <span style="background:rgba(67,97,238,0.2);color:#93c5fd;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid rgba(67,97,238,0.3);">Reading</span>
+        <span style="background:rgba(67,97,238,0.2);color:#93c5fd;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid rgba(67,97,238,0.3);">Writing</span>
+        <span style="background:rgba(67,97,238,0.2);color:#93c5fd;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;border:1px solid rgba(67,97,238,0.3);">Speaking</span>
+      </div>
+
+      <!-- Cards side by side -->
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;background:linear-gradient(135deg,#f59e0b,#ea580c);border-radius:16px;padding:16px;text-align:center;">
+          <div style="font-size:20px;margin-bottom:4px;">🎮</div>
+          <div style="color:white;font-weight:800;font-size:13px;margin-bottom:2px;">Student</div>
+          <div style="color:rgba(255,255,255,0.8);font-size:9px;">Enter class code</div>
+        </div>
+        <div style="flex:1;background:linear-gradient(135deg,#10b981,#059669);border-radius:16px;padding:16px;text-align:center;">
+          <div style="font-size:20px;margin-bottom:4px;">📊</div>
+          <div style="color:white;font-weight:800;font-size:13px;margin-bottom:2px;">Teacher</div>
+          <div style="color:rgba(255,255,255,0.8);font-size:9px;">Sign in to dashboard</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A: Compact Hero + Cards</h3>
+      <p>Keep the dark theme but make it content-rich. Tagline, pillar badges, and compact role cards all visible without scrolling. <strong>Professional but dense.</strong></p>
+    </div>
+  </div>
+
+  <!-- Option B -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: linear-gradient(145deg, #0b1535 0%, #162660 100%); padding: 24px; min-height: 340px; position: relative; overflow: hidden;">
+      <div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(67,97,238,0.2),transparent 70%)"></div>
+
+      <!-- Nav -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:32px;height:32px;background:linear-gradient(135deg,#4361ee,#7c9eff);border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:14px;">P</div>
+          <span style="color:white;font-weight:800;font-size:16px;">PrimePal</span>
+        </div>
+        <span style="color:rgba(255,255,255,0.4);font-size:10px;">Admin Login</span>
+      </div>
+
+      <!-- Hero with feature grid -->
+      <div style="text-align:center;margin-bottom:16px;">
+        <div style="font-size:11px;color:#7c9eff;font-weight:700;letter-spacing:0.12em;margin-bottom:6px;">AI-POWERED ESL PLATFORM</div>
+        <div style="font-size:26px;font-weight:900;color:white;line-height:1.15;margin-bottom:6px;">Master English<br>Through Play</div>
+        <div style="font-size:10px;color:rgba(255,255,255,0.55);margin-bottom:14px;">For Pakistani primary school students</div>
+      </div>
+
+      <!-- Feature row -->
+      <div style="display:flex;gap:6px;margin-bottom:16px;">
+        <div style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:10px 6px;text-align:center;">
+          <div style="font-size:16px;margin-bottom:2px;">📖</div>
+          <div style="color:white;font-size:9px;font-weight:700;">Reading</div>
+          <div style="color:rgba(255,255,255,0.4);font-size:8px;">Stories & comprehension</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:10px 6px;text-align:center;">
+          <div style="font-size:16px;margin-bottom:2px;">✏️</div>
+          <div style="color:white;font-size:9px;font-weight:700;">Writing</div>
+          <div style="color:rgba(255,255,255,0.4);font-size:8px;">Spelling & grammar</div>
+        </div>
+        <div style="flex:1;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.08);border-radius:12px;padding:10px 6px;text-align:center;">
+          <div style="font-size:16px;margin-bottom:2px;">🎤</div>
+          <div style="color:white;font-size:9px;font-weight:700;">Speaking</div>
+          <div style="color:rgba(255,255,255,0.4);font-size:8px;">Pronunciation practice</div>
+        </div>
+      </div>
+
+      <!-- Role cards -->
+      <div style="display:flex;gap:10px;">
+        <div style="flex:1;background:linear-gradient(135deg,#f59e0b,#ea580c);border-radius:14px;padding:14px;position:relative;overflow:hidden;">
+          <div style="position:absolute;right:-8px;bottom:-8px;font-size:40px;opacity:0.1;">🎮</div>
+          <div style="color:white;font-weight:800;font-size:14px;margin-bottom:2px;">I'm a Student</div>
+          <div style="color:rgba(255,255,255,0.8);font-size:9px;margin-bottom:8px;">Enter class code & play</div>
+          <div style="background:rgba(255,255,255,0.2);color:white;font-size:9px;font-weight:700;padding:5px 12px;border-radius:8px;display:inline-block;">Start Playing →</div>
+        </div>
+        <div style="flex:1;background:linear-gradient(135deg,#4361ee,#7c9eff);border-radius:14px;padding:14px;position:relative;overflow:hidden;">
+          <div style="position:absolute;right:-8px;bottom:-8px;font-size:40px;opacity:0.1;">📊</div>
+          <div style="color:white;font-weight:800;font-size:14px;margin-bottom:2px;">I'm a Teacher</div>
+          <div style="color:rgba(255,255,255,0.8);font-size:9px;margin-bottom:8px;">Dashboard & insights</div>
+          <div style="background:rgba(255,255,255,0.2);color:white;font-size:9px;font-weight:700;padding:5px 12px;border-radius:8px;display:inline-block;">Sign In →</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B: Hero + Feature Grid + Cards</h3>
+      <p>Feature showcase between hero and role cards. Shows the 3 pillars with descriptions. Teacher card uses brand blue instead of green. <strong>Content-rich, informative.</strong></p>
+    </div>
+  </div>
+
+  <!-- Option C -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background: linear-gradient(145deg, #0b1535 0%, #162660 100%); padding: 24px; min-height: 340px; position: relative; overflow: hidden;">
+      <div style="position:absolute;top:-40px;left:-40px;width:200px;height:200px;border-radius:50%;background:radial-gradient(circle,rgba(67,97,238,0.15),transparent 70%)"></div>
+      <div style="position:absolute;bottom:-20px;right:-20px;width:160px;height:160px;border-radius:50%;background:radial-gradient(circle,rgba(124,158,255,0.12),transparent 70%)"></div>
+
+      <!-- Nav -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:32px;height:32px;background:linear-gradient(135deg,#4361ee,#7c9eff);border-radius:8px;display:flex;align-items:center;justify-content:center;color:white;font-weight:800;font-size:14px;">P</div>
+          <span style="color:white;font-weight:800;font-size:16px;">PrimePal</span>
+        </div>
+        <span style="color:rgba(255,255,255,0.4);font-size:10px;">Admin</span>
+      </div>
+
+      <!-- Split layout: left hero, right cards -->
+      <div style="display:flex;gap:16px;align-items:center;">
+        <!-- Left: Hero text -->
+        <div style="flex:1.2;">
+          <div style="font-size:10px;color:#7c9eff;font-weight:700;letter-spacing:0.12em;margin-bottom:6px;">AI-POWERED ESL PLATFORM</div>
+          <div style="font-size:22px;font-weight:900;color:white;line-height:1.15;margin-bottom:8px;">Learn English the Fun Way</div>
+          <div style="font-size:9px;color:rgba(255,255,255,0.55);line-height:1.5;margin-bottom:12px;">AI-guided missions in Reading, Writing & Speaking for Pakistani primary students</div>
+          <!-- Stats row -->
+          <div style="display:flex;gap:12px;">
+            <div>
+              <div style="color:white;font-size:16px;font-weight:800;">3</div>
+              <div style="color:rgba(255,255,255,0.4);font-size:8px;">AI Agents</div>
+            </div>
+            <div>
+              <div style="color:white;font-size:16px;font-weight:800;">6</div>
+              <div style="color:rgba(255,255,255,0.4);font-size:8px;">Grade Levels</div>
+            </div>
+            <div>
+              <div style="color:white;font-size:16px;font-weight:800;">3</div>
+              <div style="color:rgba(255,255,255,0.4);font-size:8px;">Skill Pillars</div>
+            </div>
+          </div>
+        </div>
+        <!-- Right: Stacked cards -->
+        <div style="flex:1;display:flex;flex-direction:column;gap:8px;">
+          <div style="background:linear-gradient(135deg,#f59e0b,#ea580c);border-radius:14px;padding:14px;text-align:center;">
+            <div style="font-size:18px;margin-bottom:2px;">🎮</div>
+            <div style="color:white;font-weight:800;font-size:13px;">I'm a Student</div>
+            <div style="color:rgba(255,255,255,0.7);font-size:8px;">Enter class code</div>
+          </div>
+          <div style="background:linear-gradient(135deg,#4361ee,#7c9eff);border-radius:14px;padding:14px;text-align:center;">
+            <div style="font-size:18px;margin-bottom:2px;">📊</div>
+            <div style="color:white;font-weight:800;font-size:13px;">I'm a Teacher</div>
+            <div style="color:rgba(255,255,255,0.7);font-size:8px;">Sign in to dashboard</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C: Split Layout — Hero Left, Cards Right</h3>
+      <p>Two-column feel. Hero text + stats on left, stacked role cards on right. Great for desktop, stacks on mobile. <strong>Modern SaaS style.</strong></p>
+    </div>
+  </div>
+</div>
+
+<div class="section" style="margin-top: 24px;">
+  <h3>Key Changes Across All Options</h3>
+  <ul style="font-size: 14px; color: #94a3b8; line-height: 1.8;">
+    <li><strong>Proper nav bar</strong> with logo + admin link (no more hidden footer link)</li>
+    <li><strong>Feature showcase</strong> — the 3 pillars are explained, not just listed</li>
+    <li><strong>Normal card shapes</strong> — 14-16px radius instead of 100px pills</li>
+    <li><strong>All text is white/light blue</strong> — no black text on dark backgrounds</li>
+    <li><strong>Content fills the space</strong> — tagline, description, features, stats</li>
+    <li><strong>Teacher card uses brand blue</strong> instead of green (matches dashboard)</li>
+  </ul>
+</div>
+</content>
+</invoke>

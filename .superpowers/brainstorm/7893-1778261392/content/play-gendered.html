@@ -1,0 +1,168 @@
+<h2>Gender-themed student rows</h2>
+<p class="subtitle">Each student row uses a pink/lavender palette for girls or blue/cyan palette for boys, based on name inference from common Pakistani names. Hover to compare the feel.</p>
+
+<style>
+  .demo { max-width:440px; margin:16px auto 0; }
+  .demo-card {
+    background:rgba(255,255,255,0.85); backdrop-filter:blur(12px); border:2px solid rgba(167,139,250,0.15);
+    border-radius:28px; padding:28px 22px; box-shadow:0 24px 48px rgba(168,85,247,0.12);
+    position:relative; overflow:hidden;
+  }
+  .demo-card .shimmer { height:5px; background:linear-gradient(90deg,#a78bfa,#ec4899,#06b6d4,#a78bfa); position:absolute; top:0; left:0; right:0; background-size:200% 100%; animation: shimmer 3s linear infinite; }
+  .heading { font-size:24px; font-weight:900; color:#1e293b; text-align:center; margin-bottom:4px; }
+  .subtext { font-size:13px; font-weight:600; color:#64748b; text-align:center; margin-bottom:20px; }
+
+  /* Base row */
+  .s-row {
+    display:flex; align-items:center; gap:14px; padding:16px 18px;
+    border:2px solid transparent; border-radius:22px; margin-bottom:12px;
+    cursor:pointer; transition:all .25s; position:relative; overflow:hidden;
+  }
+
+  /* ── GIRL theme ── */
+  .s-row.girl {
+    background:linear-gradient(135deg, rgba(252,231,243,0.6), rgba(255,255,255,0.8));
+    border-color:#fce7f3;
+  }
+  .s-row.girl:hover {
+    background:linear-gradient(135deg, #fce7f3, #fbcfe8);
+    border-color:#f9a8d4; transform:translateX(6px);
+    box-shadow:0 8px 24px rgba(236,72,153,0.15);
+  }
+  .s-row.girl .av {
+    width:50px; height:50px; border-radius:18px; display:flex; align-items:center; justify-content:center;
+    font-size:24px; box-shadow:0 4px 12px rgba(236,72,153,0.2); transition:all .25s;
+    background:linear-gradient(135deg,#fce7f3,#f9a8d4); border:2px solid #f9a8d4;
+  }
+  .s-row.girl:hover .av { transform:scale(1.08) rotate(-5deg); border-color:#ec4899; }
+  .s-row.girl .name { font-size:18px; font-weight:800; color:#831843; }
+  .s-row.girl .sub { font-size:11px; color:#be185d; font-weight:600; opacity:0.7; }
+  .s-row.girl .arrow { margin-left:auto; color:#f9a8d4; font-size:20px; font-weight:900; transition:all .2s; }
+  .s-row.girl:hover .arrow { color:#ec4899; transform:translateX(6px); }
+  .s-row.girl .accent { position:absolute; right:-20px; top:-20px; width:60px; height:60px; border-radius:50%; background:rgba(236,72,153,0.08); }
+
+  /* ── BOY theme ── */
+  .s-row.boy {
+    background:linear-gradient(135deg, rgba(224,242,254,0.6), rgba(255,255,255,0.8));
+    border-color:#bae6fd;
+  }
+  .s-row.boy:hover {
+    background:linear-gradient(135deg, #e0f2fe, #bae6fd);
+    border-color:#7dd3fc; transform:translateX(6px);
+    box-shadow:0 8px 24px rgba(14,165,233,0.15);
+  }
+  .s-row.boy .av {
+    width:50px; height:50px; border-radius:18px; display:flex; align-items:center; justify-content:center;
+    font-size:24px; box-shadow:0 4px 12px rgba(14,165,233,0.2); transition:all .25s;
+    background:linear-gradient(135deg,#e0f2fe,#7dd3fc); border:2px solid #7dd3fc;
+  }
+  .s-row.boy:hover .av { transform:scale(1.08) rotate(-5deg); border-color:#0ea5e9; }
+  .s-row.boy .name { font-size:18px; font-weight:800; color:#0c4a6e; }
+  .s-row.boy .sub { font-size:11px; color:#0369a1; font-weight:600; opacity:0.7; }
+  .s-row.boy .arrow { margin-left:auto; color:#7dd3fc; font-size:20px; font-weight:900; transition:all .2s; }
+  .s-row.boy:hover .arrow { color:#0ea5e9; transform:translateX(6px); }
+  .s-row.boy .accent { position:absolute; right:-20px; top:-20px; width:60px; height:60px; border-radius:50%; background:rgba(14,165,233,0.08); }
+
+  .legend { display:flex; gap:20px; justify-content:center; margin-top:20px; font-size:13px; font-weight:700; }
+  .legend .dot { width:14px; height:14px; border-radius:6px; display:inline-block; vertical-align:middle; margin-right:6px; }
+  .legend .dot.pink { background:linear-gradient(135deg,#fce7f3,#f9a8d4); }
+  .legend .dot.blue { background:linear-gradient(135deg,#e0f2fe,#7dd3fc); }
+
+  @keyframes shimmer { 0% { background-position:-200% 0; } 100% { background-position:200% 0; } }
+</style>
+
+<div class="demo">
+  <div class="demo-card">
+    <div class="shimmer"></div>
+    <div class="heading">Who are you?</div>
+    <div class="subtext">Tap your name below</div>
+
+    <div class="s-row girl">
+      <span class="accent"></span>
+      <div class="av">👧</div>
+      <div>
+        <div class="name">Fatima Khan</div>
+        <div class="sub">Tap to continue</div>
+      </div>
+      <span class="arrow">→</span>
+    </div>
+
+    <div class="s-row boy">
+      <span class="accent"></span>
+      <div class="av">👦</div>
+      <div>
+        <div class="name">Ahmed Raza</div>
+        <div class="sub">Tap to continue</div>
+      </div>
+      <span class="arrow">→</span>
+    </div>
+
+    <div class="s-row girl">
+      <span class="accent"></span>
+      <div class="av">👧</div>
+      <div>
+        <div class="name">Horain Ali</div>
+        <div class="sub">Tap to continue</div>
+      </div>
+      <span class="arrow">→</span>
+    </div>
+
+    <div class="s-row boy">
+      <span class="accent"></span>
+      <div class="av">👦</div>
+      <div>
+        <div class="name">Saad Malik</div>
+        <div class="sub">Tap to continue</div>
+      </div>
+      <span class="arrow">→</span>
+    </div>
+
+    <div class="s-row girl">
+      <span class="accent"></span>
+      <div class="av">👧</div>
+      <div>
+        <div class="name">Sara Sheikh</div>
+        <div class="sub">Tap to continue</div>
+      </div>
+      <span class="arrow">→</span>
+    </div>
+
+    <div class="s-row boy">
+      <span class="accent"></span>
+      <div class="av">👦</div>
+      <div>
+        <div class="name">Hassan Iqbal</div>
+        <div class="sub">Tap to continue</div>
+      </div>
+      <span class="arrow">→</span>
+    </div>
+  </div>
+
+  <div class="legend">
+    <span><span class="dot pink"></span> Girl names → pink/rose theme + 👧</span>
+    <span><span class="dot blue"></span> Boy names → blue/sky theme + 👦</span>
+  </div>
+</div>
+
+<div class="section" style="margin-top:28px">
+  <h3 style="font-size:16px;margin-bottom:10px">How it works — name-based inference</h3>
+  <p style="font-size:14px; color:#475569; line-height:1.6;">
+    A simple client-side function checks the student's <strong>first name</strong> against a list of ~100 common Pakistani girl/boy names. If no match, falls back to a <strong>neutral violet</strong> theme.<br><br>
+    This is <strong>purely cosmetic</strong> — it only affects the row color + emoji. No gender data is stored or sent to any API.
+  </p>
+
+  <h3 style="font-size:16px;margin:16px 0 8px">What each theme includes:</h3>
+  <table style="border-collapse:collapse; font-size:14px; width:100%;">
+    <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 12px; width:120px; font-weight:800; color:#ec4899;">Girl 🩷</td><td>Row bg: pink-50→pink-100 gradient, border: pink-200, avatar: pink gradient + 👧 emoji, name: pink-900, hover glow: pink</td></tr>
+    <tr style="border-bottom:1px solid #e2e8f0"><td style="padding:8px 12px; font-weight:800; color:#0ea5e9;">Boy 🩵</td><td>Row bg: sky-50→sky-100 gradient, border: sky-200, avatar: sky gradient + 👦 emoji, name: sky-900, hover glow: sky</td></tr>
+    <tr><td style="padding:8px 12px; font-weight:800; color:#7c3aed;">Neutral 💜</td><td>Row bg: violet-50 gradient (current design), border: violet-200, avatar: violet gradient + first initial, name: slate-900</td></tr>
+  </table>
+
+  <h3 style="font-size:16px;margin:16px 0 8px">Example name lists (Pakistani focus):</h3>
+  <p style="font-size:13px; color:#64748b; line-height:1.6;">
+    <strong>Girl:</strong> Fatima, Aisha, Sara, Horain, Maryam, Zara, Hira, Sana, Ayesha, Mahnoor, Laiba, Nimra, Iqra, Amna, Rabia, Nida, Sadia, Bushra, Mehak, Komal, Kinza, Alina, Anaya, Minahil, Dua, Hafsa…<br>
+    <strong>Boy:</strong> Ahmed, Hassan, Ali, Saad, Hamza, Usman, Bilal, Rizwan, Farhan, Asad, Imran, Zain, Shahid, Waqas, Faisal, Adeel, Arsalan, Kamran, Nabeel, Junaid, Omar, Aamir, Rehan, Mohsin, Danish…
+  </p>
+</div>
+
+<p class="subtitle" style="margin-top:14px">Hover the rows above to see the themed interactions. Tell me <strong>"good, implement"</strong> or what to adjust.</p>

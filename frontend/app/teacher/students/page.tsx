@@ -1,0 +1,451 @@
+"use client";
+
+import { useState, Suspense } from "react";
+import Link from "next/link";
+import { GraduationCap, FileText, ChevronRight, AlertCircle, RefreshCw, UserPlus, Pencil, Trash2, Lock } from "lucide-react";
+import { motion } from "framer-motion";
+import { teacherMutate } from "@/lib/api-helpers";
+import { useTeacherRole } from "@/lib/useTeacherRole";
+import FilterBar, { useFilterParams } from "@/components/teacher/FilterBar";
+import { useTeacherStudents, teacherQueryKeys } from "@/lib/hooks/teacher-queries";
+import { useQueryClient } from "@tanstack/react-query";
+import BulkAddStudentsModal from "@/components/teacher/BulkAddStudentsModal";
+import EditStudentModal from "@/components/teacher/EditStudentModal";
+import type { Student } from "@/types";
+
+const GRADE_COLORS: Record<number, string> = {
+  1: "bg-emerald-100 text-emerald-700",
+  2: "bg-sky-100 text-sky-700",
+  3: "bg-violet-100 text-violet-700",
+  4: "bg-amber-100 text-amber-700",
+  5: "bg-rose-100 text-rose-700",
+};
+
+function accuracyColor(pct: number) {
+  if (pct >= 70) return "text-emerald-600";
+  if (pct >= 40) return "text-amber-600";
+  return "text-rose-600";
+}
+
+function StudentsContent() {
+  const queryClient = useQueryClient();
+  const [filterClassroom, setFilterClassroom] = useState("all");
+
+  // Management states
+  const [showBulkAdd, setShowBulkAdd] = useState(false);
+  const [editStudent, setEditStudent] = useState<Student | null>(null);
+  const [pinStudent, setPinStudent] = useState<Student | null>(null);
+  const [pinValue, setPinValue] = useState("");
+  const [pinSaving, setPinSaving] = useState(false);
+  const [pinSaveError, setPinSaveError] = useState<string | null>(null);
+  const [pinSaved, setPinSaved] = useState(false);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState<string | null>(null);
+
+  const { gradeLevel, search } = useFilterParams();
+  const { isAdmin } = useTeacherRole();
+
+  const {
+    data: studentsData,
+    isLoading: loading,
+    error: fetchError,
+    refetch,
+  } = useTeacherStudents();
+
+  // Client-side filtering for instant filter changes
+  const allStudents = studentsData?.students ?? [];
+  const students = allStudents.filter(s => {
+    // Grade filter
+    if (gradeLevel && s.grade_level !== gradeLevel) return false;
+
+    // Pillar filter - we don't have pillar-specific data per student in this view
+    // So pillar filter is ignored here (it's more relevant for analytics)
+
+    // Search filter
+    if (search) {
+      const searchLower = search.toLowerCase();
+      const matchName = s.student_name.toLowerCase().includes(searchLower);
+      const matchRoll = s.roll_number?.toLowerCase().includes(searchLower);
+      if (!matchName && !matchRoll) return false;
+    }
+
+    return true;
+  });
+
+  const error = fetchError instanceof Error ? fetchError.message : null;
+
+  async function savePin(studentId: string, pin: string) {
+    setPinSaving(true);
+    setPinSaveError(null);
+    try {
+      await teacherMutate(
+        `/classroom/${filterClassroom}/students/${studentId}`,
+        { secret_pin: pin },
+        "PATCH"
+      );
+      setPinSaved(true);
+      setTimeout(() => {
+        setPinStudent(null);
+        setPinSaved(false);
+      }, 1500);
+    } catch (err) {
+      setPinSaveError(err instanceof Error ? err.message : "Failed to save PIN");
+    } finally {
+      setPinSaving(false);
+    }
+  }
+
+  async function removeStudent(studentId: string) {
+    if (!confirm("Remove this student from the roster?")) return;
+    setDeleting(studentId);
+    setRemoveError(null);
+    try {
+      await teacherMutate(
+        `/classroom/${filterClassroom}/students/${studentId}`,
+        {},
+        "DELETE"
+      );
+      queryClient.invalidateQueries({ queryKey: teacherQueryKeys.students("") });
+      setDeleting(null);
+    } catch (err) {
+      setRemoveError(err instanceof Error ? err.message : "Failed to remove student");
+      setDeleting(null);
+    }
+  }
+
+  // Unique classrooms for classroom filter dropdown
+  const classrooms = Array.from(new Map(students.map(s => [s.classroom_id, s.classroom_name])).entries());
+
+  const filtered = students.filter(s => {
+    const matchClassroom = filterClassroom === "all" || s.classroom_id === filterClassroom;
+    return matchClassroom;
+  });
+
+  return (
+    <div className="bg-gray-50 min-h-full">
+      <main className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
+
+        {/* Header */}
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+              <GraduationCap className="w-6 h-6 text-indigo-600" />
+              Student Directory
+            </h1>
+            <p className="text-gray-500 text-sm mt-1">
+              {loading ? "Loading..." : error ? "Failed to load" : `${allStudents.length} students across all classrooms${students.length !== allStudents.length ? ` (${students.length} shown)` : ""}`}
+            </p>
+          </div>
+          {error && (
+            <button
+              onClick={() => refetch()}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-white border border-gray-200 rounded-xl hover:bg-gray-50 text-gray-700"
+            >
+              <RefreshCw size={14} /> Retry
+            </button>
+          )}
+        </div>
+
+        {/* Error banner */}
+        {error && (
+          <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-6 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-rose-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-semibold text-rose-700">Failed to load students</p>
+              <p className="text-xs text-rose-600 mt-0.5">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {/* FilterBar (grade, pillar, search via URL params) */}
+        <div className="mb-6">
+          <FilterBar searchPlaceholder="Search by name or roll number..." />
+        </div>
+
+        {/* Classroom filter + actions */}
+        <div className="bg-white rounded-2xl border border-gray-200 p-4 mb-6">
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+            <select
+              value={filterClassroom}
+              onChange={e => {
+                setFilterClassroom(e.target.value);
+              }}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-400 bg-white"
+            >
+              <option value="all">All Classrooms</option>
+              {classrooms.map(([id, name]) => (
+                <option key={id} value={id}>{name}</option>
+              ))}
+            </select>
+
+            {/* Action buttons - only visible when classroom selected and user is admin */}
+            {filterClassroom !== "all" && isAdmin && (
+              <button
+                onClick={() => {
+                  setShowBulkAdd(true);
+                }}
+                className="flex items-center gap-2 text-sm font-medium text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-2 rounded-lg transition-colors"
+              >
+                <UserPlus size={16} /> Add Students
+              </button>
+            )}
+          </div>
+
+          {/* Error banner */}
+          {removeError && (
+            <div className="mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">
+              {removeError}
+            </div>
+          )}
+        </div>
+
+        {/* Table */}
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+          {loading ? (
+            <div className="divide-y divide-gray-100">
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className="flex items-center gap-4 px-6 py-4 animate-pulse">
+                  <div className="w-9 h-9 rounded-full bg-gray-200 shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-gray-200 rounded w-40" />
+                    <div className="h-3 bg-gray-100 rounded w-24" />
+                  </div>
+                  <div className="h-4 bg-gray-200 rounded w-16" />
+                  <div className="h-4 bg-gray-200 rounded w-20" />
+                  <div className="h-4 bg-gray-200 rounded w-12" />
+                </div>
+              ))}
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="text-center py-16">
+              <GraduationCap className="w-8 h-8 text-gray-300 mx-auto mb-3" />
+              <p className="text-gray-500 font-medium">No students found</p>
+              <p className="text-xs text-gray-400 mt-1">Try adjusting your search or filters</p>
+            </div>
+          ) : (
+            <>
+              {/* Table header */}
+              <div className="hidden sm:grid grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 px-6 py-3 bg-gray-50 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                <span>Student</span>
+                <span>Classroom</span>
+                <span className="text-center">Points</span>
+                <span className="text-center">Accuracy</span>
+                <span className="text-center">Status</span>
+                <span />
+              </div>
+
+              <div className="divide-y divide-gray-100">
+                {filtered.map(s => (
+                  <motion.div
+                    key={s.student_id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className={`grid grid-cols-1 sm:grid-cols-[2fr_1fr_1fr_1fr_1fr_auto] gap-4 items-center px-6 py-4 hover:bg-gray-50 transition-colors ${
+                      filterClassroom !== "all" ? "sm:grid-cols-[2fr_1fr_1fr_1fr_auto]" : ""
+                    }`}
+                  >
+                    {/* Name + roll */}
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm shrink-0">
+                        {s.student_name[0]}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-base">{s.student_name}</p>
+                        <p className="text-xs text-gray-400">{s.roll_number ? `#${s.roll_number}` : "No roll no."}</p>
+                      </div>
+                    </div>
+
+                    {/* Classroom - hide if classroom filter is active */}
+                    {filterClassroom === "all" && (
+                      <div>
+                        <span className={`inline-block text-xs font-bold px-2 py-0.5 rounded-full ${GRADE_COLORS[s.grade_level] ?? "bg-gray-100 text-gray-600"}`}>
+                          Gr {s.grade_level}
+                        </span>
+                        <p className="text-xs text-gray-500 mt-0.5 truncate">{s.classroom_name}</p>
+                      </div>
+                    )}
+
+                    {/* Points */}
+                    <div className="text-center">
+                      <p className="font-bold text-gray-900 text-base">{s.total_points}</p>
+                      <p className="text-xs text-gray-400">{s.total_interactions} q&apos;s</p>
+                    </div>
+
+                    {/* Accuracy */}
+                    <div className="text-center">
+                      <p className={`font-bold text-base ${accuracyColor(s.mission_accuracy_pct)}`}>
+                        {s.total_interactions === 0 ? "—" : `${s.mission_accuracy_pct}%`}
+                      </p>
+                      <p className="text-xs text-gray-400">accuracy</p>
+                    </div>
+
+                    {/* Active badge - hide if classroom filter is active */}
+                    {filterClassroom === "all" && (
+                      <div className="flex justify-center">
+                        {s.active_this_week ? (
+                          <span className="text-xs bg-emerald-100 text-emerald-700 font-semibold px-2 py-0.5 rounded-full">Active</span>
+                        ) : (
+                          <span className="text-xs bg-gray-100 text-gray-500 font-semibold px-2 py-0.5 rounded-full">Inactive</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Actions */}
+                    <div className={`flex items-center gap-2 shrink-0 ${filterClassroom !== "all" ? "justify-end" : ""}`}>
+                      {filterClassroom !== "all" && isAdmin ? (
+                        <>
+                          <button
+                            onClick={() => setEditStudent({ id: s.student_id, student_name: s.student_name, avatar_url: s.avatar_url || "", roll_number: s.roll_number, email: null, secret_pin: "" })}
+                            className="p-1.5 rounded text-gray-300 hover:text-indigo-500 transition-colors shrink-0"
+                            title={`Edit ${s.student_name}`}
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            onClick={() => {
+                              setPinStudent({ id: s.student_id, student_name: s.student_name, avatar_url: s.avatar_url || "", roll_number: s.roll_number, email: null, secret_pin: "" });
+                              setPinValue("1234");
+                              setPinSaveError(null);
+                              setPinSaved(false);
+                            }}
+                            className="p-1.5 rounded text-gray-300 hover:text-indigo-500 transition-colors shrink-0"
+                            title={`Manage PIN for ${s.student_name}`}
+                          >
+                            <Lock size={15} />
+                          </button>
+                          <button
+                            onClick={() => removeStudent(s.student_id)}
+                            disabled={deleting === s.student_id}
+                            className="p-1.5 rounded text-gray-300 hover:text-red-500 transition-colors shrink-0 disabled:opacity-50"
+                            title={`Remove ${s.student_name}`}
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </>
+                      ) : (
+                        <Link
+                          href={`/teacher/students/${s.student_id}/report?classroomId=${s.classroom_id}`}
+                          className="flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                        >
+                          <FileText size={13} />
+                          Report
+                          <ChevronRight size={12} />
+                        </Link>
+                      )}
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
+        {/* Modals */}
+        {filterClassroom !== "all" && showBulkAdd && (
+          <BulkAddStudentsModal
+            classroomId={filterClassroom}
+            onClose={() => setShowBulkAdd(false)}
+            onAdded={() => {
+              setShowBulkAdd(false);
+              refetch();
+            }}
+          />
+        )}
+
+        {editStudent && filterClassroom !== "all" && (
+          <EditStudentModal
+            student={editStudent}
+            classroomId={filterClassroom}
+            onClose={() => setEditStudent(null)}
+            onSaved={() => {
+              setEditStudent(null);
+              refetch();
+            }}
+          />
+        )}
+
+        {/* PIN Management Modal */}
+        {pinStudent && filterClassroom !== "all" && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+              <h3 className="text-base font-semibold text-gray-900 mb-1">
+                Secret PIN — {pinStudent.student_name}
+              </h3>
+              <p className="text-sm text-gray-500 mb-5">
+                Share this PIN with the student so they can log in.
+              </p>
+
+              <label className="text-xs font-medium text-gray-600 uppercase tracking-wide mb-1 block">
+                PIN (4 digits)
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={4}
+                value={pinValue}
+                onChange={(e) => {
+                  setPinValue(e.target.value.replace(/\D/g, "").slice(0, 4));
+                  setPinSaveError(null);
+                  setPinSaved(false);
+                }}
+                className="w-full text-center text-3xl font-black tracking-[0.4em] border-2 border-gray-200
+                           rounded-xl px-4 py-3 mb-4 focus:outline-none focus:border-indigo-500
+                           focus:ring-2 focus:ring-indigo-100 transition-all"
+              />
+
+              {pinSaveError && (
+                <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2 mb-3">
+                  {pinSaveError}
+                </p>
+              )}
+
+              {pinSaved && (
+                <p className="text-sm text-green-600 bg-green-50 rounded-lg px-3 py-2 mb-3">
+                  PIN saved!
+                </p>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setPinStudent(null)}
+                  className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => savePin(pinStudent.id, pinValue)}
+                  disabled={pinSaving || pinValue.length !== 4}
+                  className="flex-1 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-xl
+                             hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                >
+                  {pinSaving ? "Saving..." : "Save PIN"}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
+
+export default function StudentsPage() {
+  return (
+    <Suspense fallback={
+      <div className="bg-gray-50 min-h-full">
+        <main className="max-w-6xl mx-auto px-4 lg:px-6 py-6 lg:py-8">
+          <div className="mb-6">
+            <h1 className="text-3xl font-bold text-gray-900 flex items-center gap-2">
+              <GraduationCap className="w-6 h-6 text-indigo-600" />
+              Student Directory
+            </h1>
+            <p className="text-gray-500 text-sm mt-1">Loading...</p>
+          </div>
+        </main>
+      </div>
+    }>
+      <StudentsContent />
+    </Suspense>
+  );
+}
