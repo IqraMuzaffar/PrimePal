@@ -207,7 +207,7 @@ export default function MissionsPage() {
                             </div>
 
                             <div className="flex items-center gap-1.5">
-                              <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div className="w-16 sm:w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
                                 <div
                                   className={`h-full transition-all ${
                                     student.mission_accuracy_pct >= 80

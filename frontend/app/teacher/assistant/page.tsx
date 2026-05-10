@@ -189,7 +189,7 @@ export default function TeacherAssistantPage() {
                   key={g}
                   onClick={() => setSelectedGrade(g)}
                   className={[
-                    'w-12 h-12 rounded-xl text-sm font-semibold transition-all',
+                    'w-11 h-11 sm:w-12 sm:h-12 rounded-xl text-sm font-semibold transition-all',
                     selectedGrade === g
                       ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200'
                       : 'bg-gray-100 text-gray-600 hover:bg-gray-200',

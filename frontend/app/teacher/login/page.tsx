@@ -44,13 +44,13 @@ export default function TeacherLoginPage() {
       }}
     >
       {/* Decorative blobs */}
-      <div style={{
+      <div className="hidden sm:block" style={{
         position: 'fixed', top: -160, right: -160, width: 500, height: 500,
         borderRadius: '50%',
         background: 'radial-gradient(circle, rgba(67,97,238,0.20) 0%, transparent 70%)',
         pointerEvents: 'none',
       }} />
-      <div style={{
+      <div className="hidden sm:block" style={{
         position: 'fixed', bottom: -120, left: -120, width: 420, height: 420,
         borderRadius: '50%',
         background: 'radial-gradient(circle, rgba(124,158,255,0.14) 0%, transparent 70%)',
@@ -61,10 +61,10 @@ export default function TeacherLoginPage() {
       <div
         className="w-full relative z-10"
         style={{
-          maxWidth: 520,
+          maxWidth: '90vw', width: 520,
           backgroundColor: '#ffffff',
           borderRadius: 24,
-          padding: '52px 52px 44px',
+          padding: 'clamp(24px, 5vw, 52px) clamp(24px, 5vw, 52px) clamp(24px, 4vw, 44px)',
           boxShadow: '0 32px 80px rgba(0,0,0,0.35), 0 8px 24px rgba(0,0,0,0.2)',
         }}
       >

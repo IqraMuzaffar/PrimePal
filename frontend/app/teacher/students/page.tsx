@@ -200,7 +200,7 @@ function StudentsContent() {
         </div>
 
         {/* Table */}
-        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden">
+        <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden overflow-x-auto">
           {loading ? (
             <div className="divide-y divide-gray-100">
               {[1, 2, 3, 4, 5].map(i => (

@@ -41,7 +41,7 @@ export default function PassageTrueFalse({ question, onAnswer, showFeedback, dis
             whileTap={!disabled ? { scale: 0.95 } : {}}
             onClick={() => handleTap(value)}
             disabled={disabled}
-            className={`flex-1 max-w-[150px] py-4 rounded-xl border-2 font-bold text-lg transition-all ${getButtonClass(value)} disabled:cursor-not-allowed`}
+            className={`flex-1 sm:max-w-[150px] py-4 rounded-xl border-2 font-bold text-lg transition-all ${getButtonClass(value)} disabled:cursor-not-allowed`}
           >
             <div className="flex items-center justify-center gap-2">
               {value === 'true' ? <Check size={20} /> : <X size={20} />}

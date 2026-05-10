@@ -68,7 +68,7 @@ export default function PillarCard({ pillar, done = 0, completed = false }: Pill
 
         {/* Info */}
         <div>
-          <h3 className="font-baloo font-extrabold text-2xl text-emerald-800 leading-none">
+          <h3 className="font-baloo font-extrabold text-xl sm:text-2xl text-emerald-800 leading-none">
             {pillarName}
           </h3>
           <p className="font-nunito font-bold text-sm text-emerald-600 mt-1">
@@ -112,7 +112,7 @@ export default function PillarCard({ pillar, done = 0, completed = false }: Pill
 
         {/* Info */}
         <div>
-          <h3 className="font-baloo font-extrabold text-2xl text-white drop-shadow-sm leading-none">
+          <h3 className="font-baloo font-extrabold text-xl sm:text-2xl text-white drop-shadow-sm leading-none">
             {pillarName}
           </h3>
           <p className="font-nunito font-semibold text-xs sm:text-sm text-white/75 mt-1">{config.tip}</p>

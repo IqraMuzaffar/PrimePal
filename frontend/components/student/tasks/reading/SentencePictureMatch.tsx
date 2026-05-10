@@ -19,7 +19,7 @@ export default function SentencePictureMatch({ question, onAnswer, showFeedback,
   return (
     <div>
       <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 leading-tight">{question.question}</h2>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {options.map((opt) => (
           <EmojiCard
             key={opt.id}

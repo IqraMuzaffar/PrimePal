@@ -120,17 +120,17 @@ function MissionSummary({ results, questions, onContinue }: {
         </p>
 
         <div className="flex gap-4 justify-center mb-6 flex-wrap">
-          <div className="bg-white rounded-[20px] p-4 border-2 border-amber-300 shadow-sm text-center min-w-[90px]">
+          <div className="bg-white rounded-[20px] p-4 border-2 border-amber-300 shadow-sm text-center min-w-0">
             <span className="text-3xl block mb-1">⭐</span>
             <div className="font-baloo font-extrabold text-2xl text-amber-950">+{totalScore}</div>
             <div className="font-nunito font-semibold text-xs text-amber-700">Stars earned</div>
           </div>
-          <div className="bg-white rounded-[20px] p-4 border-2 border-emerald-300 shadow-sm text-center min-w-[90px]">
+          <div className="bg-white rounded-[20px] p-4 border-2 border-emerald-300 shadow-sm text-center min-w-0">
             <span className="text-3xl block mb-1">✅</span>
             <div className="font-baloo font-extrabold text-2xl text-emerald-800">{correctCount}/{results.length}</div>
             <div className="font-nunito font-semibold text-xs text-emerald-600">Correct</div>
           </div>
-          <div className="bg-white rounded-[20px] p-4 border-2 border-rose-300 shadow-sm text-center min-w-[90px]">
+          <div className="bg-white rounded-[20px] p-4 border-2 border-rose-300 shadow-sm text-center min-w-0">
             <span className="text-3xl block mb-1">🎯</span>
             <div className="font-baloo font-extrabold text-2xl text-rose-800">{pct}%</div>
             <div className="font-nunito font-semibold text-xs text-rose-600">Accuracy</div>

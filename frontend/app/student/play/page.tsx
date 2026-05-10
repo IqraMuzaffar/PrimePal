@@ -36,9 +36,9 @@ function BgDecor() {
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
       {/* Large vivid glow blobs */}
-      <div className="absolute -top-24 -left-24 w-[32rem] h-[32rem] rounded-full blur-[100px] animate-pulseSoft"
+      <div className="hidden sm:block absolute -top-24 -left-24 w-[32rem] h-[32rem] rounded-full blur-[100px] animate-pulseSoft"
         style={{ background: "radial-gradient(circle, rgba(236,72,153,0.25) 0%, transparent 70%)" }} />
-      <div className="absolute -bottom-16 -right-16 w-[28rem] h-[28rem] rounded-full blur-[100px] animate-pulseSoftReverse"
+      <div className="hidden sm:block absolute -bottom-16 -right-16 w-[28rem] h-[28rem] rounded-full blur-[100px] animate-pulseSoftReverse"
         style={{ background: "radial-gradient(circle, rgba(96,165,250,0.25) 0%, transparent 70%)" }} />
       <div className="absolute top-[35%] left-[50%] -translate-x-1/2 w-[24rem] h-[24rem] rounded-full blur-[80px] animate-pulseSoft"
         style={{ background: "radial-gradient(circle, rgba(167,139,250,0.2) 0%, transparent 70%)", animationDelay: "2s" }} />

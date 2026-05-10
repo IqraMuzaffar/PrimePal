@@ -137,7 +137,7 @@ export default function HomePage() {
             Complete {dailyGoal} activities to keep your streak alive!
           </p>
         </div>
-        <div className="hidden sm:block w-48 lg:w-60 h-3.5 rounded-full bg-amber-100 overflow-hidden">
+        <div className="w-32 sm:w-48 lg:w-60 h-3 sm:h-3.5 rounded-full bg-amber-100 overflow-hidden">
           <div
             className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-400 to-pink-400 animate-shimmer"
             style={{ width: `${progressPct}%`, backgroundSize: "200% 100%" }}

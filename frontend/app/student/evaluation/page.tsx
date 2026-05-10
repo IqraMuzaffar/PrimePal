@@ -296,7 +296,7 @@ export default function EvaluationPage() {
         )}
 
         {/* Options */}
-        <div className={`mt-4 ${isLikert ? "flex justify-center gap-6" : "space-y-3"}`}>
+        <div className={`mt-4 ${isLikert ? "flex justify-center gap-2 sm:gap-6" : "space-y-3"}`}>
           {options.map((opt) => {
             const isSelected = selectedAnswer?.student_answer === opt.value;
 
@@ -312,7 +312,7 @@ export default function EvaluationPage() {
                         : undefined
                     )
                   }
-                  className={`flex flex-col items-center gap-1.5 p-4 rounded-2xl border-2 transition-all duration-150 min-w-[90px] ${
+                  className={`flex flex-col items-center gap-1.5 p-4 rounded-2xl border-2 transition-all duration-150 min-w-0 flex-1 ${
                     isSelected
                       ? "border-violet-500 bg-violet-50 shadow-md scale-105"
                       : "border-slate-200 bg-white hover:border-violet-300 hover:bg-violet-50 active:translate-y-1"

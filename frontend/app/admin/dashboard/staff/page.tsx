@@ -147,9 +147,9 @@ export default function StaffDirectoryPage() {
             <table className="w-full text-sm text-gray-300">
               <thead className="bg-slate-700 border-b border-slate-600">
                 <tr>
-                  <th className="px-6 py-3 text-left font-semibold">Name</th>
-                  <th className="px-6 py-3 text-left font-semibold">Email</th>
-                  <th className="px-6 py-3 text-left font-semibold">Role</th>
+                  <th className="px-3 sm:px-6 py-3 text-left font-semibold">Name</th>
+                  <th className="px-3 sm:px-6 py-3 text-left font-semibold">Email</th>
+                  <th className="px-3 sm:px-6 py-3 text-left font-semibold">Role</th>
                   <th className="px-6 py-3 text-center font-semibold">
                     Actions
                   </th>
@@ -161,11 +161,11 @@ export default function StaffDirectoryPage() {
                     key={teacher.id}
                     className="hover:bg-slate-700 transition"
                   >
-                    <td className="px-6 py-4 font-medium">
+                    <td className="px-3 sm:px-6 py-4 font-medium">
                       {teacher.full_name}
                     </td>
-                    <td className="px-6 py-4">{teacher.email}</td>
-                    <td className="px-6 py-4">
+                    <td className="px-3 sm:px-6 py-4">{teacher.email}</td>
+                    <td className="px-3 sm:px-6 py-4">
                       <span
                         className={`px-3 py-1 rounded text-xs font-semibold ${
                           teacher.role === "admin"
