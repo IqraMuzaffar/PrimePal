@@ -487,7 +487,39 @@ CREATE INDEX IF NOT EXISTS idx_classrooms_teacher
   ON classrooms(teacher_id);
 
 
--- ─── 12. ELEVATE EXISTING TEACHER TO ADMIN ─────────────────────────────────
+-- ─── 12. RPC FUNCTIONS (from backend/001, 002, 003) ───────────────────────
+
+-- Atomic points increment (used by /complete, /story-time/answer, /submit-batch)
+CREATE OR REPLACE FUNCTION increment_student_points(
+  p_student_id uuid,
+  p_points int
+)
+RETURNS json
+LANGUAGE sql
+AS $$
+  UPDATE students
+  SET points = points + p_points
+  WHERE id = p_student_id
+  RETURNING json_build_object('new_points', points);
+$$;
+
+-- Achievement stats per pillar (used by /achievements/me and /achievements/check)
+CREATE OR REPLACE FUNCTION get_student_achievement_stats(p_student_id uuid)
+RETURNS json
+LANGUAGE sql
+AS $$
+  SELECT json_build_object(
+    'reading_correct',   COALESCE(SUM(CASE WHEN pillar = 'reading'   AND correct = true THEN 1 ELSE 0 END), 0),
+    'writing_correct',   COALESCE(SUM(CASE WHEN pillar = 'writing'   AND correct = true THEN 1 ELSE 0 END), 0),
+    'listening_correct', COALESCE(SUM(CASE WHEN pillar = 'listening' AND correct = true THEN 1 ELSE 0 END), 0),
+    'speaking_correct',  COALESCE(SUM(CASE WHEN pillar = 'speaking'  AND correct = true THEN 1 ELSE 0 END), 0)
+  )
+  FROM student_interactions
+  WHERE student_id = p_student_id;
+$$;
+
+
+-- ─── 13. ELEVATE EXISTING TEACHER TO ADMIN ─────────────────────────────────
 -- Uncomment ONE of these lines to bootstrap your first admin:
 
 -- UPDATE teachers SET role = 'admin' WHERE email = 'iqramuzaffar2002@gmail.com';

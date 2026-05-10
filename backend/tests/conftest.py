@@ -7,8 +7,10 @@ import os
 
 os.environ.setdefault("STUDENT_JWT_SECRET", "test-student-secret-key-for-pytest")
 os.environ.setdefault("SUPABASE_URL", "https://test-project.supabase.co")
-os.environ.setdefault("SUPABASE_ANON_KEY", "test-anon-key")
-os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
+# Supabase client validates keys as JWT format — use proper JWT-shaped test keys
+_TEST_JWT = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRlc3QiLCJyb2xlIjoiYW5vbiIsImlhdCI6MTYwMDAwMDAwMCwiZXhwIjo5OTk5OTk5OTk5fQ.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE"
+os.environ.setdefault("SUPABASE_ANON_KEY", _TEST_JWT)
+os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", _TEST_JWT)
 os.environ.setdefault("DATABASE_URL", "postgresql+asyncpg://user:pass@localhost:5432/test")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
@@ -29,6 +31,7 @@ if "OPENAI_API_KEY" not in os.environ:
         os.environ.setdefault("OPENAI_API_KEY", "test-openai-key")
 
 import pytest
+from unittest.mock import MagicMock, patch
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
@@ -47,4 +50,16 @@ async def client():
 def auth_headers():
     """Authorization headers for tests."""
     return {"Authorization": "Bearer test-token"}
+
+
+@pytest.fixture(autouse=True)
+def _clear_supabase_lru_cache():
+    """Clear lru_cache on supabase client factories between tests.
+    Prevents one test's real/mock client from leaking into another."""
+    from app.core.supabase_client import get_supabase, get_supabase_admin
+    get_supabase.cache_clear()
+    get_supabase_admin.cache_clear()
+    yield
+    get_supabase.cache_clear()
+    get_supabase_admin.cache_clear()
 

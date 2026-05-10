@@ -123,6 +123,8 @@ class CompleteResponse(BaseModel):
     points_awarded: int
     new_total: int
     current_streak: int = 0
+    pillar_completed: bool = False  # True when student reaches 10/10 for this pillar today
+    pillar_done_count: int = 0     # How many questions completed for this pillar today
 
 
 class StudentProfileResponse(BaseModel):
@@ -458,6 +460,33 @@ async def complete_mission(
     # Update daily streak (any completed mission counts as activity)
     streak_data = await update_streak(student_id)
 
+    # ------------------------------------------------------------------
+    # Pillar completion check: count today's interactions for this pillar
+    # (includes the one being logged — add 1 since log_interaction is async)
+    # ------------------------------------------------------------------
+    pillar_completed = False
+    pillar_done_count = 0
+    DAILY_LIMIT = 10
+    if body.pillar:
+        try:
+            today_start = datetime.now(timezone.utc).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ).isoformat()
+            pillar_count_resp = await asyncio.to_thread(
+                lambda: supabase.table("student_interactions")
+                .select("id", count="exact")
+                .eq("student_id", student_id)
+                .eq("pillar", body.pillar)
+                .like("interaction_type", "mission_%")
+                .gte("created_at", today_start)
+                .execute()
+            )
+            # +1 for the current interaction being logged in background
+            pillar_done_count = min((pillar_count_resp.count or 0) + 1, DAILY_LIMIT)
+            pillar_completed = pillar_done_count >= DAILY_LIMIT
+        except Exception as exc:
+            logger.warning("Could not check pillar completion: %s", exc)
+
     # Always invalidate profile + daily pillar status (must update immediately)
     background_tasks.add_task(invalidate_profile_cache, student_id)
     background_tasks.add_task(
@@ -477,6 +506,8 @@ async def complete_mission(
         points_awarded=points_awarded,
         new_total=new_total,
         current_streak=streak_data.get("current_streak", 0),
+        pillar_completed=pillar_completed,
+        pillar_done_count=pillar_done_count,
     )
 
 
@@ -492,6 +523,8 @@ class BatchSubmitResponse(BaseModel):
     processed: int
     skipped: int
     new_total: int
+    pillar_completed: bool = False  # True when pillar reaches 10/10 today
+    pillar_done_count: int = 0     # How many questions done for this pillar today
 
 
 @router.post("/submit-batch", response_model=BatchSubmitResponse, summary="Batch-submit queued answers")
@@ -632,18 +665,54 @@ async def submit_batch(
         # Update daily streak after batch processing
         await update_streak(student_id)
 
-        # Always invalidate profile cache (points changed), debounce the rest
+        # Always invalidate profile + daily pillar status cache
         background_tasks.add_task(invalidate_profile_cache, student_id)
+        background_tasks.add_task(
+            cache_delete, make_cache_key("daily_pillar_status", student_id)
+        )
         background_tasks.add_task(
             debounced_invalidate,
             student_id,
             [invalidate_performance_cache, invalidate_rewards_cache, invalidate_scores_cache],
         )
 
+    # Check pillar completion after batch processing
+    pillar_completed = False
+    pillar_done_count = 0
+    DAILY_LIMIT = 10
+    # Determine pillar from the batch (all answers in a batch are same pillar)
+    batch_pillar = None
+    for answer in body.answers:
+        if answer.pillar:
+            batch_pillar = answer.pillar
+            break
+
+    if batch_pillar and processed > 0:
+        try:
+            today_start = datetime.now(timezone.utc).replace(
+                hour=0, minute=0, second=0, microsecond=0
+            ).isoformat()
+            pillar_count_resp = await asyncio.to_thread(
+                lambda: supabase.table("student_interactions")
+                .select("id", count="exact")
+                .eq("student_id", student_id)
+                .eq("pillar", batch_pillar)
+                .like("interaction_type", "mission_%")
+                .gte("created_at", today_start)
+                .execute()
+            )
+            # +processed for the interactions being logged in background
+            pillar_done_count = min((pillar_count_resp.count or 0) + processed, DAILY_LIMIT)
+            pillar_completed = pillar_done_count >= DAILY_LIMIT
+        except Exception as exc:
+            logger.warning("Could not check pillar completion in batch: %s", exc)
+
     return BatchSubmitResponse(
         processed=processed,
         skipped=skipped,
         new_total=final_total,
+        pillar_completed=pillar_completed,
+        pillar_done_count=pillar_done_count,
     )
 
 
@@ -1051,10 +1120,12 @@ async def get_pillar_missions(
         bank_questions = []
 
     # How many does LLM need to generate? (10 - bank_count)
-    llm_needed = PILLAR_QUESTIONS_COUNT - len(bank_questions)
+    # Over-generate by 30% to compensate for validation/topic-alignment losses
+    llm_needed_raw = PILLAR_QUESTIONS_COUNT - len(bank_questions)
+    llm_needed = min(llm_needed_raw + max(3, llm_needed_raw // 3), 15)  # Request extra, cap at 15
     logger.info(
-        "Bank provided %d questions for %s. LLM will generate %d.",
-        len(bank_questions), pillar, llm_needed,
+        "Bank provided %d questions for %s. LLM will generate %d (target %d + buffer).",
+        len(bank_questions), pillar, llm_needed, llm_needed_raw,
     )
 
     # ------------------------------------------------------------------
@@ -1134,8 +1205,17 @@ async def get_pillar_missions(
                 fallback_questions, active_topic_names, pillar
             )
 
+        # Append fallback questions directly (don't re-merge with distribution
+        # filtering — we just need to fill the remaining slots)
         if fallback_questions:
-            merged = merge_bank_and_llm(merged, fallback_questions, pillar, PILLAR_QUESTIONS_COUNT)
+            for fq in fallback_questions:
+                if len(merged) >= PILLAR_QUESTIONS_COUNT:
+                    break
+                if isinstance(fq, dict) and fq.get("question"):
+                    fq["pillar"] = pillar
+                    fq["points_value"] = 10
+                    fq.setdefault("difficulty", "medium")
+                    merged.append(fq)
 
     # If we have 0 questions after all attempts, try one last emergency LLM call
     if len(merged) == 0:
@@ -1186,7 +1266,16 @@ async def get_pillar_missions(
                 count=deficit,
             )
             if topup:
-                merged = merge_bank_and_llm(merged, topup, pillar, PILLAR_QUESTIONS_COUNT)
+                # Append top-up questions directly — don't re-merge with
+                # distribution filtering which would drop valid questions
+                for tq in topup:
+                    if len(merged) >= PILLAR_QUESTIONS_COUNT:
+                        break
+                    if isinstance(tq, dict) and tq.get("question"):
+                        tq["pillar"] = pillar
+                        tq["points_value"] = 10
+                        tq.setdefault("difficulty", "medium")
+                        merged.append(tq)
                 logger.info("LLM top-up brought total to %d for %s", len(merged), pillar)
         except Exception as exc:
             logger.error("LLM top-up failed for %s: %s", pillar, exc)

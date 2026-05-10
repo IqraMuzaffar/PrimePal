@@ -700,7 +700,14 @@ You are an ESL mission designer for Pakistani primary school Grade {grade_level}
 ⚠️ MANDATORY: You MUST generate EXACTLY {target} questions for the {pillar} pillar.
 ⚠️ VERIFICATION: Before responding, count your questions to ensure you have EXACTLY {target}.
 
-Use ONLY vocabulary appropriate for Grade {grade_level}.
+Use ONLY vocabulary and sentence complexity appropriate for Grade {grade_level}.
+
+📚 GRADE-LEVEL COMPLEXITY REQUIREMENTS (MANDATORY — match difficulty to grade):
+
+{"Grade 1-2: Use single words and 3-4 word sentences. Concrete nouns only (cat, ball, tree). Present tense only. Example: 'The cat sits.' Word banks should have 3-4 simple words." if grade_level <= 2 else "Grade 3-4: Use 5-7 word sentences with adjectives and adverbs. Simple past and present tense. Compound sentences with 'and/but'. Example: 'The big brown dog ran quickly to the park.' Word banks should have 4-6 words." if grade_level <= 4 else "Grade 5: Use 8-12 word complex sentences. Past, present, future tenses. Subordinate clauses, relative pronouns. Vocabulary: abstract nouns (courage, knowledge), phrasal verbs (look after, give up). Example: 'Although it was raining heavily, the children who had umbrellas walked to school.' Word banks should have 5-8 words including conjunctions and prepositions."}
+
+⚠️ DO NOT use Grade 1-2 level sentences (like 'He is writing a story') for Grade {grade_level} students.
+⚠️ Questions MUST challenge Grade {grade_level} students — not be trivially easy.
 
 CRITICAL TOPIC CONSTRAINT — MANDATORY COMPLIANCE:
 Active Topics: {topic_text}
@@ -779,12 +786,13 @@ RULES:
    ❌ BAD:  "What is your favorite color?"
            → REJECTED: Opinion, not knowledge
 
-6. AGE-APPROPRIATE VOCABULARY & CONCEPTS:
-   Grade 1-2: Simple concrete nouns (cat, dog, ball), basic verbs (run, eat, sleep)
-   Grade 3-4: Common adjectives (big, small, happy), simple past tense
-   Grade 5-6: More complex sentences, basic idioms, story comprehension
-   ❌ BAD for Grade 1-2: "Identify the subordinate clause"
-           → REJECTED: Too advanced
+6. AGE-APPROPRIATE VOCABULARY & CONCEPTS (CRITICAL):
+   Grade 1-2: Simple concrete nouns (cat, dog, ball), basic verbs (run, eat, sleep), 3-4 word sentences
+   Grade 3-4: Adjectives, adverbs, simple past tense, 5-7 word sentences, compound sentences
+   Grade 5: Complex sentences (8-12 words), subordinate clauses, abstract vocabulary, phrasal verbs, multiple tenses
+   ❌ BAD for Grade 1-2: "Identify the subordinate clause" → Too advanced
+   ❌ BAD for Grade 5: "He is writing a story" (4 words) → Too simple, use "The talented student is writing an exciting adventure story for his class"
+   ❌ BAD for Grade 5: Simple 3-4 word scrambles → Use 6-8 word sentences with conjunctions
 
 QUESTION VALIDATION CHECKLIST - BEFORE FINALIZING EACH QUESTION, ASK:
 □ Is there EXACTLY ONE clear correct answer?

@@ -304,12 +304,22 @@ async def submit_answer(
     grade_level = classroom_resp.data["grade_level"] if classroom_resp.data else 0
 
     if points > 0:
-        rpc_result = supabase.rpc("increment_student_points", {
-            "p_student_id": student_id,
-            "p_points": points,
-        }).execute()
-        result_data = rpc_result.data[0] if rpc_result.data else {}
-        new_total = result_data.get("new_points", current_points + points)
+        try:
+            rpc_result = supabase.rpc("increment_student_points", {
+                "p_student_id": student_id,
+                "p_points": points,
+            }).execute()
+            result_data = rpc_result.data[0] if rpc_result.data else {}
+            new_total = result_data.get("new_points", current_points + points)
+        except Exception as exc:
+            logger.warning("increment_student_points RPC failed, using direct UPDATE: %s", exc)
+            try:
+                supabase.table("students").update(
+                    {"points": current_points + points}
+                ).eq("id", student_id).execute()
+            except Exception:
+                pass
+            new_total = current_points + points
     else:
         new_total = current_points
 

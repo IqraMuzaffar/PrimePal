@@ -115,14 +115,17 @@ def _get_student_stats(student_id: str) -> dict[str, int]:
     data = student_resp.data
     points = data.get("points") or 0
 
-    missions_count_resp = (
-        supabase.table("student_interactions")
-        .select("id", count="exact")
-        .eq("student_id", student_id)
-        .like("interaction_type", "mission%")
-        .execute()
-    )
-    missions_total = missions_count_resp.count or 0
+    try:
+        missions_count_resp = (
+            supabase.table("student_interactions")
+            .select("id", count="exact")
+            .eq("student_id", student_id)
+            .like("interaction_type", "mission%")
+            .execute()
+        )
+        missions_total = missions_count_resp.count or 0
+    except Exception:
+        missions_total = 0
 
     # current_streak may not exist yet (added by S07) — default to 0
     try:
@@ -244,8 +247,12 @@ async def list_all_achievements():
     Return all achievement definitions (no auth required).
     """
     supabase = get_supabase_admin()
-    resp = supabase.table("achievements").select("*").order("threshold_value").execute()
-    achievements = resp.data or []
+    try:
+        resp = supabase.table("achievements").select("*").order("threshold_value").execute()
+        achievements = resp.data or []
+    except Exception as exc:
+        logger.warning("Could not fetch achievements table: %s", exc)
+        return AllAchievementsResponse(achievements=[])
 
     return AllAchievementsResponse(
         achievements=[
@@ -280,23 +287,39 @@ async def get_my_achievements(
     student_id: str = student["sub"]
     supabase = get_supabase_admin()
 
-    # Fetch all achievements
-    all_resp = supabase.table("achievements").select("*").order("threshold_value").execute()
-    all_achievements = all_resp.data or []
+    # Fetch all achievements (gracefully handle missing table)
+    try:
+        all_resp = supabase.table("achievements").select("*").order("threshold_value").execute()
+        all_achievements = all_resp.data or []
+    except Exception as exc:
+        logger.warning("Could not fetch achievements table (may not exist): %s", exc)
+        return AchievementListResponse(achievements=[])
+
+    if not all_achievements:
+        return AchievementListResponse(achievements=[])
 
     # Fetch student's unlocked achievements
-    unlocked_resp = (
-        supabase.table("student_achievements")
-        .select("achievement_id, unlocked_at")
-        .eq("student_id", student_id)
-        .execute()
-    )
     unlocked_map: dict[str, str] = {}
-    for row in (unlocked_resp.data or []):
-        unlocked_map[row["achievement_id"]] = row["unlocked_at"]
+    try:
+        unlocked_resp = (
+            supabase.table("student_achievements")
+            .select("achievement_id, unlocked_at")
+            .eq("student_id", student_id)
+            .execute()
+        )
+        for row in (unlocked_resp.data or []):
+            unlocked_map[row["achievement_id"]] = row["unlocked_at"]
+    except Exception as exc:
+        logger.warning("Could not fetch student_achievements: %s", exc)
 
     # Gather student stats
-    stats = _get_student_stats(student_id)
+    try:
+        stats = _get_student_stats(student_id)
+    except HTTPException:
+        stats = {}
+    except Exception as exc:
+        logger.warning("Could not gather student stats: %s", exc)
+        stats = {}
 
     results: list[AchievementProgress] = []
     for ach in all_achievements:
