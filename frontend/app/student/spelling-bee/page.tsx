@@ -28,7 +28,7 @@ interface SubmitResult {
   urdu_hint: string;
 }
 
-type GamePhase = 'loading' | 'countdown' | 'ready' | 'playing' | 'result' | 'done';
+type GamePhase = 'loading' | 'countdown' | 'ready' | 'playing' | 'result' | 'learning' | 'done';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
 
@@ -339,16 +339,18 @@ export default function SpellingBeePage() {
         </motion.div>
       )}
 
-      {/* Result state — learning screen */}
-      <AnimatePresence>
-        {phase === 'result' && result && wordData && (
+      {/* Result state — correct/incorrect banner */}
+      <AnimatePresence mode="wait">
+        {phase === 'result' && result && (
           <motion.div
+            key="result"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, x: -100 }}
+            transition={{ duration: 0.4 }}
             className="space-y-5"
           >
-            {/* Correct / Incorrect banner */}
-            <div className={`rounded-3xl border-2 p-6 sm:p-8 text-center shadow-[0_12px_32px_rgba(0,0,0,0.08)] ${
+            <div className={`rounded-3xl border-2 p-8 sm:p-12 text-center shadow-[0_12px_32px_rgba(0,0,0,0.08)] ${
               result.is_correct
                 ? 'bg-gradient-to-br from-emerald-50 to-green-50 border-emerald-300'
                 : 'bg-gradient-to-br from-rose-50 to-pink-50 border-rose-300'
@@ -357,21 +359,21 @@ export default function SpellingBeePage() {
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
                 transition={{ type: 'spring', bounce: 0.6, delay: 0.1 }}
-                className="text-6xl sm:text-7xl block mb-3"
+                className="text-7xl sm:text-8xl block mb-4"
               >
                 {result.is_correct ? '🎉' : '😊'}
               </motion.span>
 
-              <h2 className={`font-baloo font-extrabold text-2xl sm:text-3xl mb-2 ${
+              <h2 className={`font-baloo font-extrabold text-3xl sm:text-4xl mb-3 ${
                 result.is_correct ? 'text-emerald-700' : 'text-rose-700'
               }`}>
                 {result.is_correct ? 'Perfect Spelling!' : 'Nice Try!'}
               </h2>
 
               {!result.is_correct && (
-                <div className="mb-3">
-                  <p className="font-nunito font-semibold text-sm text-slate-500 mb-1">The correct spelling is:</p>
-                  <p className="font-baloo font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-widest">
+                <div className="mb-4">
+                  <p className="font-nunito font-semibold text-sm text-slate-500 mb-2">The correct spelling is:</p>
+                  <p className="font-baloo font-extrabold text-3xl sm:text-4xl text-slate-900 tracking-widest">
                     {result.correct_answer.split('').map((letter, i) => (
                       <span
                         key={i}
@@ -386,7 +388,7 @@ export default function SpellingBeePage() {
                     ))}
                   </p>
                   {answer.trim() && (
-                    <p className="font-nunito font-semibold text-sm text-slate-400 mt-1">
+                    <p className="font-nunito font-semibold text-sm text-slate-400 mt-2">
                       You typed: <span className="text-slate-600 italic">&ldquo;{answer.trim()}&rdquo;</span>
                     </p>
                   )}
@@ -398,7 +400,7 @@ export default function SpellingBeePage() {
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
-                  className="inline-flex items-center gap-2 bg-emerald-200/60 rounded-full px-5 py-2"
+                  className="inline-flex items-center gap-2 bg-emerald-200/60 rounded-full px-5 py-2 mb-4"
                 >
                   <span className="text-xl">⭐</span>
                   <span className="font-baloo font-extrabold text-lg text-emerald-800">
@@ -406,16 +408,40 @@ export default function SpellingBeePage() {
                   </span>
                 </motion.div>
               )}
-            </div>
 
-            {/* Learning card — word meaning + sentences */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4 }}
-              className="bg-white rounded-3xl border-2 border-amber-200 p-6 sm:p-8 shadow-[0_8px_24px_rgba(245,158,11,0.10)]"
-            >
-              <div className="flex items-center gap-3 mb-5">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.6 }}
+                className="mt-6"
+              >
+                <motion.button
+                  whileHover={{ scale: 1.04 }}
+                  whileTap={{ scale: 0.96 }}
+                  onClick={() => setPhase('learning')}
+                  className="px-8 py-3 bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-baloo font-extrabold text-lg rounded-2xl shadow-[0_4px_0_rgba(79,70,229,0.4)] hover:shadow-[0_2px_0_rgba(79,70,229,0.4)] hover:translate-y-0.5 transition-all"
+                >
+                  Continue
+                </motion.button>
+              </motion.div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Learning state — word meaning, sentences, Urdu */}
+      <AnimatePresence mode="wait">
+        {phase === 'learning' && result && (
+          <motion.div
+            key="learning"
+            initial={{ opacity: 0, x: 100 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -100 }}
+            transition={{ duration: 0.4 }}
+            className="space-y-5"
+          >
+            <div className="bg-white rounded-3xl border-2 border-amber-200 p-6 sm:p-8 shadow-[0_8px_24px_rgba(245,158,11,0.10)]">
+              <div className="flex items-center gap-3 mb-6">
                 <span className="text-3xl">📖</span>
                 <h3 className="font-baloo font-extrabold text-xl sm:text-2xl text-slate-900">
                   Learn the Word: <span className="text-amber-600">{result.correct_answer}</span>
@@ -424,15 +450,25 @@ export default function SpellingBeePage() {
 
               {/* Meaning */}
               {result.meaning && (
-                <div className="bg-amber-50 rounded-2xl p-4 mb-4 border border-amber-100">
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="bg-amber-50 rounded-2xl p-4 mb-4 border border-amber-100"
+                >
                   <p className="text-xs font-baloo font-extrabold text-amber-600 uppercase tracking-wider mb-1">Meaning</p>
                   <p className="font-nunito font-bold text-base sm:text-lg text-slate-800">{result.meaning}</p>
-                </div>
+                </motion.div>
               )}
 
               {/* Usage sentences */}
               {(result.sentence1 || result.sentence2) && (
-                <div className="space-y-3 mb-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                  className="space-y-3 mb-4"
+                >
                   <p className="text-xs font-baloo font-extrabold text-indigo-600 uppercase tracking-wider">Example Sentences</p>
                   {result.sentence1 && (
                     <div className="flex items-start gap-3 bg-indigo-50 rounded-xl p-3 border border-indigo-100">
@@ -446,23 +482,27 @@ export default function SpellingBeePage() {
                       <p className="font-nunito font-semibold text-sm sm:text-base text-slate-700">{result.sentence2}</p>
                     </div>
                   )}
-                </div>
+                </motion.div>
               )}
 
               {/* Urdu translation */}
               {result.urdu_hint && (
-                <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
+                <motion.div
+                  initial={{ opacity: 0, y: 15 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.4 }}
+                  className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100"
+                >
                   <p className="text-xs font-baloo font-extrabold text-emerald-600 uppercase tracking-wider mb-1">Urdu Translation</p>
                   <p className="font-nunito font-bold text-lg sm:text-xl text-emerald-800" dir="rtl">{result.urdu_hint}</p>
-                </div>
+                </motion.div>
               )}
-            </motion.div>
+            </div>
 
-            {/* Back button */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.7 }}
+              transition={{ delay: 0.6 }}
               className="flex justify-center"
             >
               <motion.button
