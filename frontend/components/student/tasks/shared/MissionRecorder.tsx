@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Mic, MicOff, Loader2 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface MissionRecorderProps {
   expectedText: string;
@@ -13,6 +13,8 @@ interface MissionRecorderProps {
 
 type RecorderState = 'idle' | 'recording' | 'evaluating' | 'retry' | 'giving_up';
 
+type SpeechRecognitionType = typeof window extends { webkitSpeechRecognition: infer T } ? T : never;
+
 const MAX_ATTEMPTS = 3;
 
 export default function MissionRecorder({ expectedText, pillar = 'speaking', onResult, disabled }: MissionRecorderProps) {
@@ -20,18 +22,55 @@ export default function MissionRecorder({ expectedText, pillar = 'speaking', onR
   const [attemptNumber, setAttemptNumber] = useState(1);
   const [retryMessage, setRetryMessage] = useState('');
   const [lastTranscription, setLastTranscription] = useState('');
+  const [liveTranscript, setLiveTranscript] = useState('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
+  const recognitionRef = useRef<SpeechRecognitionType | null>(null);
+
+  const startLiveTranscription = useCallback(() => {
+    const SpeechRecognition = (window as unknown as Record<string, unknown>).SpeechRecognition ||
+      (window as unknown as Record<string, unknown>).webkitSpeechRecognition;
+    if (!SpeechRecognition) return;
+
+    const recognition = new (SpeechRecognition as new () => SpeechRecognitionType)();
+    (recognition as Record<string, unknown>).continuous = true;
+    (recognition as Record<string, unknown>).interimResults = true;
+    (recognition as Record<string, unknown>).lang = 'en-US';
+
+    (recognition as Record<string, unknown>).onresult = (event: { results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => {
+      let interim = '';
+      for (let i = 0; i < event.results.length; i++) {
+        const result = event.results[i];
+        interim += result[0].transcript;
+      }
+      setLiveTranscript(interim);
+    };
+
+    (recognition as Record<string, unknown>).onerror = () => { /* ignore — audio recording is primary */ };
+    (recognition as { start: () => void }).start();
+    recognitionRef.current = recognition;
+  }, []);
+
+  const stopLiveTranscription = useCallback(() => {
+    if (recognitionRef.current) {
+      (recognitionRef.current as { stop: () => void }).stop();
+      recognitionRef.current = null;
+    }
+  }, []);
 
   async function startRecording() {
     try {
       setLastTranscription('');
+      setLiveTranscript('');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       chunksRef.current = [];
       const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
       recorder.ondataavailable = (e) => chunksRef.current.push(e.data);
-      recorder.onstart = () => setRecorderState('recording');
+      recorder.onstart = () => {
+        setRecorderState('recording');
+        startLiveTranscription();
+      };
       recorder.start();
     } catch {
       onResult(false, '', 0);
@@ -40,6 +79,7 @@ export default function MissionRecorder({ expectedText, pillar = 'speaking', onR
 
   function stopAndSubmit() {
     if (!mediaRecorderRef.current || recorderState !== 'recording') return;
+    stopLiveTranscription();
     mediaRecorderRef.current.stop();
     mediaRecorderRef.current.stream.getTracks().forEach(t => t.stop());
 
@@ -111,6 +151,7 @@ export default function MissionRecorder({ expectedText, pillar = 'speaking', onR
   function handleRetryTap() {
     chunksRef.current = [];
     setLastTranscription('');
+    setLiveTranscript('');
     setRecorderState('idle');
   }
 
@@ -184,15 +225,43 @@ export default function MissionRecorder({ expectedText, pillar = 'speaking', onR
   return (
     <div className="flex flex-col items-center gap-4 py-4">
       {recorderState === 'recording' ? (
-        <motion.button
-          animate={{ scale: [1, 1.1, 1] }}
-          transition={{ duration: 1, repeat: Infinity }}
-          onClick={stopAndSubmit}
-          disabled={disabled}
-          className="w-20 h-20 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg"
-        >
-          <MicOff size={32} />
-        </motion.button>
+        <>
+          <motion.button
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ duration: 1, repeat: Infinity }}
+            onClick={stopAndSubmit}
+            disabled={disabled}
+            className="w-20 h-20 rounded-full bg-red-500 text-white flex items-center justify-center shadow-lg"
+          >
+            <MicOff size={32} />
+          </motion.button>
+          {/* Live transcription display */}
+          <AnimatePresence>
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="w-full max-w-sm min-h-[48px] bg-indigo-50 border-2 border-indigo-200 rounded-2xl px-4 py-3 text-center"
+            >
+              {liveTranscript ? (
+                <p className="text-base font-semibold text-indigo-900">
+                  {liveTranscript.split(' ').map((word, i) => (
+                    <motion.span
+                      key={`${i}-${word}`}
+                      initial={{ opacity: 0, y: 4 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.15 }}
+                      className="inline-block mr-1"
+                    >
+                      {word}
+                    </motion.span>
+                  ))}
+                </p>
+              ) : (
+                <p className="text-sm text-indigo-400 italic">Listening...</p>
+              )}
+            </motion.div>
+          </AnimatePresence>
+        </>
       ) : (
         <motion.button
           whileHover={{ scale: 1.1 }}
