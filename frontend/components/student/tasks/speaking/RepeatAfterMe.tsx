@@ -1,12 +1,17 @@
 'use client';
 
+import { useState } from 'react';
 import { TaskProps } from '@/types/missions';
 import AudioPlayButton from '../shared/AudioPlayButton';
 import MissionRecorder from '../shared/MissionRecorder';
+import { motion } from 'framer-motion';
 
 export default function RepeatAfterMe({ question, onAnswer, showFeedback, disabled }: TaskProps) {
-  const handleResult = (isCorrect: boolean, transcription: string) => {
-    onAnswer(transcription, isCorrect);
+  const [transcription, setTranscription] = useState('');
+
+  const handleResult = (isCorrect: boolean, transcript: string) => {
+    setTranscription(transcript);
+    onAnswer(transcript, isCorrect);
   };
 
   return (
@@ -22,6 +27,16 @@ export default function RepeatAfterMe({ question, onAnswer, showFeedback, disabl
           disabled={disabled}
           onResult={handleResult}
         />
+      )}
+      {showFeedback && transcription && (
+        <motion.div
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mt-4 bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3 text-center"
+        >
+          <p className="text-xs font-semibold text-indigo-500 mb-1">You said:</p>
+          <p className="text-lg font-bold text-indigo-900 italic">&ldquo;{transcription}&rdquo;</p>
+        </motion.div>
       )}
     </div>
   );

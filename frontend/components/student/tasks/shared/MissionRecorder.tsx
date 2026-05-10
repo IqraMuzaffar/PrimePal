@@ -19,11 +19,13 @@ export default function MissionRecorder({ expectedText, pillar = 'speaking', onR
   const [recorderState, setRecorderState] = useState<RecorderState>('idle');
   const [attemptNumber, setAttemptNumber] = useState(1);
   const [retryMessage, setRetryMessage] = useState('');
+  const [lastTranscription, setLastTranscription] = useState('');
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
   async function startRecording() {
     try {
+      setLastTranscription('');
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       chunksRef.current = [];
       const recorder = new MediaRecorder(stream);
@@ -62,6 +64,11 @@ export default function MissionRecorder({ expectedText, pillar = 'speaking', onR
 
         if (res.ok) {
           const data = await res.json();
+
+          // Capture what we heard
+          if (data.transcription) {
+            setLastTranscription(data.transcription);
+          }
 
           // Handle retry status
           if (data.status === 'retry') {
@@ -103,6 +110,7 @@ export default function MissionRecorder({ expectedText, pillar = 'speaking', onR
 
   function handleRetryTap() {
     chunksRef.current = [];
+    setLastTranscription('');
     setRecorderState('idle');
   }
 
@@ -118,6 +126,16 @@ export default function MissionRecorder({ expectedText, pillar = 'speaking', onR
   if (recorderState === 'retry') {
     return (
       <div className="flex flex-col items-center gap-4 py-4">
+        {lastTranscription && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3 w-full max-w-xs text-center"
+          >
+            <p className="text-xs font-semibold text-amber-600 mb-1">We heard:</p>
+            <p className="text-base font-bold text-amber-900 italic">&ldquo;{lastTranscription}&rdquo;</p>
+          </motion.div>
+        )}
         <motion.div
           animate={{ scale: [1, 1.15, 1] }}
           transition={{ duration: 1.2, repeat: Infinity }}
@@ -142,6 +160,16 @@ export default function MissionRecorder({ expectedText, pillar = 'speaking', onR
   if (recorderState === 'giving_up') {
     return (
       <div className="flex flex-col items-center gap-3 py-4">
+        {lastTranscription && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-rose-50 border border-rose-200 rounded-2xl px-4 py-3 w-full max-w-xs text-center"
+          >
+            <p className="text-xs font-semibold text-rose-500 mb-1">We heard:</p>
+            <p className="text-base font-bold text-rose-800 italic">&ldquo;{lastTranscription}&rdquo;</p>
+          </motion.div>
+        )}
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
