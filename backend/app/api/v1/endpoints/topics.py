@@ -65,7 +65,7 @@ async def get_topics(
 
     resp = (
         supabase.table("snc_topics")
-        .select("id, grade_level, topic_name, skill, is_globally_active")
+        .select("id, grade_level, topic_name, skill")
         .eq("grade_level", grade_level)
         .order("id")
         .execute()
