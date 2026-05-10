@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2 } from 'lucide-react';
-import { studentFetch } from '@/lib/api-helpers';
 import { useSpellingBeeDailyStatus, queryKeys } from '@/lib/hooks/queries';
 
 interface DailyWord {
