@@ -56,6 +56,10 @@ class SpellingBeeSubmitResponse(BaseModel):
     correct_answer: str
     points_awarded: int
     new_total: int
+    meaning: str = ""
+    sentence1: str = ""
+    sentence2: str = ""
+    urdu_hint: str = ""
 
 
 class DailyActivityStatus(BaseModel):
@@ -127,7 +131,7 @@ Word requirements:
 - Appropriate for Pakistani ESL learners
 
 Respond in EXACTLY this JSON format, nothing else:
-{{"word": "the word in lowercase", "hint": "a short 5-8 word English clue/definition", "urdu_hint": "Urdu translation of the word", "difficulty": "hard"}}"""),
+{{"word": "the word in lowercase", "hint": "a short 5-8 word English clue/definition", "urdu_hint": "Urdu translation of the word", "meaning": "a clear 1-sentence definition suitable for Grade {grade_level}", "sentence1": "a simple example sentence using the word", "sentence2": "another example sentence using the word in a different context", "difficulty": "hard"}}"""),
         ("user", "Generate one spelling bee word now."),
     ])
 
@@ -160,6 +164,9 @@ Respond in EXACTLY this JSON format, nothing else:
         "word": data["word"].strip().lower(),
         "hint": data["hint"].strip(),
         "urdu_hint": data.get("urdu_hint", "").strip(),
+        "meaning": data.get("meaning", "").strip(),
+        "sentence1": data.get("sentence1", "").strip(),
+        "sentence2": data.get("sentence2", "").strip(),
         "difficulty": data.get("difficulty", "hard"),
     }
 
@@ -330,6 +337,11 @@ async def submit_spelling_bee(
         [invalidate_rewards_cache, invalidate_scores_cache],
     )
 
+    # Fetch learning data from cache (generated with the word)
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    word_cache_key = make_cache_key("spelling_bee", classroom_id, today_str)
+    word_data = await cache_get(word_cache_key) or {}
+
     logger.info(
         "Spelling Bee: student %s answered '%s' for word '%s' — %s (%d pts)",
         student_id, student_answer, correct_word,
@@ -341,4 +353,8 @@ async def submit_spelling_bee(
         correct_answer=correct_word,
         points_awarded=points_awarded,
         new_total=new_total,
+        meaning=word_data.get("meaning", ""),
+        sentence1=word_data.get("sentence1", ""),
+        sentence2=word_data.get("sentence2", ""),
+        urdu_hint=word_data.get("urdu_hint", ""),
     )
