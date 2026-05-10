@@ -4,9 +4,10 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Loader2, ArrowLeft, CheckCircle2, XCircle, Trophy, Home, RotateCcw, Lock } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, XCircle, Trophy, Home, RotateCcw, Lock } from 'lucide-react';
 import TaskRouter from '@/components/student/tasks/TaskRouter';
 import PageHero from '@/components/student/PageHero';
+import LoadingCountdown from '@/components/student/LoadingCountdown';
 import { useMissionComplete } from '@/lib/hooks/mutations';
 import { usePuzzlePalaceDailyStatus, queryKeys } from '@/lib/hooks/queries';
 import { studentFetch } from '@/lib/api-helpers';
@@ -223,12 +224,10 @@ export default function PuzzlePalacePage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <Loader2 className="w-12 h-12 animate-spin text-violet-500 mx-auto mb-4" />
-          <p className="font-nunito font-semibold text-slate-500">Preparing the Palace...</p>
-        </div>
-      </div>
+      <LoadingCountdown
+        loadingText="Preparing the Palace..."
+        emoji="🏰"
+      />
     );
   }
 

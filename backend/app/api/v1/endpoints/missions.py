@@ -474,15 +474,19 @@ async def complete_mission(
             ).isoformat()
             pillar_count_resp = await asyncio.to_thread(
                 lambda: supabase.table("student_interactions")
-                .select("id", count="exact")
+                .select("interaction_type", count="exact")
                 .eq("student_id", student_id)
                 .eq("pillar", body.pillar)
-                .like("interaction_type", "mission_%")
                 .gte("created_at", today_start)
                 .execute()
             )
+            # Count mission interactions (filter in Python to avoid PostgREST .like() 500)
+            mission_count = sum(
+                1 for row in (pillar_count_resp.data or [])
+                if (row.get("interaction_type") or "").startswith("mission")
+            ) if pillar_count_resp.data else (pillar_count_resp.count or 0)
             # +1 for the current interaction being logged in background
-            pillar_done_count = min((pillar_count_resp.count or 0) + 1, DAILY_LIMIT)
+            pillar_done_count = min(mission_count + 1, DAILY_LIMIT)
             pillar_completed = pillar_done_count >= DAILY_LIMIT
         except Exception as exc:
             logger.warning("Could not check pillar completion: %s", exc)
@@ -694,15 +698,19 @@ async def submit_batch(
             ).isoformat()
             pillar_count_resp = await asyncio.to_thread(
                 lambda: supabase.table("student_interactions")
-                .select("id", count="exact")
+                .select("interaction_type", count="exact")
                 .eq("student_id", student_id)
                 .eq("pillar", batch_pillar)
-                .like("interaction_type", "mission_%")
                 .gte("created_at", today_start)
                 .execute()
             )
+            # Count mission interactions (filter in Python to avoid PostgREST .like() 500)
+            mission_count = sum(
+                1 for row in (pillar_count_resp.data or [])
+                if (row.get("interaction_type") or "").startswith("mission")
+            ) if pillar_count_resp.data else (pillar_count_resp.count or 0)
             # +processed for the interactions being logged in background
-            pillar_done_count = min((pillar_count_resp.count or 0) + processed, DAILY_LIMIT)
+            pillar_done_count = min(mission_count + processed, DAILY_LIMIT)
             pillar_completed = pillar_done_count >= DAILY_LIMIT
         except Exception as exc:
             logger.warning("Could not check pillar completion in batch: %s", exc)
@@ -943,6 +951,36 @@ async def get_pillar_missions(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid pillar. Must be one of {valid_pillars}",
         )
+
+    # ------------------------------------------------------------------
+    # Step 1b: Check if pillar is already completed today (10/10)
+    # ------------------------------------------------------------------
+    PILLAR_DAILY_LIMIT = 10
+    try:
+        today_start = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        ).isoformat()
+        pillar_check_resp = await asyncio.to_thread(
+            lambda: supabase.table("student_interactions")
+            .select("interaction_type")
+            .eq("student_id", student_id)
+            .eq("pillar", pillar)
+            .gte("created_at", today_start)
+            .execute()
+        )
+        pillar_today_count = sum(
+            1 for row in (pillar_check_resp.data or [])
+            if (row.get("interaction_type") or "").startswith("mission")
+        )
+        if pillar_today_count >= PILLAR_DAILY_LIMIT:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Pillar '{pillar}' is completed for today ({PILLAR_DAILY_LIMIT}/{PILLAR_DAILY_LIMIT} questions done). Come back tomorrow!",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Could not check pillar daily limit: %s", exc)
 
     # ------------------------------------------------------------------
     # Step 2: Fetch classroom grade + resolve active topics (parallelize initial queries)
@@ -1645,19 +1683,26 @@ async def get_daily_pillar_status(student: dict = Depends(get_current_student)):
         hour=0, minute=0, second=0, microsecond=0
     ).isoformat()
 
-    interactions_resp = await asyncio.to_thread(
-        lambda: supabase.table("student_interactions")
-        .select("pillar")
-        .eq("student_id", student_id)
-        .not_.is_("pillar", "null")
-        .like("interaction_type", "mission_%")
-        .gte("created_at", today_start)
-        .execute()
-    )
-    rows = interactions_resp.data or []
+    try:
+        interactions_resp = await asyncio.to_thread(
+            lambda: supabase.table("student_interactions")
+            .select("pillar, interaction_type")
+            .eq("student_id", student_id)
+            .not_.is_("pillar", "null")
+            .gte("created_at", today_start)
+            .execute()
+        )
+        rows = interactions_resp.data or []
+    except Exception as exc:
+        logger.warning("Could not fetch daily pillar status: %s", exc)
+        rows = []
 
     counts: dict[str, int] = {"reading": 0, "writing": 0, "listening": 0, "speaking": 0}
     for row in rows:
+        # Filter mission interactions in Python (PostgREST .like() can 500)
+        itype = row.get("interaction_type", "")
+        if not itype.startswith("mission"):
+            continue
         p = row.get("pillar")
         if p in counts:
             counts[p] += 1

@@ -8,6 +8,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { useStoryTime, useStoryTimeDailyStatus, queryKeys } from '@/lib/hooks/queries';
 import PageHero from '@/components/student/PageHero';
+import LoadingCountdown from '@/components/student/LoadingCountdown';
 
 type GameState = 'loading' | 'reading' | 'questioning' | 'finished';
 
@@ -168,38 +169,35 @@ export default function StoryTimePage() {
   }
 
   if (gameState === 'loading') {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-emerald-50 to-green-50 px-4">
-        <div className="text-center">
-          <div className="text-5xl mb-4">📖</div>
-          <p className="text-gray-600 font-semibold mb-2">
-            {storyLoading ? 'Creating your story...' : 'Loading your story...'}
-          </p>
-          <p className="text-sm text-gray-400 mb-6">This may take a few seconds</p>
-          {storyError && (
-            <div className="space-y-3">
-              <p className="text-red-500 text-sm font-medium">Story generation failed. Please try again.</p>
-              <div className="flex gap-3 justify-center">
-                <button
-                  onClick={() => {
-                    setError(null);
-                    refetchStory();
-                  }}
-                  className="px-4 py-2 bg-emerald-500 text-white font-semibold rounded-lg hover:bg-emerald-600 transition-colors"
-                >
-                  🔄 Try Again
-                </button>
-                <button
-                  onClick={() => router.push('/student/home')}
-                  className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
-                >
-                  🏠 Home
-                </button>
-              </div>
+    if (storyError) {
+      return (
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-emerald-50 to-green-50 px-4">
+          <div className="bg-white rounded-2xl border border-red-200 p-8 max-w-sm text-center shadow-md">
+            <p className="text-red-600 font-semibold mb-4">Story generation failed. Please try again.</p>
+            <div className="flex gap-3 justify-center">
+              <button
+                onClick={() => { setError(null); refetchStory(); }}
+                className="px-4 py-2 bg-emerald-500 text-white font-semibold rounded-lg hover:bg-emerald-600 transition-colors"
+              >
+                Try Again
+              </button>
+              <button
+                onClick={() => router.push('/student/home')}
+                className="px-4 py-2 bg-gray-200 text-gray-700 font-semibold rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                Home
+              </button>
             </div>
-          )}
+          </div>
         </div>
-      </div>
+      );
+    }
+    return (
+      <LoadingCountdown
+        loadingText="Creating your story..."
+        emoji="📖"
+        bgClass="bg-gradient-to-b from-emerald-50 to-green-50"
+      />
     );
   }
 

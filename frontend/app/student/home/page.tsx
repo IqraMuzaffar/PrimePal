@@ -158,22 +158,24 @@ export default function HomePage() {
       </section>
 
       {/* ③ Today's Adventure progress */}
-      <section className="bg-white rounded-3xl border-2 border-amber-100 p-6 flex items-center gap-5 shadow-[0_8px_24px_rgba(251,191,36,0.10)]">
-        <span className="text-4xl sm:text-5xl animate-bounceSoft">🚀</span>
+      <section className={`bg-white rounded-3xl border-2 p-6 flex items-center gap-5 ${todayActivityCount >= dailyGoal ? 'border-emerald-200 shadow-[0_8px_24px_rgba(16,185,129,0.12)]' : 'border-amber-100 shadow-[0_8px_24px_rgba(251,191,36,0.10)]'}`}>
+        <span className="text-4xl sm:text-5xl animate-bounceSoft">{todayActivityCount >= dailyGoal ? '🎉' : '🚀'}</span>
         <div className="flex-1 min-w-0">
           <p className="font-baloo font-extrabold text-lg sm:text-xl text-slate-900">Today&apos;s Adventure</p>
           <p className="font-nunito font-semibold text-xs sm:text-sm text-slate-500 mt-0.5">
-            Complete {dailyGoal} activities to keep your streak alive!
+            {todayActivityCount >= dailyGoal
+              ? 'Goal complete! Great job today!'
+              : `Complete ${dailyGoal} activities to keep your streak alive!`}
           </p>
         </div>
-        <div className="w-32 sm:w-48 lg:w-60 h-3 sm:h-3.5 rounded-full bg-amber-100 overflow-hidden">
+        <div className={`w-32 sm:w-48 lg:w-60 h-3 sm:h-3.5 rounded-full overflow-hidden ${todayActivityCount >= dailyGoal ? 'bg-emerald-100' : 'bg-amber-100'}`}>
           <div
-            className="h-full rounded-full bg-gradient-to-r from-amber-400 via-orange-400 to-pink-400 animate-shimmer"
+            className={`h-full rounded-full animate-shimmer ${todayActivityCount >= dailyGoal ? 'bg-gradient-to-r from-emerald-400 via-green-400 to-teal-400' : 'bg-gradient-to-r from-amber-400 via-orange-400 to-pink-400'}`}
             style={{ width: `${progressPct}%`, backgroundSize: "200% 100%" }}
           />
         </div>
-        <span className="font-baloo font-extrabold text-base sm:text-lg text-amber-700 shrink-0">
-          {todayActivityCount} / {dailyGoal}
+        <span className={`font-baloo font-extrabold text-base sm:text-lg shrink-0 ${todayActivityCount >= dailyGoal ? 'text-emerald-600' : 'text-amber-700'}`}>
+          {Math.min(todayActivityCount, dailyGoal)} / {dailyGoal}
         </span>
       </section>
 

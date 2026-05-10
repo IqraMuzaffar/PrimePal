@@ -2,7 +2,10 @@
 
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import { CheckCircle2 } from 'lucide-react';
 import MissionGameplay from '@/components/student/MissionGameplay';
+import LoadingCountdown from '@/components/student/LoadingCountdown';
 import { MissionQuestion } from '@/types/missions';
 import { useNetworkStatus } from '@/lib/use-network-status';
 import { addPendingAnswer, flushPendingAnswers } from '@/lib/network-queue';
@@ -26,7 +29,8 @@ export default function PillarMissionPage() {
 
   const { data, isLoading: loading, error: queryError } = useMissionPillar(pillar);
   const questions: MissionQuestion[] = data?.questions ?? [];
-  const error = queryError ? 'Failed to load questions' : null;
+  const isPillarCompleted = queryError?.message?.includes('completed for today') || queryError?.message?.includes('429');
+  const error = queryError && !isPillarCompleted ? 'Failed to load questions' : null;
 
   useEffect(() => {
     const token = typeof window !== 'undefined'
@@ -72,14 +76,46 @@ export default function PillarMissionPage() {
     router.push('/student/missions');
   };
 
+  if (isPillarCompleted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-student-bg px-4">
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-white rounded-3xl shadow-[0_24px_48px_rgba(0,0,0,0.12)] border-2 border-emerald-200 p-8 max-w-md w-full text-center"
+        >
+          <CheckCircle2 className="w-16 h-16 text-emerald-500 mx-auto mb-4" />
+          <h2 className="font-baloo font-extrabold text-2xl text-slate-800 mb-2">
+            Pillar Complete!
+          </h2>
+          <p className="font-nunito text-slate-500 mb-4">
+            You&apos;ve finished all <span className="font-bold text-emerald-600">10/10</span> questions
+            for <span className="font-bold capitalize">{pillar}</span> today.
+          </p>
+          <div className="bg-emerald-50 rounded-2xl px-4 py-3 mb-6">
+            <p className="font-nunito text-sm text-emerald-700">
+              Great work! Try another pillar or come back tomorrow.
+            </p>
+          </div>
+          <motion.button
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.97 }}
+            onClick={() => router.push('/student/missions')}
+            className="w-full py-4 rounded-2xl font-baloo font-extrabold text-lg text-white bg-gradient-to-r from-violet-500 to-pink-500 shadow-[0_6px_0_#7c3aed,0_8px_18px_rgba(139,92,246,0.3)] active:translate-y-1 active:shadow-[0_2px_0_#7c3aed] transition-all"
+          >
+            Back to Missions
+          </motion.button>
+        </motion.div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-student-bg">
-        <div className="text-center">
-          <div className="text-4xl mb-4">⏳</div>
-          <p className="text-gray-600 text-lg">Loading questions...</p>
-        </div>
-      </div>
+      <LoadingCountdown
+        loadingText="Preparing your questions..."
+        emoji="🎯"
+      />
     );
   }
 
