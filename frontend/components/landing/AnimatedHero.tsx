@@ -67,7 +67,7 @@ export function AnimatedHeroSection({ children }: { children: React.ReactNode })
       variants={stagger.container}
       initial="initial"
       animate="animate"
-      className="text-center mb-8 relative z-10 max-w-lg"
+      className="text-center mb-5 sm:mb-8 relative z-10 max-w-lg"
     >
       {children}
     </motion.div>

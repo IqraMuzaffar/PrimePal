@@ -39,7 +39,7 @@ const pillarData = [
 export default function LandingPage() {
   return (
     <div
-      className="h-screen relative overflow-hidden flex flex-col selection:bg-white/20"
+      className="min-h-screen relative overflow-x-hidden flex flex-col selection:bg-white/20"
       style={{ background: "linear-gradient(145deg, #0b1535 0%, #0f1e4a 45%, #162660 100%)" }}
     >
       {/* ── ambient background ── */}
@@ -82,11 +82,11 @@ export default function LandingPage() {
       </nav>
 
       {/* ── main content (centered) ── */}
-      <div className="flex-1 flex flex-col items-center justify-center px-4 relative z-10">
+      <div className="flex-1 flex flex-col items-center justify-center px-4 py-6 sm:py-0 relative z-10">
         {/* ── hero ── */}
         <AnimatedHeroSection>
           {/* badge */}
-          <AnimatedHeroItem className="flex items-center justify-center mb-5">
+          <AnimatedHeroItem className="flex items-center justify-center mb-3 sm:mb-5">
             <div
               className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full"
               style={{
@@ -129,7 +129,7 @@ export default function LandingPage() {
 
           {/* subtitle */}
           <AnimatedHeroP
-            className="font-semibold text-center mt-4 mx-auto"
+            className="font-semibold text-center mt-3 sm:mt-4 mx-auto"
             style={{
               fontSize: "clamp(16px, 2.2vw, 20px)",
               color: "rgba(255,255,255,0.6)",
@@ -143,7 +143,7 @@ export default function LandingPage() {
         </AnimatedHeroSection>
 
         {/* ── pillar cards ── */}
-        <AnimatedHeroItem className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-10 relative z-10 w-full" style={{ maxWidth: "720px" }}>
+        <AnimatedHeroItem className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-4 mb-6 sm:mb-10 relative z-10 w-full" style={{ maxWidth: "720px" }}>
           {pillarData.map(({ label, desc }, i) => {
             const emojis: Record<string, string> = { Reading: "📖", Writing: "✏️", Listening: "🎧", Speaking: "🎤" };
             const glows: Record<string, string> = {
@@ -177,7 +177,7 @@ export default function LandingPage() {
         </AnimatedHeroItem>
 
         {/* ── role cards ── */}
-        <div className="flex flex-col sm:flex-row gap-5 sm:gap-5 w-full relative z-10" style={{ maxWidth: "1080px" }}>
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-5 w-full relative z-10" style={{ maxWidth: "1080px" }}>
           {/* student */}
           <AnimatedCard xOffset={-36} delay={0.5} className="flex-1">
             <Link href="/student/play" className="block group">
@@ -186,7 +186,7 @@ export default function LandingPage() {
                 style={{
                   background: "linear-gradient(135deg, #f472b6 0%, #db2777 100%)",
                   borderRadius: "24px",
-                  padding: "36px 32px",
+                  padding: "clamp(20px, 4vw, 36px) clamp(20px, 4vw, 32px)",
                   boxShadow: "0 20px 56px rgba(219,39,119,0.35)",
                   border: "2px solid rgba(251,146,191,0.4)",
                 }}
@@ -230,7 +230,7 @@ export default function LandingPage() {
                 style={{
                   background: "linear-gradient(135deg, #2dd4bf 0%, #0d9488 100%)",
                   borderRadius: "24px",
-                  padding: "36px 32px",
+                  padding: "clamp(20px, 4vw, 36px) clamp(20px, 4vw, 32px)",
                   boxShadow: "0 20px 56px rgba(13,148,136,0.35)",
                   border: "2px solid rgba(94,234,212,0.4)",
                 }}
@@ -274,7 +274,7 @@ export default function LandingPage() {
                 style={{
                   background: "linear-gradient(135deg, #4361ee 0%, #7c3aed 100%)",
                   borderRadius: "24px",
-                  padding: "36px 32px",
+                  padding: "clamp(20px, 4vw, 36px) clamp(20px, 4vw, 32px)",
                   boxShadow: "0 20px 56px rgba(67,97,238,0.35)",
                   border: "2px solid rgba(124,158,255,0.4)",
                 }}
