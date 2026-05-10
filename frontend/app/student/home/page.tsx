@@ -20,12 +20,12 @@ import ActivityCard from "@/components/student/ActivityCard";
 import { useGenderTheme } from "@/lib/gender-theme-context";
 
 const BASE_ACTIVITY_CARDS = [
-  { href: "/student/missions",     icon: "🎯", title: "Daily Missions",  subtitle: "Earn stars across 4 pillars — let's go!", tone: "purple" as const, wide: true,  badge: "NEW" },
+  { href: "/student/missions",     icon: "🎯", title: "Daily Missions",  subtitle: "Earn stars across 4 pillars — let's go!", tone: "purple" as const, badge: "NEW" },
   { href: "/student/chat",         icon: "💬", title: "Chat",            subtitle: "Ask PrimePal anything",                   tone: "pink"   as const },
+  { href: "/student/spelling-bee", icon: "🐝", title: "Spelling Bee",    subtitle: "Spell it right for 30 pts!",              tone: "rose"   as const },
   { href: "/student/puzzle-palace", icon: "🏰", title: "Puzzle Palace",   subtitle: "5 rooms of word puzzles",                 tone: "amber"  as const },
   { href: "/student/scores",       icon: "📊", title: "My Scores",       subtitle: "See your progress",                       tone: "cyan"   as const },
   { href: "/student/story-time",   icon: "📖", title: "Story Time",      subtitle: "Read & answer",                           tone: "emerald"as const },
-  { href: "/student/spelling-bee", icon: "🐝", title: "Spelling Bee",    subtitle: "Spell it right for 30 pts!",              tone: "rose"   as const },
 ];
 
 const STAGGER = ["", "[animation-delay:50ms]", "[animation-delay:100ms]", "[animation-delay:150ms]", "[animation-delay:200ms]", "[animation-delay:250ms]"];
@@ -161,7 +161,6 @@ export default function HomePage() {
               title={card.title}
               subtitle={card.subtitle}
               tone={card.tone}
-              wide={card.wide}
               badge={card.badge}
               delayClass={STAGGER[i]}
             />

@@ -105,22 +105,50 @@ async def _get_grade_level(classroom_id: str) -> int:
     return 3  # safe default
 
 
+FALLBACK_WORDS = {
+    1: [
+        {"word": "said", "hint": "Past tense of say", "urdu_hint": "کہا", "meaning": "To have spoken words to someone.", "sentence1": "She said hello to her friend.", "sentence2": "The teacher said we could go outside.", "difficulty": "hard"},
+        {"word": "come", "hint": "Move towards someone", "urdu_hint": "آنا", "meaning": "To move toward or arrive at a place.", "sentence1": "Please come to my house.", "sentence2": "The cat will come when you call it.", "difficulty": "hard"},
+    ],
+    2: [
+        {"word": "friend", "hint": "Someone you like and trust", "urdu_hint": "دوست", "meaning": "A person you enjoy spending time with.", "sentence1": "My best friend lives next door.", "sentence2": "She made a new friend at school.", "difficulty": "hard"},
+        {"word": "would", "hint": "Used for polite requests", "urdu_hint": "گا/گی", "meaning": "Used to talk about something that might happen.", "sentence1": "Would you like some water?", "sentence2": "I would love to visit the park.", "difficulty": "hard"},
+    ],
+    3: [
+        {"word": "knight", "hint": "A soldier in shining armor", "urdu_hint": "شہسوار", "meaning": "A warrior from old times who wore armor and rode horses.", "sentence1": "The brave knight saved the village.", "sentence2": "A knight must be honest and kind.", "difficulty": "hard"},
+        {"word": "island", "hint": "Land surrounded by water", "urdu_hint": "جزیرہ", "meaning": "A piece of land that is completely surrounded by water.", "sentence1": "They took a boat to the small island.", "sentence2": "The island had beautiful palm trees.", "difficulty": "hard"},
+    ],
+    4: [
+        {"word": "beautiful", "hint": "Very pretty to look at", "urdu_hint": "خوبصورت", "meaning": "Something that is very pleasing to look at or experience.", "sentence1": "The garden was filled with beautiful flowers.", "sentence2": "She wore a beautiful dress to the party.", "difficulty": "hard"},
+        {"word": "knowledge", "hint": "What you learn and know", "urdu_hint": "علم", "meaning": "Facts and information you learn through study or experience.", "sentence1": "Reading books increases your knowledge.", "sentence2": "She has great knowledge about animals.", "difficulty": "hard"},
+    ],
+    5: [
+        {"word": "Wednesday", "hint": "The third day of the week", "urdu_hint": "بدھ", "meaning": "The day of the week that comes after Tuesday.", "sentence1": "We have a science test on Wednesday.", "sentence2": "Wednesday is my favorite day of the week.", "difficulty": "hard"},
+        {"word": "daughter", "hint": "A female child", "urdu_hint": "بیٹی", "meaning": "A girl or woman in relation to her parents.", "sentence1": "Their daughter loves reading books.", "sentence2": "She is the eldest daughter in the family.", "difficulty": "hard"},
+    ],
+}
+
+
 async def _generate_word(grade_level: int) -> dict:
     """Generate a challenging spelling word via LLM appropriate for the grade."""
-    from langchain_openai import ChatOpenAI
-    from langchain_core.prompts import ChatPromptTemplate
+    import json
+    import random
 
-    grade_vocab = {
-        1: "simple 3-4 letter CVC words (cat, dog, sun, red, big). Difficulty should be slightly challenging for Grade 1.",
-        2: "4-5 letter words with blends and digraphs (ship, tree, black, green, sleep). Slightly above typical Grade 2 level.",
-        3: "5-6 letter words with silent letters or double consonants (knight, rabbit, butter, island, bridge). Challenging for Grade 3.",
-        4: "6-7 letter words with prefixes/suffixes (unhappy, careful, quickly, beautiful, trouble). Challenging for Grade 4.",
-        5: "7-9 letter words with complex patterns (knowledge, shoulder, daughter, elephant, chocolate, Wednesday). Challenging for Grade 5.",
-    }
-    vocab_desc = grade_vocab.get(grade_level, grade_vocab[3])
+    try:
+        from langchain_openai import ChatOpenAI
+        from langchain_core.prompts import ChatPromptTemplate
 
-    prompt = ChatPromptTemplate.from_messages([
-        ("system", f"""You are a spelling bee word generator for Pakistani primary school Grade {grade_level} students.
+        grade_vocab = {
+            1: "simple 3-4 letter CVC words (cat, dog, sun, red, big). Difficulty should be slightly challenging for Grade 1.",
+            2: "4-5 letter words with blends and digraphs (ship, tree, black, green, sleep). Slightly above typical Grade 2 level.",
+            3: "5-6 letter words with silent letters or double consonants (knight, rabbit, butter, island, bridge). Challenging for Grade 3.",
+            4: "6-7 letter words with prefixes/suffixes (unhappy, careful, quickly, beautiful, trouble). Challenging for Grade 4.",
+            5: "7-9 letter words with complex patterns (knowledge, shoulder, daughter, elephant, chocolate, Wednesday). Challenging for Grade 5.",
+        }
+        vocab_desc = grade_vocab.get(grade_level, grade_vocab[3])
+
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", f"""You are a spelling bee word generator for Pakistani primary school Grade {grade_level} students.
 
 Generate exactly ONE challenging English spelling word.
 
@@ -132,43 +160,46 @@ Word requirements:
 
 Respond in EXACTLY this JSON format, nothing else:
 {{"word": "the word in lowercase", "hint": "a short 5-8 word English clue/definition", "urdu_hint": "Urdu translation of the word", "meaning": "a clear 1-sentence definition suitable for Grade {grade_level}", "sentence1": "a simple example sentence using the word", "sentence2": "another example sentence using the word in a different context", "difficulty": "hard"}}"""),
-        ("user", "Generate one spelling bee word now."),
-    ])
+            ("user", "Generate one spelling bee word now."),
+        ])
 
-    llm = ChatOpenAI(
-        model=settings.CHAT_MODEL,
-        temperature=0.9,  # high variety
-        openai_api_key=settings.OPENAI_API_KEY,
-        max_retries=2,
-        timeout=10.0,
-    )
+        llm = ChatOpenAI(
+            model=settings.CHAT_MODEL,
+            temperature=0.9,
+            openai_api_key=settings.OPENAI_API_KEY,
+            max_retries=2,
+            timeout=20.0,
+        )
 
-    chain = prompt | llm
+        chain = prompt | llm
 
-    result = await asyncio.wait_for(
-        chain.ainvoke({}),
-        timeout=12.0,
-    )
+        result = await asyncio.wait_for(
+            chain.ainvoke({}),
+            timeout=25.0,
+        )
 
-    import json
-    content = result.content.strip()
-    # Strip markdown code fences if present
-    if content.startswith("```"):
-        content = content.split("\n", 1)[1] if "\n" in content else content[3:]
-        if content.endswith("```"):
-            content = content[:-3]
-        content = content.strip()
+        content = result.content.strip()
+        # Strip markdown code fences if present
+        if content.startswith("```"):
+            content = content.split("\n", 1)[1] if "\n" in content else content[3:]
+            if content.endswith("```"):
+                content = content[:-3]
+            content = content.strip()
 
-    data = json.loads(content)
-    return {
-        "word": data["word"].strip().lower(),
-        "hint": data["hint"].strip(),
-        "urdu_hint": data.get("urdu_hint", "").strip(),
-        "meaning": data.get("meaning", "").strip(),
-        "sentence1": data.get("sentence1", "").strip(),
-        "sentence2": data.get("sentence2", "").strip(),
-        "difficulty": data.get("difficulty", "hard"),
-    }
+        data = json.loads(content)
+        return {
+            "word": data["word"].strip().lower(),
+            "hint": data["hint"].strip(),
+            "urdu_hint": data.get("urdu_hint", "").strip(),
+            "meaning": data.get("meaning", "").strip(),
+            "sentence1": data.get("sentence1", "").strip(),
+            "sentence2": data.get("sentence2", "").strip(),
+            "difficulty": data.get("difficulty", "hard"),
+        }
+    except Exception as exc:
+        logger.warning("LLM word generation failed, using fallback: %s", exc)
+        words = FALLBACK_WORDS.get(grade_level, FALLBACK_WORDS[3])
+        return random.choice(words)
 
 
 # ---------------------------------------------------------------------------
@@ -219,15 +250,8 @@ async def get_daily_word(
         logger.info("Spelling Bee cache hit for classroom %s", classroom_id)
         return DailyWordResponse(**cached, grade_level=grade_level, time_limit=TIME_LIMIT_SECONDS)
 
-    # Generate new word
-    try:
-        word_data = await _generate_word(grade_level)
-    except Exception as exc:
-        logger.error("Spelling Bee word generation failed: %s", exc)
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Could not generate today's word. Please try again.",
-        )
+    # Generate new word (has built-in fallback, never raises)
+    word_data = await _generate_word(grade_level)
 
     # Cache until end of day (max 24 hours)
     await cache_set(cache_key, word_data, ttl=86400)
