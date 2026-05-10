@@ -39,7 +39,7 @@ const pillarData = [
 export default function LandingPage() {
   return (
     <div
-      className="min-h-screen relative overflow-x-hidden flex flex-col selection:bg-white/20"
+      className="min-h-screen relative overflow-x-hidden overflow-y-auto flex flex-col selection:bg-white/20"
       style={{ background: "linear-gradient(145deg, #0b1535 0%, #0f1e4a 45%, #162660 100%)" }}
     >
       {/* ── ambient background ── */}
@@ -81,8 +81,8 @@ export default function LandingPage() {
         {/* Admin moved to role cards below */}
       </nav>
 
-      {/* ── main content (centered) ── */}
-      <div className="flex-1 flex flex-col items-center justify-center px-4 py-6 sm:py-0 relative z-10">
+      {/* ── main content (centered on desktop, scrollable on mobile) ── */}
+      <div className="flex-1 flex flex-col items-center sm:justify-center px-4 py-6 relative z-10">
         {/* ── hero ── */}
         <AnimatedHeroSection>
           {/* badge */}
