@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2 } from 'lucide-react';
 import { useSpellingBeeDailyStatus, queryKeys } from '@/lib/hooks/queries';
+import LoadingCountdown from '@/components/student/LoadingCountdown';
 
 interface DailyWord {
   word: string;
@@ -27,7 +28,7 @@ interface SubmitResult {
   urdu_hint: string;
 }
 
-type GamePhase = 'loading' | 'ready' | 'playing' | 'result' | 'done';
+type GamePhase = 'loading' | 'countdown' | 'ready' | 'playing' | 'result' | 'done';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
 
@@ -76,7 +77,7 @@ export default function SpellingBeePage() {
     window.speechSynthesis.speak(u);
   }, []);
 
-  const startGame = async () => {
+  const fetchAndStartGame = useCallback(async () => {
     setError('');
     setPhase('loading');
     try {
@@ -104,7 +105,18 @@ export default function SpellingBeePage() {
       setError(e instanceof Error ? e.message : 'Something went wrong');
       setPhase('ready');
     }
+  }, [speakWord]);
+
+  const startGame = () => {
+    setPhase('countdown');
   };
+
+  // After countdown finishes (LoadingCountdown takes ~2.1s), fetch the word
+  useEffect(() => {
+    if (phase !== 'countdown') return;
+    const timer = setTimeout(() => fetchAndStartGame(), 2400);
+    return () => clearTimeout(timer);
+  }, [phase, fetchAndStartGame]);
 
   // Timer countdown
   useEffect(() => {
@@ -211,6 +223,14 @@ export default function SpellingBeePage() {
         <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 text-center">
           <p className="text-sm font-semibold text-red-700">{error}</p>
         </div>
+      )}
+
+      {/* 3-2-1 Countdown */}
+      {phase === 'countdown' && (
+        <LoadingCountdown
+          loadingText="Getting your word..."
+          emoji="🐝"
+        />
       )}
 
       {/* Loading state */}
