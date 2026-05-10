@@ -120,12 +120,19 @@ The Teacher dashboard lets you manage classrooms, create students, assign missio
 
 Students don't need an email or password. They join using a class code, pick their name, and enter a PIN.
 
-### Finding Class Codes
+### Available Class Codes
 
-Class codes are auto-generated when a teacher creates a classroom. You can find them in two ways:
+| Grade | Classroom | Class Code |
+|-------|-----------|------------|
+| 1     | Gr1 Sky   | `E1D4F6`   |
+| 1     | Gr1 Earth | `1AC63B`   |
+| 2     | Gr2 Tulip | `0A7C2C`   |
+| 2     | Gr2 Lily  | `E46A35`   |
+| 3     | Grade 3   | `A19630`   |
+| 4     | Grade 4   | `2DD967`   |
+| 5     | Grade 5   | `8834B6`   |
 
-- **From the Admin panel** — Log in as Admin, go to **Classrooms (Hierarchy)** to see all class codes
-- **From the Teacher panel** — Log in as Teacher and open any classroom to see its class code
+You can also find class codes from the Admin panel (Classrooms Hierarchy) or from the Teacher panel (open any classroom).
 
 ### Default Student PIN
 

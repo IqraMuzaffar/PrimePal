@@ -61,15 +61,27 @@ async def get_topics(
         )
 
     if supabase is None:
-        supabase = get_supabase_admin()
+        try:
+            supabase = get_supabase_admin()
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Database service unavailable",
+            )
 
-    resp = (
-        supabase.table("snc_topics")
-        .select("id, grade_level, topic_name, skill")
-        .eq("grade_level", grade_level)
-        .order("id")
-        .execute()
-    )
+    try:
+        resp = (
+            supabase.table("snc_topics")
+            .select("id, grade_level, topic_name, skill")
+            .eq("grade_level", grade_level)
+            .order("id")
+            .execute()
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to fetch topics",
+        )
     return resp.data or []
 
 

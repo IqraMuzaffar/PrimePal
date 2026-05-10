@@ -312,14 +312,14 @@ export default function EvaluationPage() {
                         : undefined
                     )
                   }
-                  className={`flex flex-col items-center gap-1.5 p-4 rounded-2xl border-2 transition-all duration-150 min-w-0 flex-1 ${
+                  className={`flex flex-col items-center gap-1 sm:gap-1.5 p-2.5 sm:p-4 rounded-2xl border-2 transition-all duration-150 min-w-0 flex-1 ${
                     isSelected
                       ? "border-violet-500 bg-violet-50 shadow-md scale-105"
                       : "border-slate-200 bg-white hover:border-violet-300 hover:bg-violet-50 active:translate-y-1"
                   }`}
                 >
-                  <span className="text-4xl sm:text-5xl">{opt.emoji}</span>
-                  <span className="font-baloo font-extrabold text-sm text-slate-700">
+                  <span className="text-3xl sm:text-5xl">{opt.emoji}</span>
+                  <span className="font-baloo font-extrabold text-xs sm:text-sm text-slate-700 truncate max-w-full">
                     {opt.label}
                   </span>
                 </button>

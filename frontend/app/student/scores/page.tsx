@@ -120,7 +120,7 @@ export default function ScoresPage() {
               <SectionHeading icon="📈" title="At a Glance" tone="blue" />
 
               {/* Stats Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Total Questions */}
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}

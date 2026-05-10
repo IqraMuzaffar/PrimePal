@@ -104,7 +104,13 @@ async def get_classroom_avatars(class_code: str) -> List[AvatarResponse]:
     Returns all student profiles (id, name, avatar_url, avatar_style, theme_color)
     for the given class code so the frontend can render the character select grid.
     """
-    supabase = get_supabase_admin()
+    try:
+        supabase = get_supabase_admin()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Database service unavailable",
+        )
 
     # Convert to uppercase for case-insensitive lookup
     class_code_upper = class_code.upper()
@@ -128,12 +134,18 @@ async def get_classroom_avatars(class_code: str) -> List[AvatarResponse]:
 
     classroom_id: str = classroom_res.data["id"]
 
-    students_res = (
-        supabase.table("students")
-        .select("id, student_name, avatar_url, avatar_style, theme_color")
-        .eq("classroom_id", classroom_id)
-        .execute()
-    )
+    try:
+        students_res = (
+            supabase.table("students")
+            .select("id, student_name, avatar_url, avatar_style, theme_color")
+            .eq("classroom_id", classroom_id)
+            .execute()
+        )
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to fetch student roster",
+        )
 
     return students_res.data or []
 
@@ -148,7 +160,13 @@ async def student_login(request: StudentLoginRequest) -> TokenResponse:
     Step 2 of the student visual login flow.
     Verifies the selected student belongs to the classroom and issues a signed JWT.
     """
-    supabase = get_supabase_admin()
+    try:
+        supabase = get_supabase_admin()
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Database service unavailable",
+        )
 
     # Convert to uppercase for case-insensitive lookup
     class_code_upper = request.class_code.upper()

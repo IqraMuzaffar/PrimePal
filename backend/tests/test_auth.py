@@ -66,7 +66,7 @@ class TestGetClassroomAvatars:
     async def test_returns_student_list_for_valid_code(self, client: AsyncClient):
         """Happy path: valid class code returns list of avatars."""
         mock_sb = _make_supabase_mock()
-        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
             resp = await client.get(f"/api/v1/auth/classroom/{VALID_CLASS_CODE}/avatars")
 
         assert resp.status_code == 200
@@ -80,7 +80,7 @@ class TestGetClassroomAvatars:
     async def test_returns_404_for_unknown_class_code(self, client: AsyncClient):
         """Class code not in DB → 404."""
         mock_sb = _make_supabase_mock(classroom=None)
-        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
             resp = await client.get("/api/v1/auth/classroom/BADCODE/avatars")
 
         assert resp.status_code == 404
@@ -89,7 +89,7 @@ class TestGetClassroomAvatars:
     async def test_returns_empty_list_when_no_students(self, client: AsyncClient):
         """Valid class code but classroom has no students yet → empty list, not an error."""
         mock_sb = _make_supabase_mock(students=[])
-        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
             resp = await client.get(f"/api/v1/auth/classroom/{VALID_CLASS_CODE}/avatars")
 
         assert resp.status_code == 200
@@ -98,7 +98,7 @@ class TestGetClassroomAvatars:
     async def test_class_code_is_case_insensitive_path(self, client: AsyncClient):
         """Whatever case the client sends, the endpoint passes it to Supabase as-is."""
         mock_sb = _make_supabase_mock()
-        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
             resp = await client.get(f"/api/v1/auth/classroom/abc123/avatars")
 
         # As long as Supabase is called (mock handles it), we expect 200
@@ -112,7 +112,7 @@ class TestStudentLogin:
     async def test_returns_jwt_for_valid_student(self, client: AsyncClient):
         """Happy path: valid student_id + class_code + PIN → JWT issued."""
         mock_sb = _make_supabase_mock()
-        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
             resp = await client.post(
                 "/api/v1/auth/student/login",
                 json={"student_id": STUDENT_1_ID, "class_code": VALID_CLASS_CODE, "secret_pin": "1234"},
@@ -130,7 +130,7 @@ class TestStudentLogin:
         from app.core.config import settings
 
         mock_sb = _make_supabase_mock()
-        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
             resp = await client.post(
                 "/api/v1/auth/student/login",
                 json={"student_id": STUDENT_1_ID, "class_code": VALID_CLASS_CODE, "secret_pin": "1234"},
@@ -145,7 +145,7 @@ class TestStudentLogin:
     async def test_returns_404_for_invalid_class_code(self, client: AsyncClient):
         """Bad class code → 404."""
         mock_sb = _make_supabase_mock(classroom=None)
-        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
             resp = await client.post(
                 "/api/v1/auth/student/login",
                 json={"student_id": STUDENT_1_ID, "class_code": "XXXXX", "secret_pin": "1234"},
@@ -156,7 +156,7 @@ class TestStudentLogin:
     async def test_returns_403_when_student_not_in_classroom(self, client: AsyncClient):
         """Student ID from a different classroom → 403 (prevents cross-classroom spoofing)."""
         mock_sb = _make_supabase_mock(student=None)
-        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
             resp = await client.post(
                 "/api/v1/auth/student/login",
                 json={"student_id": "foreign-student-id", "class_code": VALID_CLASS_CODE, "secret_pin": "1234"},
@@ -279,7 +279,7 @@ class TestGetAvatarsReturnsCustomizationFields:
         (mock_sb.table.return_value.select.return_value
          .eq.return_value.execute.return_value) = mock_students
 
-        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
             response = asyncio.get_event_loop().run_until_complete(
                 client.get("/api/v1/auth/classroom/ABC123/avatars")
             )
@@ -314,7 +314,7 @@ class TestPatchStudentProfile:
         assert data["theme_color"] == "#6366f1"
 
     def test_rejects_invalid_style(self, client):
-        """Feature disabled - no longer validates style, returns default."""
+        """Invalid avatar_style still rejected by Pydantic validator → 422."""
         import asyncio
         response = asyncio.get_event_loop().run_until_complete(
             client.patch(
@@ -323,13 +323,10 @@ class TestPatchStudentProfile:
                 headers={"Authorization": f"Bearer {self._token()}"},
             )
         )
-        # Feature disabled - accepts any input but returns defaults
-        assert response.status_code == 200
-        data = response.json()
-        assert data["avatar_style"] == "adventurer"
+        assert response.status_code == 422
 
     def test_rejects_invalid_hex_color(self, client):
-        """Feature disabled - no longer validates color, returns default."""
+        """Invalid theme_color still rejected by Pydantic validator → 422."""
         import asyncio
         response = asyncio.get_event_loop().run_until_complete(
             client.patch(
@@ -338,10 +335,7 @@ class TestPatchStudentProfile:
                 headers={"Authorization": f"Bearer {self._token()}"},
             )
         )
-        # Feature disabled - accepts any input but returns defaults
-        assert response.status_code == 200
-        data = response.json()
-        assert data["theme_color"] == "#6366f1"
+        assert response.status_code == 422
 
     def test_requires_auth(self, client):
         import asyncio
@@ -383,7 +377,7 @@ class TestStudentLoginPIN:
     async def test_correct_pin_returns_token(self, client: AsyncClient):
         """Correct PIN + valid student → 200 with JWT."""
         mock_sb = _make_supabase_mock()
-        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
             resp = await client.post(
                 "/api/v1/auth/student/login",
                 json={"student_id": STUDENT_1_ID, "class_code": VALID_CLASS_CODE, "secret_pin": "1234"},
@@ -394,7 +388,7 @@ class TestStudentLoginPIN:
     async def test_wrong_pin_returns_401(self, client: AsyncClient):
         """Wrong PIN → 401 Incorrect PIN."""
         mock_sb = _make_supabase_mock()
-        with patch("app.api.v1.endpoints.auth.get_supabase", return_value=mock_sb):
+        with patch("app.api.v1.endpoints.auth.get_supabase_admin", return_value=mock_sb):
             resp = await client.post(
                 "/api/v1/auth/student/login",
                 json={"student_id": STUDENT_1_ID, "class_code": VALID_CLASS_CODE, "secret_pin": "9999"},

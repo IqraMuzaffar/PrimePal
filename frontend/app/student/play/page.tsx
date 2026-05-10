@@ -179,7 +179,7 @@ export default function StudentPlayPage() {
               <div>
                 <div className="text-center mb-8">
                   <div className="inline-block animate-floatBig mb-4">
-                    <PrimePalMascot size={110} />
+                    <PrimePalMascot size={80} />
                   </div>
                   <h1 className="font-baloo font-extrabold text-3xl sm:text-4xl text-slate-900 leading-tight mb-2">
                     Enter Your Class Code
@@ -256,7 +256,7 @@ export default function StudentPlayPage() {
                   <h2 className="font-baloo font-extrabold text-3xl sm:text-4xl text-slate-900 mb-1.5">Who are you?</h2>
                   <p className="font-nunito font-semibold text-base text-slate-500">Tap your name below</p>
                 </div>
-                <div className="space-y-3 max-h-80 overflow-y-auto">
+                <div className="space-y-3 max-h-[50vh] sm:max-h-80 overflow-y-auto">
                   {avatars.map((avatar) => {
                     const gender = guessGender(avatar.student_name);
                     const t = getThemeTokens(gender);

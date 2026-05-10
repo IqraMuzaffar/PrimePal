@@ -233,7 +233,7 @@ export default function ClassroomsPage() {
       {/* Create Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-white">
                 New Classroom
@@ -330,7 +330,7 @@ export default function ClassroomsPage() {
       {/* Edit Modal */}
       {editModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-white">
                 Edit Classroom
@@ -406,7 +406,7 @@ export default function ClassroomsPage() {
       {/* Delete Confirmation Modal */}
       {deleteModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md">
+          <div className="bg-slate-800 border border-slate-700 rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-white">
                 Delete Classroom

@@ -110,27 +110,27 @@ function MissionSummary({ results, questions, onContinue }: {
   else if (pct >= 50) { message = 'Good effort!'; emoji = '👏'; }
 
   return (
-    <div className="h-[100dvh] bg-cream flex items-center justify-center p-4">
+    <div className="min-h-[60vh] flex items-center justify-center p-4">
       <Confetti />
-      <div className="bg-white rounded-[28px] p-8 shadow-[0_8px_0_rgba(120,53,15,0.15),0_16px_48px_rgba(0,0,0,0.12)] border-2 border-amber-300 max-w-md w-full text-center animate-popIn">
-        <div className="text-7xl mb-4 animate-starBurst">{emoji}</div>
-        <h2 className="font-baloo text-3xl font-extrabold text-amber-950 mb-2">{message}</h2>
-        <p className="font-nunito font-semibold text-sm text-amber-700 mb-6">
+      <div className="bg-white rounded-[28px] p-6 sm:p-8 shadow-[0_8px_0_rgba(120,53,15,0.15),0_16px_48px_rgba(0,0,0,0.12)] border-2 border-amber-300 max-w-md w-full text-center animate-popIn">
+        <div className="text-5xl sm:text-7xl mb-3 sm:mb-4 animate-starBurst">{emoji}</div>
+        <h2 className="font-baloo text-2xl sm:text-3xl font-extrabold text-amber-950 mb-2">{message}</h2>
+        <p className="font-nunito font-semibold text-sm text-amber-700 mb-4 sm:mb-6">
           You got {correctCount} out of {results.length} correct — {pct}%!
         </p>
 
-        <div className="flex gap-4 justify-center mb-6 flex-wrap">
-          <div className="bg-white rounded-[20px] p-4 border-2 border-amber-300 shadow-sm text-center min-w-0">
+        <div className="flex gap-3 sm:gap-4 justify-center mb-4 sm:mb-6">
+          <div className="bg-white rounded-[20px] p-3 sm:p-4 border-2 border-amber-300 shadow-sm text-center min-w-0 flex-1">
             <span className="text-3xl block mb-1">⭐</span>
             <div className="font-baloo font-extrabold text-2xl text-amber-950">+{totalScore}</div>
             <div className="font-nunito font-semibold text-xs text-amber-700">Stars earned</div>
           </div>
-          <div className="bg-white rounded-[20px] p-4 border-2 border-emerald-300 shadow-sm text-center min-w-0">
+          <div className="bg-white rounded-[20px] p-3 sm:p-4 border-2 border-emerald-300 shadow-sm text-center min-w-0 flex-1">
             <span className="text-3xl block mb-1">✅</span>
             <div className="font-baloo font-extrabold text-2xl text-emerald-800">{correctCount}/{results.length}</div>
             <div className="font-nunito font-semibold text-xs text-emerald-600">Correct</div>
           </div>
-          <div className="bg-white rounded-[20px] p-4 border-2 border-rose-300 shadow-sm text-center min-w-0">
+          <div className="bg-white rounded-[20px] p-3 sm:p-4 border-2 border-rose-300 shadow-sm text-center min-w-0 flex-1">
             <span className="text-3xl block mb-1">🎯</span>
             <div className="font-baloo font-extrabold text-2xl text-rose-800">{pct}%</div>
             <div className="font-nunito font-semibold text-xs text-rose-600">Accuracy</div>
@@ -212,10 +212,10 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
   if (!currentQuestion) return null;
 
   return (
-    <div className="h-[100dvh] bg-cream p-3 sm:p-6 flex flex-col overflow-hidden">
+    <div className="min-h-[60vh] p-3 sm:p-6 flex flex-col">
       <div className="max-w-2xl mx-auto w-full flex-1 flex flex-col">
         {/* Progress header */}
-        <div className="bg-amber-50 border-b-2 border-amber-200 rounded-t-2xl -mx-3 sm:-mx-6 px-4 sm:px-6 py-3 mb-3 flex-shrink-0">
+        <div className="bg-white/80 backdrop-blur-sm border-b-2 border-amber-200 rounded-t-2xl -mx-3 sm:-mx-6 px-4 sm:px-6 py-3 mb-3 flex-shrink-0">
           <div className="flex justify-between items-center mb-2">
             <span className="font-baloo font-extrabold text-sm text-amber-950">
               📖 Task {currentIndex + 1} of {questions.length}
@@ -226,16 +226,16 @@ export default function MissionGameplay({ questions, onComplete }: MissionGamepl
             </div>
           </div>
           {/* Dot progress */}
-          <div className="flex gap-1.5 items-center">
+          <div className="flex gap-1 sm:gap-1.5 items-center">
             {Array.from({ length: questions.length }).map((_, i) => (
               <div
                 key={i}
-                className={`h-2.5 rounded-full transition-all duration-300 ${
+                className={`h-2 sm:h-2.5 rounded-full transition-all duration-300 ${
                   i < currentIndex
-                    ? 'bg-emerald-500 w-2.5'
+                    ? 'bg-emerald-500 w-2 sm:w-2.5'
                     : i === currentIndex
-                    ? 'bg-blue-500 w-6'
-                    : 'bg-amber-200 w-2.5'
+                    ? 'bg-blue-500 w-4 sm:w-6'
+                    : 'bg-amber-200 w-2 sm:w-2.5'
                 }`}
               />
             ))}

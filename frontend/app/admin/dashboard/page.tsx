@@ -76,7 +76,7 @@ export default function AdminDashboardPage() {
           Trigger Post-Test
         </h2>
 
-        <div className="flex flex-wrap items-end gap-4">
+        <div className="flex flex-col sm:flex-row flex-wrap items-start sm:items-end gap-3 sm:gap-4">
           {/* Scope selector */}
           <div>
             <label className="block text-sm font-medium text-slate-400 mb-1">
