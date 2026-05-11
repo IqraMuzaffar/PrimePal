@@ -80,7 +80,7 @@ function AchievementCard({ achievement }: { achievement: Achievement }) {
           {achievement.description}
         </p>
         {achievement.description_ur && (
-          <p className="text-xs text-slate-400 text-center leading-tight" dir="rtl">
+          <p className="text-xs text-slate-400 text-center leading-tight font-urdu" dir="rtl" lang="ur">
             {achievement.description_ur}
           </p>
         )}

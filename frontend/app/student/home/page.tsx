@@ -11,6 +11,7 @@ import {
   usePuzzlePalaceDailyStatus,
   useStoryTimeDailyStatus,
   useSpellingBeeDailyStatus,
+  useDailyPillarStatus,
   type AchievementProgress,
 } from "@/lib/hooks/queries";
 import AchievementPopup from "@/components/student/AchievementPopup";
@@ -19,13 +20,19 @@ import SectionHeading from "@/components/student/SectionHeading";
 import ActivityCard from "@/components/student/ActivityCard";
 import { useGenderTheme } from "@/lib/gender-theme-context";
 
-const BASE_ACTIVITY_CARDS = [
-  { href: "/student/missions",     icon: "🎯", title: "Daily Missions",  subtitle: "Earn stars across 4 pillars — let's go!", tone: "purple" as const, badge: "NEW" },
-  { href: "/student/chat",         icon: "💬", title: "Chat",            subtitle: "Ask PrimePal anything",                   tone: "pink"   as const },
-  { href: "/student/spelling-bee", icon: "🐝", title: "Spelling Bee",    subtitle: "Spell it right for 30 pts!",              tone: "rose"   as const },
-  { href: "/student/puzzle-palace", icon: "🏰", title: "Puzzle Palace",   subtitle: "5 rooms of word puzzles",                 tone: "amber"  as const },
-  { href: "/student/scores",       icon: "📊", title: "My Scores",       subtitle: "See your progress",                       tone: "cyan"   as const },
-  { href: "/student/story-time",   icon: "📖", title: "Story Time",      subtitle: "Read & answer",                           tone: "emerald"as const },
+interface CardDef {
+  href: string; icon: string; title: string; subtitle: string;
+  tone: "purple" | "pink" | "amber" | "cyan" | "emerald" | "blue" | "rose";
+  badge?: string; disabled?: boolean;
+}
+
+const BASE_ACTIVITY_CARDS: CardDef[] = [
+  { href: "/student/missions",     icon: "🎯", title: "Daily Missions",  subtitle: "Earn stars across 4 pillars — let's go!", tone: "purple", badge: "NEW" },
+  { href: "/student/chat",         icon: "💬", title: "Chat",            subtitle: "Ask PrimePal anything",                   tone: "pink" },
+  { href: "/student/spelling-bee", icon: "🐝", title: "Spelling Bee",    subtitle: "Spell it right for 30 pts!",              tone: "rose" },
+  { href: "/student/puzzle-palace", icon: "🏰", title: "Puzzle Palace",   subtitle: "5 rooms of word puzzles",                 tone: "amber" },
+  { href: "/student/scores",       icon: "📊", title: "My Scores",       subtitle: "See your progress",                       tone: "cyan" },
+  { href: "/student/story-time",   icon: "📖", title: "Story Time",      subtitle: "Read & answer",                           tone: "emerald" },
 ];
 
 const STAGGER = ["", "[animation-delay:50ms]", "[animation-delay:100ms]", "[animation-delay:150ms]", "[animation-delay:200ms]", "[animation-delay:250ms]"];
@@ -41,6 +48,7 @@ export default function HomePage() {
   const { data: puzzleStatus } = usePuzzlePalaceDailyStatus();
   const { data: storyStatus } = useStoryTimeDailyStatus();
   const { data: spellingBeeStatus } = useSpellingBeeDailyStatus();
+  const { data: dailyPillarStatus } = useDailyPillarStatus();
 
   const theme = useGenderTheme();
   const [achievementPopup, setAchievementPopup] = useState<{ name: string; icon: string; tier: "bronze" | "silver" | "gold" } | null>(null);
@@ -65,34 +73,49 @@ export default function HomePage() {
   const firstName = name.split(" ")[0];
 
   // Build activity cards with daily status indicators
+  const allPillarsDone = dailyPillarStatus?.pillars?.every(p => p.completed) ?? false;
+  const pillarsDoneCount = dailyPillarStatus?.pillars?.filter(p => p.completed).length ?? 0;
+
   const ACTIVITY_CARDS = BASE_ACTIVITY_CARDS.map((card) => {
-    if (card.href === "/student/puzzle-palace" && puzzleStatus) {
-      const remaining = puzzleStatus.attempts_limit - puzzleStatus.attempts_used;
+    if (card.href === "/student/missions" && dailyPillarStatus) {
       return {
         ...card,
-        subtitle: remaining > 0
-          ? `5 rooms of word puzzles (${remaining} plays left)`
-          : "Done for today!",
-        badge: remaining === 0 ? "DONE" : undefined,
+        subtitle: allPillarsDone
+          ? "All pillars done for today!"
+          : pillarsDoneCount > 0
+            ? `${pillarsDoneCount}/4 pillars done — keep going!`
+            : card.subtitle,
+        badge: allPillarsDone ? "DONE" : pillarsDoneCount > 0 ? `${pillarsDoneCount}/4` : card.badge,
+        disabled: allPillarsDone,
+      };
+    }
+    if (card.href === "/student/puzzle-palace" && puzzleStatus) {
+      const remaining = puzzleStatus.attempts_limit - puzzleStatus.attempts_used;
+      const done = remaining === 0;
+      return {
+        ...card,
+        subtitle: done ? "Done for today!" : `5 rooms of word puzzles (${remaining} plays left)`,
+        badge: done ? "DONE" : undefined,
+        disabled: done,
       };
     }
     if (card.href === "/student/story-time" && storyStatus) {
       const remaining = storyStatus.attempts_limit - storyStatus.attempts_used;
+      const done = remaining === 0;
       return {
         ...card,
-        subtitle: remaining > 0
-          ? `Read & answer (${remaining} plays left)`
-          : "Done for today!",
-        badge: remaining === 0 ? "DONE" : undefined,
+        subtitle: done ? "Done for today!" : `Read & answer (${remaining} plays left)`,
+        badge: done ? "DONE" : undefined,
+        disabled: done,
       };
     }
     if (card.href === "/student/spelling-bee" && spellingBeeStatus) {
+      const done = !spellingBeeStatus.can_play;
       return {
         ...card,
-        subtitle: spellingBeeStatus.can_play
-          ? "Spell it right for 30 pts!"
-          : "Done for today!",
-        badge: !spellingBeeStatus.can_play ? "DONE" : undefined,
+        subtitle: done ? "Done for today!" : "Spell it right for 30 pts!",
+        badge: done ? "DONE" : undefined,
+        disabled: done,
       };
     }
     return card;
@@ -162,6 +185,7 @@ export default function HomePage() {
               subtitle={card.subtitle}
               tone={card.tone}
               badge={card.badge}
+              disabled={card.disabled}
               delayClass={STAGGER[i]}
             />
           ))}

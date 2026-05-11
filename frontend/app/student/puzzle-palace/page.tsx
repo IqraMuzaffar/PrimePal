@@ -258,7 +258,11 @@ export default function PuzzlePalacePage() {
           label="PUZZLE PALACE"
           name="Puzzle Palace"
           waveEmoji="\uD83C\uDFF0"
-          subtitle={`Today\u2019s topic: ${data.topic}`}
+          subtitle={(() => {
+            const topics = data.topic.split(', ');
+            if (topics.length <= 2) return `Today\u2019s topic: ${data.topic}`;
+            return `Today\u2019s topics: ${topics.slice(0, 2).join(', ')} & ${topics.length - 2} more!`;
+          })()}
           mascot="\uD83C\uDFF0"
         />
 

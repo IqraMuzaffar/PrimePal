@@ -59,6 +59,8 @@ export interface GameResult {
   time_remaining: number;
   task_type: string;
   points_value: number;
+  skipped?: boolean;
+  answered_at: string; // ISO timestamp for idempotency
 }
 
 function Confetti() {
@@ -133,15 +135,16 @@ function ScorePopup({ points, isCorrect }: { points: number; isCorrect: boolean 
   );
 }
 
-function MissionSummary({ results, questions, onContinue }: {
+function MissionSummary({ results, questions: _questions, onContinue }: {
   results: GameResult[];
   questions: MissionQuestion[];
   onContinue: () => void;
 }) {
-  const totalScore = results.reduce((sum, r) => sum + (r.is_correct ? r.points_value : 0), 0);
-  const maxScore = questions.reduce((sum, q) => sum + (q.points_value || 10), 0);
-  const correctCount = results.filter(r => r.is_correct).length;
-  const pct = Math.round((totalScore / maxScore) * 100);
+  const attempted = results.filter(r => !r.skipped);
+  const skippedCount = results.length - attempted.length;
+  const totalScore = attempted.reduce((sum, r) => sum + (r.is_correct ? r.points_value : 0), 0);
+  const correctCount = attempted.filter(r => r.is_correct).length;
+  const pct = attempted.length > 0 ? Math.round((correctCount / attempted.length) * 100) : 0;
 
   let message = 'Keep practicing!';
   let emoji = '💪';
@@ -156,7 +159,8 @@ function MissionSummary({ results, questions, onContinue }: {
         <div className="text-5xl sm:text-7xl mb-3 sm:mb-4 animate-starBurst">{emoji}</div>
         <h2 className="font-baloo text-2xl sm:text-3xl font-extrabold text-amber-950 mb-2">{message}</h2>
         <p className="font-nunito font-semibold text-sm text-amber-700 mb-4 sm:mb-6">
-          You got {correctCount} out of {results.length} correct — {pct}%!
+          You got {correctCount} out of {attempted.length} correct — {pct}%!
+          {skippedCount > 0 && ` (${skippedCount} skipped)`}
         </p>
 
         <div className="flex gap-3 sm:gap-4 justify-center mb-4 sm:mb-6">
@@ -167,7 +171,7 @@ function MissionSummary({ results, questions, onContinue }: {
           </div>
           <div className="bg-white rounded-[20px] p-3 sm:p-4 border-2 border-emerald-300 shadow-sm text-center min-w-0 flex-1">
             <span className="text-3xl block mb-1">✅</span>
-            <div className="font-baloo font-extrabold text-2xl text-emerald-800">{correctCount}/{results.length}</div>
+            <div className="font-baloo font-extrabold text-2xl text-emerald-800">{correctCount}/{attempted.length}</div>
             <div className="font-nunito font-semibold text-xs text-emerald-600">Correct</div>
           </div>
           <div className="bg-white rounded-[20px] p-3 sm:p-4 border-2 border-rose-300 shadow-sm text-center min-w-0 flex-1">
@@ -260,7 +264,7 @@ export default function MissionGameplay({ questions, pillar, onComplete }: Missi
     }
   }, [isLastQuestion]);
 
-  const handleAnswer = useCallback((_answer: string, isCorrect: boolean) => {
+  const handleAnswer = useCallback((_answer: string, isCorrect: boolean, skipped?: boolean) => {
     const pointsValue = currentQuestion.points_value || 10;
     const result: GameResult = {
       question_id: currentQuestion.id,
@@ -268,6 +272,8 @@ export default function MissionGameplay({ questions, pillar, onComplete }: Missi
       time_remaining: 0,
       task_type: taskType,
       points_value: pointsValue,
+      skipped: skipped || false,
+      answered_at: new Date().toISOString(),
     };
 
     const newResults = [...results, result];
@@ -279,7 +285,7 @@ export default function MissionGameplay({ questions, pillar, onComplete }: Missi
   }, [currentQuestion, taskType, results, advance]);
 
   const handleTimeUp = useCallback(() => {
-    handleAnswer('', false);
+    handleAnswer('', false, true);
   }, [handleAnswer]);
 
   if (showSummary) {
@@ -361,7 +367,7 @@ export default function MissionGameplay({ questions, pillar, onComplete }: Missi
         {/* Skip */}
         {!showFeedback && (
           <button
-            onClick={() => handleAnswer('', false)}
+            onClick={() => handleAnswer('', false, true)}
             className="mx-auto px-5 py-2 bg-amber-200 text-amber-800 rounded-xl font-baloo font-bold text-sm hover:bg-amber-300 transition flex-shrink-0"
           >
             Skip Question

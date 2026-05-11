@@ -23,6 +23,7 @@ interface ActivityCardProps {
   wide?: boolean;
   badge?: string;
   delayClass?: string;
+  disabled?: boolean;
 }
 
 export default function ActivityCard({
@@ -34,19 +35,66 @@ export default function ActivityCard({
   wide = false,
   badge,
   delayClass,
+  disabled = false,
 }: ActivityCardProps) {
+  const sharedClasses = [
+    "group relative overflow-hidden rounded-3xl p-7",
+    "min-h-[170px] flex flex-col justify-between text-white",
+    "shadow-[0_12px_24px_rgba(15,23,42,0.10)]",
+    "animate-slideUp",
+    delayClass ?? "",
+    wide ? "lg:col-span-2" : "",
+  ];
+
+  if (disabled) {
+    return (
+      <div
+        className={[
+          ...sharedClasses,
+          TONE_CLASS[tone],
+          "opacity-50 grayscale cursor-not-allowed",
+        ].join(" ")}
+        aria-disabled="true"
+      >
+        <span
+          className="pointer-events-none absolute -right-10 -top-10 w-44 h-44 rounded-full bg-white/[0.18]"
+          aria-hidden="true"
+        />
+
+        {badge && (
+          <span className="absolute top-4 right-4 z-10 bg-white text-pink-700 font-baloo font-extrabold text-xs px-3 py-1 rounded-lg">
+            {badge}
+          </span>
+        )}
+
+        <span
+          className="relative z-10 text-5xl sm:text-6xl"
+          style={{ filter: "drop-shadow(0 4px 10px rgba(0,0,0,0.18))" }}
+        >
+          {icon}
+        </span>
+
+        <div className="relative z-10">
+          <p className="font-baloo font-extrabold text-2xl sm:text-[26px] leading-tight">
+            {title}
+          </p>
+          {subtitle && (
+            <p className="font-nunito font-semibold text-sm sm:text-base opacity-90 mt-1">
+              {subtitle}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Link
       href={href}
       className={[
-        "group relative overflow-hidden rounded-3xl p-7",
-        "min-h-[170px] flex flex-col justify-between text-white",
+        ...sharedClasses,
         "transition-transform duration-300 ease-[cubic-bezier(0.34,1.56,0.64,1)]",
         "hover:-translate-y-1.5 hover:rotate-[-0.3deg] hover:shadow-[0_24px_48px_rgba(0,0,0,0.18)]",
-        "shadow-[0_12px_24px_rgba(15,23,42,0.10)]",
-        "animate-slideUp",
-        delayClass ?? "",
-        wide ? "lg:col-span-2" : "",
         TONE_CLASS[tone],
       ].join(" ")}
     >
