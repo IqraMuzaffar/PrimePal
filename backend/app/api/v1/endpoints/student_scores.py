@@ -84,9 +84,10 @@ async def get_my_scores(
         time_range_label = "This Month"
 
     # 2. Query interactions with date filter
+    #    Include score and interaction_type to filter out skipped questions
     query = (
         supabase.table("student_interactions")
-        .select("pillar, correct")
+        .select("pillar, correct, score, interaction_type")
         .eq("student_id", student_id)
         .not_.is_("correct", "null")
     )
@@ -95,7 +96,14 @@ async def get_my_scores(
         query = query.gte("created_at", date_from)
 
     interactions_resp = query.execute()
-    interactions = interactions_resp.data or []
+    raw_interactions = interactions_resp.data or []
+
+    # Filter out skipped/timed-out questions: these have correct=false AND score=0
+    # Only count interactions where the student actually attempted the question
+    interactions = [
+        i for i in raw_interactions
+        if i.get("correct") is True or (i.get("score") or 0) > 0
+    ]
 
     # 3. Aggregate overall stats
     total_questions = len(interactions)

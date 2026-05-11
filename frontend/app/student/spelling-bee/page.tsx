@@ -339,15 +339,15 @@ export default function SpellingBeePage() {
         </motion.div>
       )}
 
-      {/* Result state — correct/incorrect banner */}
+      {/* Result + Learning — single AnimatePresence for clean page transitions */}
       <AnimatePresence mode="wait">
         {phase === 'result' && result && (
           <motion.div
             key="result"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, x: -100 }}
-            transition={{ duration: 0.4 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.3 }}
             className="space-y-5"
           >
             <div className={`rounded-3xl border-2 p-8 sm:p-12 text-center shadow-[0_12px_32px_rgba(0,0,0,0.08)] ${
@@ -412,7 +412,7 @@ export default function SpellingBeePage() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.6 }}
+                transition={{ delay: 0.5 }}
                 className="mt-6"
               >
                 <motion.button
@@ -421,22 +421,19 @@ export default function SpellingBeePage() {
                   onClick={() => setPhase('learning')}
                   className="px-8 py-3 bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-baloo font-extrabold text-lg rounded-2xl shadow-[0_4px_0_rgba(79,70,229,0.4)] hover:shadow-[0_2px_0_rgba(79,70,229,0.4)] hover:translate-y-0.5 transition-all"
                 >
-                  Continue
+                  Learn This Word 📖
                 </motion.button>
               </motion.div>
             </div>
           </motion.div>
         )}
-      </AnimatePresence>
 
-      {/* Learning state — word meaning, sentences, Urdu */}
-      <AnimatePresence mode="wait">
         {phase === 'learning' && result && (
           <motion.div
             key="learning"
-            initial={{ opacity: 0, x: 100 }}
-            animate={{ opacity: 1, x: 0 }}
-            exit={{ opacity: 0, x: -100 }}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
             transition={{ duration: 0.4 }}
             className="space-y-5"
           >
@@ -496,6 +493,15 @@ export default function SpellingBeePage() {
                   <p className="text-xs font-baloo font-extrabold text-emerald-600 uppercase tracking-wider mb-1">Urdu Translation</p>
                   <p className="font-nunito font-bold text-lg sm:text-xl text-emerald-800" dir="rtl">{result.urdu_hint}</p>
                 </motion.div>
+              )}
+
+              {/* No learning data available */}
+              {!result.meaning && !result.sentence1 && !result.sentence2 && !result.urdu_hint && (
+                <div className="bg-slate-50 rounded-2xl p-4 border border-slate-200 text-center">
+                  <p className="font-nunito font-semibold text-sm text-slate-500">
+                    The word was: <span className="font-baloo font-extrabold text-lg text-amber-600">{result.correct_answer}</span>
+                  </p>
+                </div>
               )}
             </div>
 

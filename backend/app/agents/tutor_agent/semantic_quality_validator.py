@@ -80,6 +80,27 @@ CONTEXT_DEPENDENT_PATTERNS = [
 # Punctuation marks (for detecting punctuation-choice ambiguity)
 PUNCTUATION_MARKS = {".", "!", "?", ",", ";", ":", "'", '"'}
 
+# Homophones / confusing word sets that are too advanced for grade 1-3
+ADVANCED_HOMOPHONE_SETS = [
+    {"they're", "their", "there"},
+    {"you're", "your"},
+    {"it's", "its"},
+    {"who's", "whose"},
+    {"we're", "were", "where"},
+    {"to", "too", "two"},
+    {"then", "than"},
+    {"affect", "effect"},
+    {"accept", "except"},
+    {"loose", "lose"},
+    {"weather", "whether"},
+]
+
+# Contractions that are too complex for grade 1-2
+ADVANCED_CONTRACTIONS = {
+    "they're", "you're", "we're", "who's", "couldn't", "wouldn't",
+    "shouldn't", "weren't", "doesn't", "haven't", "hasn't",
+}
+
 
 # ---------------------------------------------------------------------------
 # Main validator class
@@ -118,6 +139,8 @@ class SemanticQualityValidator:
         issues.extend(self._check_distractor_quality(question))
         issues.extend(self._check_context_independence(question))
         issues.extend(self._check_punctuation_ambiguity(question))
+        issues.extend(self._check_grade_vocabulary(question, grade_level))
+        issues.extend(self._check_fill_blank_answer_leaking(question))
 
         # Calculate quality score (1.0 = perfect, 0.0 = critical issues)
         critical_count = sum(1 for i in issues if i.severity == "critical")
@@ -307,10 +330,10 @@ class SemanticQualityValidator:
 
         # Get options
         options_field = "image_options" if task_type in ("sentence_picture_match", "listen_and_choose") else "options"
-        options = question.get(options_field, [])
+        options = question.get(options_field) or []
         correct_answer_id = question.get("correct_answer", "").lower()
 
-        if len(options) < 4:
+        if not options or len(options) < 4:
             return issues  # Structural issue, not our concern here
 
         option_texts = [opt.get("text", "").lower().strip() for opt in options]
@@ -377,6 +400,127 @@ class SemanticQualityValidator:
                     suggestion="Replace pronoun with specific noun or provide context",
                 ))
                 break
+
+        return issues
+
+    def _check_grade_vocabulary(self, question: dict, grade_level: int) -> list[QualityIssue]:
+        """
+        Check if question uses vocabulary or concepts too advanced for grade level.
+
+        Red flags for Grade 1-3:
+        - Homophones (they're/their/there, you're/your, etc.)
+        - Advanced contractions
+        - Complex sentence structures in translation tasks
+        """
+        issues: list[QualityIssue] = []
+        question_text = question.get("question", "").lower()
+        task_type = question.get("task_type", "")
+
+        # Collect all text: question + options
+        all_text = question_text
+        for opt in question.get("options", []):
+            all_text += " " + (opt.get("text", "") if isinstance(opt, dict) else str(opt)).lower()
+        # Include word_bank if present
+        for word in question.get("word_bank", []):
+            all_text += " " + str(word).lower()
+
+        # Check homophones — too confusing for grade 1-3
+        if grade_level <= 3:
+            for homophone_set in ADVANCED_HOMOPHONE_SETS:
+                found = [w for w in homophone_set if w in all_text]
+                if len(found) >= 2:
+                    issues.append(QualityIssue(
+                        severity="critical",
+                        check_name="grade_vocabulary",
+                        message=f"Homophone confusion ({'/'.join(found)}) too advanced for Grade {grade_level}",
+                        suggestion="Use simpler vocabulary without homophone distinctions",
+                    ))
+                    break
+
+        # Check advanced contractions for grade 1-2
+        if grade_level <= 2:
+            found_contractions = [c for c in ADVANCED_CONTRACTIONS if c in all_text]
+            if found_contractions:
+                issues.append(QualityIssue(
+                    severity="critical",
+                    check_name="grade_vocabulary",
+                    message=f"Advanced contractions for Grade {grade_level}: {', '.join(found_contractions[:3])}",
+                    suggestion="Use full forms or simpler vocabulary",
+                ))
+
+        # Check translation tasks for early grades — Urdu-to-English translation with
+        # complex sentence structures is too advanced for grade 1-3
+        if task_type == "sentence_scramble" and grade_level <= 3:
+            # If the question involves Urdu text translation, check word count
+            if any(ord(c) > 0x0600 and ord(c) < 0x06FF for c in question_text):
+                word_count = len(question.get("correct_order", []))
+                if word_count > 5:
+                    issues.append(QualityIssue(
+                        severity="warning",
+                        check_name="grade_vocabulary",
+                        message=f"Translation sentence too long ({word_count} words) for Grade {grade_level}",
+                        suggestion="Use shorter sentences (3-5 words) for lower grades",
+                    ))
+
+        return issues
+
+    def _check_fill_blank_answer_leaking(self, question: dict) -> list[QualityIssue]:
+        """
+        Check if the fill-in-the-blank answer is too obvious from the sentence context.
+
+        Red flags:
+        - Sentence context makes the answer trivially obvious (e.g., "A ___ is a sweet fruit")
+        - The blank's answer appears elsewhere in the question text
+        - The sentence essentially defines the answer word
+        """
+        issues: list[QualityIssue] = []
+        task_type = question.get("task_type", "")
+
+        if task_type != "fill_blank_word_bank":
+            return issues
+
+        question_text = question.get("question", "").lower()
+        correct_answer_id = question.get("correct_answer", "").lower()
+
+        # Get the correct answer text
+        correct_text = ""
+        for opt in question.get("options", []):
+            if isinstance(opt, dict) and opt.get("id", "").lower() == correct_answer_id:
+                correct_text = opt.get("text", "").lower().strip()
+                break
+
+        if not correct_text or "___" not in question_text:
+            return issues
+
+        # Check 1: Does the sentence essentially define the answer?
+        # Patterns like "A ___ is a [description of answer]"
+        # or "[description] is called a ___"
+        defining_patterns = [
+            r"a\s+___\s+is\s+a\s+",        # "A ___ is a ..."
+            r"the\s+___\s+is\s+a\s+",       # "The ___ is a ..."
+            r"a\s+___\s+is\s+an\s+",        # "A ___ is an ..."
+            r"is\s+called\s+a?\s*___",       # "... is called a ___"
+        ]
+        for pattern in defining_patterns:
+            if re.search(pattern, question_text):
+                issues.append(QualityIssue(
+                    severity="critical",
+                    check_name="fill_blank_answer_leaking",
+                    message=f"Fill-blank sentence defines the answer too obviously: '{question_text[:80]}'",
+                    suggestion="Rephrase so the blank tests comprehension, not just word recognition",
+                ))
+                return issues
+
+        # Check 2: Is the correct answer text contained in the question text itself?
+        # (outside of the blank position)
+        text_without_blank = question_text.replace("___", "")
+        if correct_text in text_without_blank and len(correct_text) > 2:
+            issues.append(QualityIssue(
+                severity="critical",
+                check_name="fill_blank_answer_leaking",
+                message=f"Answer '{correct_text}' appears in the question text itself",
+                suggestion="Remove the answer from the question context",
+            ))
 
         return issues
 

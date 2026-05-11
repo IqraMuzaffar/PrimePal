@@ -596,55 +596,82 @@ async def submit_batch(
     processed = 0
     skipped = 0
 
+    # ------------------------------------------------------------------
+    # Batch-level idempotency: check if this batch was already processed
+    # by counting recent mission interactions for this student.
+    # A batch always contains answers for a single pillar session (10 Qs).
+    # If we already have ≥ len(answers) mission interactions in the last
+    # 2 minutes, the batch was already processed → skip entirely.
+    # ------------------------------------------------------------------
+    batch_pillar = None
+    for a in body.answers:
+        if a.pillar:
+            batch_pillar = a.pillar
+            break
+
+    if batch_pillar and body.answers:
+        try:
+            window_start = (datetime.now(timezone.utc) - timedelta(seconds=120)).isoformat()
+            recent_resp = await asyncio.to_thread(
+                lambda: supabase.table("student_interactions")
+                .select("id", count="exact")
+                .eq("student_id", student_id)
+                .eq("pillar", batch_pillar)
+                .gte("created_at", window_start)
+                .execute()
+            )
+            recent_count = len(recent_resp.data) if recent_resp.data else 0
+            if recent_count >= len(body.answers):
+                logger.info(
+                    "Batch already processed for student %s pillar %s "
+                    "(%d recent interactions ≥ %d answers). Skipping.",
+                    student_id, batch_pillar, recent_count, len(body.answers),
+                )
+                return BatchSubmitResponse(
+                    processed=0,
+                    skipped=len(body.answers),
+                    new_total=current_points,
+                )
+        except Exception as exc:
+            logger.warning("Batch idempotency check failed, proceeding: %s", exc)
+
+    # ------------------------------------------------------------------
+    # Process each answer: log interactions SYNCHRONOUSLY (not background)
+    # to prevent race conditions on retry.
+    # ------------------------------------------------------------------
+    interaction_rows = []
     for answer in body.answers:
         itype = f"mission_{answer.task_type}" if answer.task_type else (
             "mission_fill" if answer.question_type == "fill_blank" else "mission_mc"
         )
 
-        # Idempotency check
-        is_dup = False
-        if answer.submitted_at:
-            try:
-                submitted_dt = datetime.fromisoformat(answer.submitted_at.replace("Z", "+00:00"))
-                window_start = (submitted_dt - timedelta(seconds=60)).isoformat()
-                window_end = (submitted_dt + timedelta(seconds=60)).isoformat()
-
-                dup_resp = await asyncio.to_thread(
-                    lambda ws=window_start, we=window_end, it=itype: supabase.table("student_interactions")
-                    .select("id")
-                    .eq("student_id", student_id)
-                    .eq("interaction_type", it)
-                    .gte("created_at", ws)
-                    .lte("created_at", we)
-                    .limit(1)
-                    .execute()
-                )
-                if dup_resp.data:
-                    is_dup = True
-            except (ValueError, TypeError):
-                pass
-
-        if is_dup:
-            skipped += 1
-            continue
-
         pts = (answer.points_value or _POINTS_PER_CORRECT) if answer.question_correct else 0
         current_points += pts
         processed += 1
 
-        background_tasks.add_task(
-            log_interaction,
-            student_id=student_id,
-            classroom_id=classroom_id,
-            grade_level=grade_level,
-            interaction_type=itype,
-            original_message=None,
-            translated_message=None,
-            correct=answer.question_correct,
-            context_used=False,
-            pillar=answer.pillar,
-            score=pts,
-        )
+        interaction_rows.append({
+            "student_id": student_id,
+            "classroom_id": classroom_id,
+            "grade_level": grade_level,
+            "interaction_type": itype,
+            "original_message": None,
+            "translated_message": None,
+            "correct": answer.question_correct,
+            "context_used": False,
+            "pillar": answer.pillar,
+            "score": pts,
+        })
+
+    # Bulk insert all interactions in one DB call (synchronous, not background)
+    if interaction_rows:
+        try:
+            await asyncio.to_thread(
+                lambda: supabase.table("student_interactions")
+                .insert(interaction_rows)
+                .execute()
+            )
+        except Exception as exc:
+            logger.error("Failed to bulk-insert interactions for student %s: %s", student_id, exc)
 
     # Persist updated totals atomically via RPC once
     final_total = student_resp.data.get("points") or 0
@@ -1729,15 +1756,23 @@ async def get_weekly_progress(student: dict = Depends(get_current_student)):
     # ------------------------------------------------------------------
     seven_days_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
 
-    syllabus_resp, interactions_resp = await asyncio.gather(
-        asyncio.to_thread(
-            lambda: supabase.table("classroom_syllabus")
-            .select("topic_title")
-            .eq("classroom_id", classroom_id)
-            .eq("status", "active")
-            .maybe_single()
-            .execute()
-        ),
+    async def _fetch_week_topic():
+        try:
+            resp = await asyncio.to_thread(
+                lambda: supabase.table("classroom_syllabus")
+                .select("topic_title")
+                .eq("classroom_id", classroom_id)
+                .eq("status", "active")
+                .limit(1)
+                .execute()
+            )
+            rows = resp.data or []
+            return rows[0]["topic_title"] if rows else None
+        except Exception:
+            return None
+
+    week_topic, interactions_resp = await asyncio.gather(
+        _fetch_week_topic(),
         asyncio.to_thread(
             lambda: supabase.table("student_interactions")
             .select("pillar")
@@ -1747,7 +1782,6 @@ async def get_weekly_progress(student: dict = Depends(get_current_student)):
             .execute()
         ),
     )
-    week_topic = syllabus_resp.data["topic_title"] if syllabus_resp.data else None
     rows = interactions_resp.data or []
 
     # ------------------------------------------------------------------

@@ -794,6 +794,19 @@ RULES:
    ❌ BAD for Grade 5: "He is writing a story" (4 words) → Too simple, use "The talented student is writing an exciting adventure story for his class"
    ❌ BAD for Grade 5: Simple 3-4 word scrambles → Use 6-8 word sentences with conjunctions
 
+   HOMOPHONE/CONTRACTION RULES:
+   Grade 1-3: NEVER use homophones as answer choices (they're/their/there, you're/your, it's/its, etc.)
+   Grade 1-2: NEVER use contractions (they're, you're, we're, doesn't, etc.) — use full forms instead
+   ❌ BAD for Grade 3: Options: [they're, there, their, books] → Homophone distinction too advanced
+   ✅ GOOD for Grade 3: Options: [happy, sad, tall, bright] → Simple adjectives
+
+7. FILL-IN-THE-BLANK RULES (CRITICAL):
+   The sentence must NOT define the answer word. The blank should test vocabulary/comprehension.
+   ❌ BAD: "A ___ is a sweet fruit to eat." → Sentence defines the blank, multiple answers valid (apple, mango, orange)
+   ❌ BAD: "A ___ is an animal that barks." → Too obvious, defines the answer
+   ✅ GOOD: "The ___ is shining brightly today." → [sun, moon, star, lamp] — context constrains to one answer
+   ✅ GOOD: "She ___ the ball to her friend." → [threw, gave, kicked, showed] — verb fits one best
+
 QUESTION VALIDATION CHECKLIST - BEFORE FINALIZING EACH QUESTION, ASK:
 □ Is there EXACTLY ONE clear correct answer?
 □ Are the wrong options plausible but definitely incorrect?

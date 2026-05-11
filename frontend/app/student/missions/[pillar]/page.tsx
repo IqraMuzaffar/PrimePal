@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { CheckCircle2 } from 'lucide-react';
@@ -18,6 +18,8 @@ interface GameResult {
   time_remaining: number;
   task_type: string;
   points_value: number;
+  skipped?: boolean;
+  answered_at: string;
 }
 
 export default function PillarMissionPage() {
@@ -41,25 +43,35 @@ export default function PillarMissionPage() {
     }
   }, [isOnline]);
 
+  const submittedRef = useRef(false);
+
   const handleComplete = async (results: GameResult[]) => {
+    // Guard against double submission (React re-renders, double-clicks, etc.)
+    if (submittedRef.current) return;
+    submittedRef.current = true;
+
     const token = typeof window !== 'undefined'
       ? localStorage.getItem('primepal_student_token')
       : null;
     if (!token) { router.push('/student/missions'); return; }
 
-    const answers = results.map(result => ({
+    // Only submit actually attempted questions (exclude skipped/timed-out)
+    const attempted = results.filter(r => !r.skipped);
+    if (attempted.length === 0) { router.push('/student/missions'); return; }
+
+    const answers = attempted.map(result => ({
       question_correct: result.is_correct,
       task_type: result.task_type,
       pillar: pillar,
       points_value: result.points_value,
-      submitted_at: new Date().toISOString(),
+      submitted_at: result.answered_at, // use actual answer time for idempotency
     }));
 
     try {
       await batchSubmit.mutateAsync(answers);
     } catch {
       // Offline fallback: queue individual answers
-      for (const result of results) {
+      for (const result of attempted) {
         addPendingAnswer({
           student_id: '',
           question_id: result.question_id,
@@ -68,7 +80,7 @@ export default function PillarMissionPage() {
           task_type: result.task_type,
           points_value: result.points_value,
           question_correct: result.is_correct,
-          timestamp: new Date().toISOString(),
+          timestamp: result.answered_at,
         });
       }
     }
