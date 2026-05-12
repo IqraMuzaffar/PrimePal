@@ -82,7 +82,7 @@ export default function TeacherLayout({ children }: { children: React.ReactNode 
   const pageTitle = matchedTitle || 'Teacher';
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar
         navItems={NAV_LINKS}
         userEmail={email || undefined}

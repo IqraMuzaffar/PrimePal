@@ -53,12 +53,15 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout, m
     )}
     <div
       className={[
-        "flex flex-col relative shrink-0 h-screen select-none",
-        "fixed inset-y-0 left-0 z-50 md:relative md:z-auto",
+        "flex flex-col h-screen select-none",
+        // Mobile: fixed overlay; Desktop: relative in flex layout
+        "fixed inset-y-0 left-0 z-50",
+        "md:relative md:z-auto md:shrink-0",
         mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0",
       ].join(" ")}
       style={{
         width: collapsed && !mobileOpen ? COLLAPSED_W : EXPANDED_W,
+        maxWidth: '85vw',  // prevent sidebar from covering entire screen on small phones
         backgroundColor: designTokens.colors.dark,
         transition: 'width 240ms cubic-bezier(.4,0,.2,1), transform 240ms cubic-bezier(.4,0,.2,1)',
         boxShadow: '3px 0 24px rgba(0,0,0,0.28)',
@@ -279,10 +282,11 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout, m
         <BottomButton icon={LogOut} label="Log Out" collapsed={collapsed} onClick={onLogout} danger />
       </div>
 
-      {/* ── Collapse Toggle ── */}
+      {/* ── Collapse Toggle (desktop only) ── */}
       <button
         onClick={toggleCollapsed}
         aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        className="hidden md:flex"
         style={{
           position: 'absolute',
           top: '50%',
@@ -294,7 +298,6 @@ export function Sidebar({ navItems, userEmail, userRole = 'Teacher', onLogout, m
           backgroundColor: '#1a2e5a',
           border: '1.5px solid rgba(255,255,255,0.13)',
           boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
-          display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           color: '#8896b8',

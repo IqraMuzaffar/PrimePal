@@ -106,7 +106,7 @@ export default function AdminLayout({
   const pageTitle = PAGE_TITLES[pathname] || 'Admin';
 
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen overflow-hidden">
       <Sidebar
         navItems={ADMIN_NAV_LINKS}
         userEmail={adminName}
