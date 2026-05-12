@@ -373,6 +373,7 @@ export default function MissionGameplay({ questions, pillar, onComplete }: Missi
           </AnimatePresence>
 
           <TaskRouter
+            key={`task-${currentIndex}`}
             question={currentQuestion}
             onAnswer={handleAnswer}
             showFeedback={showFeedback}

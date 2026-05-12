@@ -10,8 +10,10 @@ export default function GuidedTranslation({ question, onAnswer, showFeedback, di
   const [submitted, setSubmitted] = useState(false);
   const wordBank = question.word_bank ?? [];
 
+  const isLocked = disabled || showFeedback || submitted;
+
   const handleTapWord = (index: number) => {
-    if (disabled || showFeedback || submitted) return;
+    if (isLocked) return;
     if (selectedIndices.includes(index)) {
       setSelectedIndices(selectedIndices.filter(i => i !== index));
     } else {
@@ -22,7 +24,7 @@ export default function GuidedTranslation({ question, onAnswer, showFeedback, di
   const selectedWords = selectedIndices.map(i => wordBank[i]);
 
   const handleSubmit = () => {
-    if (disabled || submitted) return;
+    if (isLocked) return;
     setSubmitted(true);
     const correctOrder = question.correct_order ?? [];
     const correctSentence = (question.correct_answer ?? '').toLowerCase().trim();
@@ -53,7 +55,7 @@ export default function GuidedTranslation({ question, onAnswer, showFeedback, di
             key={`selected-${idx}`}
             word={wordBank[idx]}
             selected
-            disabled={disabled || showFeedback}
+            disabled={isLocked}
             onTap={() => handleTapWord(idx)}
           />
         ))}
@@ -65,7 +67,7 @@ export default function GuidedTranslation({ question, onAnswer, showFeedback, di
             key={`bank-${i}`}
             word={word}
             selected={selectedIndices.includes(i)}
-            disabled={disabled || showFeedback || selectedIndices.includes(i)}
+            disabled={isLocked || selectedIndices.includes(i)}
             onTap={() => handleTapWord(i)}
           />
         ))}
@@ -84,7 +86,7 @@ export default function GuidedTranslation({ question, onAnswer, showFeedback, di
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={handleSubmit}
-          disabled={disabled || submitted}
+          disabled={isLocked}
           className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
         >
           Check Answer

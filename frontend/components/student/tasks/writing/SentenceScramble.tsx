@@ -1,7 +1,10 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { DndContext, closestCenter, DragEndEvent } from '@dnd-kit/core';
+import {
+  DndContext, closestCenter, DragEndEvent,
+  PointerSensor, TouchSensor, useSensor, useSensors,
+} from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { TaskProps } from '@/types/missions';
@@ -13,7 +16,7 @@ interface IndexedWord {
 }
 
 function SortableWord({ id, word, disabled }: { id: string; word: string; disabled: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({ id, disabled });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
   const style = { transform: CSS.Transform.toString(transform), transition };
 
   return (
@@ -22,7 +25,9 @@ function SortableWord({ id, word, disabled }: { id: string; word: string; disabl
       style={style}
       {...attributes}
       {...listeners}
-      className="px-4 py-2 bg-white border-2 border-indigo-200 rounded-lg font-semibold text-sm text-gray-800 cursor-grab active:cursor-grabbing touch-manipulation select-none"
+      className={`px-4 py-2 bg-white border-2 border-indigo-200 rounded-lg font-semibold text-sm text-gray-800 touch-manipulation select-none ${
+        disabled ? 'opacity-60 cursor-default' : 'cursor-grab active:cursor-grabbing'
+      } ${isDragging ? 'z-10 shadow-lg border-indigo-400' : ''}`}
     >
       {word}
     </div>
@@ -39,7 +44,19 @@ export default function SentenceScramble({ question, onAnswer, showFeedback, dis
   const [words, setWords] = useState<IndexedWord[]>(initialWords);
   const [submitted, setSubmitted] = useState(false);
 
+  // Require 5px movement before drag starts — prevents stuck taps on mobile
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: { distance: 5 },
+  });
+  const touchSensor = useSensor(TouchSensor, {
+    activationConstraint: { delay: 150, tolerance: 5 },
+  });
+  const sensors = useSensors(pointerSensor, touchSensor);
+
+  const isLocked = disabled || showFeedback || submitted;
+
   const handleDragEnd = (event: DragEndEvent) => {
+    if (isLocked) return;
     const { active, over } = event;
     if (!over || active.id === over.id) return;
     const oldIndex = words.findIndex(w => w.id === active.id);
@@ -50,14 +67,13 @@ export default function SentenceScramble({ question, onAnswer, showFeedback, dis
   };
 
   const handleSubmit = () => {
-    if (disabled || submitted) return;
+    if (isLocked) return;
     setSubmitted(true);
     const correctOrder = question.correct_order ?? [];
     const correctSentence = (question.correct_answer ?? '').toLowerCase().trim();
     const texts = words.map(w => w.text);
     const studentSentence = texts.join(' ').toLowerCase().trim();
 
-    // Try three checks: exact order match, sentence match, or correct_answer match
     const orderMatch = texts.length === correctOrder.length &&
       texts.every((w, i) => w.toLowerCase().trim() === (correctOrder[i] ?? '').toLowerCase().trim());
     const sentenceMatch = correctSentence.length > 0 && studentSentence === correctSentence;
@@ -73,11 +89,11 @@ export default function SentenceScramble({ question, onAnswer, showFeedback, dis
       <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 leading-tight">{question.question}</h2>
       <p className="text-sm text-gray-500 mb-4">Drag the words into the correct order.</p>
 
-      <DndContext collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={words.map(w => w.id)} strategy={horizontalListSortingStrategy}>
           <div className="flex flex-wrap gap-2 justify-center mb-6 min-h-[48px] p-3 bg-slate-50 rounded-xl border-2 border-dashed border-slate-300">
             {words.map((item) => (
-              <SortableWord key={item.id} id={item.id} word={item.text} disabled={disabled || showFeedback} />
+              <SortableWord key={item.id} id={item.id} word={item.text} disabled={isLocked} />
             ))}
           </div>
         </SortableContext>
@@ -96,7 +112,7 @@ export default function SentenceScramble({ question, onAnswer, showFeedback, dis
           whileHover={{ scale: 1.02 }}
           whileTap={{ scale: 0.98 }}
           onClick={handleSubmit}
-          disabled={disabled || submitted}
+          disabled={isLocked}
           className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
         >
           Check Answer
