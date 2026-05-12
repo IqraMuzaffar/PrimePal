@@ -227,20 +227,9 @@ async def get_daily_missions(
     # Step 1: Fetch classroom grade (needed for active topics)
     # ------------------------------------------------------------------
     async def fetch_classroom_grade():
-        """Fetch classroom grade level."""
-        resp = (
-            supabase.table("classrooms")
-            .select("grade_level")
-            .eq("id", classroom_id)
-            .maybe_single()
-            .execute()
-        )
-        if not resp.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Classroom not found for this student",
-            )
-        return resp.data["grade_level"]
+        """Fetch classroom grade level (cached 24h)."""
+        from app.core.cache import get_cached_grade_level
+        return await get_cached_grade_level(classroom_id)
 
     # Fetch grade level first (needed for active topics)
     grade_level = await asyncio.to_thread(fetch_classroom_grade)
@@ -1006,7 +995,45 @@ async def get_pillar_missions(
         )
 
     # ------------------------------------------------------------------
-    # Step 1b: Check if pillar is already completed today (10/10)
+    # Step 0 (FAST PATH): Get grade + topics (both cached), check cache BEFORE expensive DB work
+    # ------------------------------------------------------------------
+    from app.core.cache import get_cached_grade_level
+    grade_level = await get_cached_grade_level(classroom_id)
+    if not grade_level:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Classroom not found for this student")
+
+    active_topic_objs = await get_active_topics(classroom_id, grade_level, supabase)
+    active_topic_names = [t["topic_name"] for t in active_topic_objs]
+    topics_hash = hashlib.md5(",".join(sorted(active_topic_names)).encode()).hexdigest()[:12]
+
+    cache_key = make_cache_key("pillar_missions", student_id, classroom_id, pillar, str(is_frustrated), topics_hash)
+    MIN_CACHE_QUESTIONS = 6
+
+    if not is_frustrated:
+        cached = await cache_get(cache_key)
+        if cached:
+            cached_questions = cached.get("questions", [])
+            if len(cached_questions) >= MIN_CACHE_QUESTIONS:
+                logger.info(f"Cache hit for pillar missions (student): {cache_key} ({len(cached_questions)} questions)")
+                await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
+                return PillarMissionsResponse(**cached)
+
+        generic_key = _build_generic_cache_key(classroom_id, pillar, topics_hash)
+        generic_cached = await cache_get(generic_key)
+        if generic_cached:
+            generic_questions = generic_cached.get("questions", [])
+            if len(generic_questions) >= MIN_CACHE_QUESTIONS:
+                logger.info(f"Cache hit for pillar missions (generic): {generic_key} ({len(generic_questions)} questions)")
+                await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
+                background_tasks.add_task(
+                    _generate_personalized_missions,
+                    student_id, classroom_id, pillar, grade_level,
+                    active_topic_names, [], None, cache_key,
+                )
+                return PillarMissionsResponse(**generic_cached)
+
+    # ------------------------------------------------------------------
+    # Step 1b: Check pillar completion (only on cache MISS)
     # ------------------------------------------------------------------
     PILLAR_DAILY_LIMIT = 10
     try:
@@ -1036,49 +1063,14 @@ async def get_pillar_missions(
         logger.warning("Could not check pillar daily limit: %s", exc)
 
     # ------------------------------------------------------------------
-    # Step 2: Fetch classroom grade + resolve active topics (parallelize initial queries)
+    # Step 2: Fetch weaknesses + performance profile (only on cache MISS)
     # ------------------------------------------------------------------
-    async def fetch_classroom_grade():
-        """Fetch classroom grade level."""
-        resp = (
-            supabase.table("classrooms")
-            .select("grade_level")
-            .eq("id", classroom_id)
-            .maybe_single()
-            .execute()
-        )
-        if not resp.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Classroom not found for this student",
-            )
-        return resp.data["grade_level"]
-
     async def fetch_weaknesses():
-        """
-        Fetch student's weak pillars based on recent performance.
-
-        H3: Returns structured dicts instead of formatted strings so that
-        downstream consumers (LLM prompt builder, bank selector) can access
-        individual fields without parsing.
-
-        Analyzes last 30 interactions per student to identify pillars with <60% accuracy.
-        Only returns pillars with minimum 3 attempts to ensure statistical validity.
-
-        Returns:
-            List of structured dicts like:
-            [{"pillar": "reading", "accuracy": 40, "correct": 4, "total": 10}, ...]
-        """
-        # Cache weakness detection for 5 minutes
         weakness_cache_key = make_cache_key("weaknesses", student_id)
         cached_weaknesses = await cache_get(weakness_cache_key)
-
         if cached_weaknesses is not None:
-            logger.info(f"Weakness cache hit for student {student_id}")
             return cached_weaknesses
-
         try:
-            # Get last 30 interactions across all pillars
             resp = (
                 supabase.table("student_interactions")
                 .select("pillar, correct, interaction_type")
@@ -1088,8 +1080,6 @@ async def get_pillar_missions(
                 .limit(30)
                 .execute()
             )
-
-            # Calculate accuracy per pillar
             pillar_stats: dict[str, dict] = {}
             for r in resp.data or []:
                 p = r.get("pillar")
@@ -1099,8 +1089,6 @@ async def get_pillar_missions(
                     pillar_stats[p]["total"] += 1
                     if r.get("correct"):
                         pillar_stats[p]["correct"] += 1
-
-            # H3: Return structured dicts for pillars with <60% accuracy (minimum 3 attempts)
             weaknesses: list[dict] = []
             for pillar_name, stats in pillar_stats.items():
                 if stats["total"] >= 3:
@@ -1112,78 +1100,19 @@ async def get_pillar_missions(
                             "correct": stats["correct"],
                             "total": stats["total"],
                         })
-
-            if weaknesses:
-                logger.info(
-                    "Student %s weaknesses detected: %s",
-                    student_id,
-                    ", ".join(f"{w['pillar']}({w['accuracy']}%)" for w in weaknesses),
-                )
-
-            # Cache for 5 minutes
             await cache_set(weakness_cache_key, weaknesses, ttl=300)
-
             return weaknesses
         except Exception as exc:
             logger.warning("Could not fetch student weaknesses: %s", exc)
             return []
 
-    # Run all independent queries in parallel
-    grade_level, student_weaknesses, performance_profile = await asyncio.gather(
-        fetch_classroom_grade(),
+    student_weaknesses, performance_profile = await asyncio.gather(
         fetch_weaknesses(),
-        get_student_performance_profile(student_id)
+        get_student_performance_profile(student_id),
     )
 
-    # Log performance profile if available
     if performance_profile:
         logger.info("Performance profile loaded for student %s: overall=%.1f%%", student_id, performance_profile.get("overall_accuracy", 0))
-
-    # Fetch active topics (depends on grade_level from fetch_classroom_grade)
-    active_topic_objs = await get_active_topics(classroom_id, grade_level, supabase)
-    active_topic_names = [t["topic_name"] for t in active_topic_objs]
-    topics_hash = hashlib.md5(",".join(sorted(active_topic_names)).encode()).hexdigest()[:12]
-
-    # ------------------------------------------------------------------
-    # Step 0: Check cache (only if not frustrated — frustrated students need fresh questions)
-    # ------------------------------------------------------------------
-    cache_key = make_cache_key("pillar_missions", student_id, classroom_id, pillar, str(is_frustrated), topics_hash)
-    MIN_CACHE_QUESTIONS = 6  # Accept cached results with >=6 questions
-    if not is_frustrated:
-        # Check student-specific cache first
-        cached = await cache_get(cache_key)
-        if cached:
-            cached_questions = cached.get("questions", [])
-            if len(cached_questions) >= MIN_CACHE_QUESTIONS:
-                logger.info(f"Cache hit for pillar missions (student): {cache_key} ({len(cached_questions)} questions)")
-                await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
-                return PillarMissionsResponse(**cached)
-            else:
-                logger.warning(
-                    "Stale student cache for %s: only %d questions. Skipping cache.",
-                    cache_key, len(cached_questions),
-                )
-
-        # Fallback: check generic classroom-level cache (pre-generated)
-        generic_key = _build_generic_cache_key(classroom_id, pillar, topics_hash)
-        generic_cached = await cache_get(generic_key)
-        if generic_cached:
-            generic_questions = generic_cached.get("questions", [])
-            if len(generic_questions) >= MIN_CACHE_QUESTIONS:
-                logger.info(f"Cache hit for pillar missions (generic): {generic_key} ({len(generic_questions)} questions)")
-                await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
-                background_tasks.add_task(
-                    _generate_personalized_missions,
-                    student_id, classroom_id, pillar, grade_level,
-                    active_topic_names, student_weaknesses, performance_profile,
-                    cache_key,
-                )
-                return PillarMissionsResponse(**generic_cached)
-            else:
-                logger.warning(
-                    "Stale generic cache for %s: only %d questions. Skipping cache.",
-                    generic_key, len(generic_questions),
-                )
 
     # ------------------------------------------------------------------
     # Step 3: Pull 5 questions from question_bank (instant) + start LLM (parallel)
@@ -1211,59 +1140,40 @@ async def get_pillar_missions(
         logger.info(f"RAG cache hit for grade {grade_level}, topics {topics_hash}: {len(context_chunks)} chunks")
 
     # ------------------------------------------------------------------
-    # Step 4a: Pull from bank first (instant) to know how many LLM needs
+    # Step 4: Pull from bank AND generate via LLM in PARALLEL
     # ------------------------------------------------------------------
-    try:
-        bank_questions = await pull_from_bank(
-            grade_level=grade_level,
-            pillar=pillar,
-            topics=active_topic_names,
-            count=BANK_QUESTIONS_COUNT,
-            classroom_id=classroom_id,
-        )
-    except Exception as exc:
-        logger.warning("Bank pull failed, LLM will generate all %d: %s", PILLAR_QUESTIONS_COUNT, exc)
-        bank_questions = []
-
-    # Trigger stale bank refresh in background (non-blocking)
-    from app.utils.question_bank import refresh_stale_slots
-    background_tasks.add_task(
-        refresh_stale_slots,
-        classroom_id, grade_level, pillar, active_topic_names,
-    )
-
-    # How many does LLM need to generate? (10 - bank_count)
-    # Over-generate by 30% to compensate for validation/topic-alignment losses
-    llm_needed_raw = PILLAR_QUESTIONS_COUNT - len(bank_questions)
-    llm_needed = min(llm_needed_raw + max(3, llm_needed_raw // 3), 15)  # Request extra, cap at 15
-    logger.info(
-        "Bank provided %d questions for %s. LLM will generate %d (target %d + buffer).",
-        len(bank_questions), pillar, llm_needed, llm_needed_raw,
-    )
-
-    # ------------------------------------------------------------------
-    # Step 4b: Generate remaining questions via LLM
-    # ------------------------------------------------------------------
-    llm_questions = None
-    if llm_needed > 0:
+    async def _pull_bank():
         try:
-            llm_questions = await generate_pillar_missions(
-                pillar=pillar,
-                grade_level=grade_level,
-                active_topics=active_topic_names,
-                student_id=student_id,
-                student_weaknesses=student_weaknesses,
-                is_frustrated=is_frustrated,
-                performance_profile=performance_profile,
-                context_chunks=context_chunks,
-                count=llm_needed,
+            return await pull_from_bank(
+                grade_level=grade_level, pillar=pillar,
+                topics=active_topic_names, count=BANK_QUESTIONS_COUNT,
+                classroom_id=classroom_id,
             )
         except Exception as exc:
-            logger.error(
-                "LLM pillar generation failed for student %s pillar %s: %s",
-                student_id, pillar, exc, exc_info=True,
+            logger.warning("Bank pull failed: %s", exc)
+            return []
+
+    async def _generate_llm():
+        try:
+            return await generate_pillar_missions(
+                pillar=pillar, grade_level=grade_level,
+                active_topics=active_topic_names, student_id=student_id,
+                student_weaknesses=student_weaknesses, is_frustrated=is_frustrated,
+                performance_profile=performance_profile, context_chunks=context_chunks,
+                count=PILLAR_QUESTIONS_COUNT,  # full set; trim after merge
             )
-            llm_questions = None
+        except Exception as exc:
+            logger.error("LLM pillar generation failed for %s %s: %s", student_id, pillar, exc)
+            return None
+
+    bank_questions, llm_questions = await asyncio.gather(_pull_bank(), _generate_llm())
+
+    # Trigger stale bank refresh in background
+    from app.utils.question_bank import refresh_stale_slots
+    background_tasks.add_task(refresh_stale_slots, classroom_id, grade_level, pillar, active_topic_names)
+
+    logger.info("Bank provided %d, LLM provided %s for %s",
+        len(bank_questions), len(llm_questions) if llm_questions else 0, pillar)
 
     log_suffix = " (Confidence Builder)" if is_frustrated else ""
 

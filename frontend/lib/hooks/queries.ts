@@ -234,7 +234,7 @@ export function useDailyPillarStatus() {
   return useQuery({
     queryKey: queryKeys.dailyPillarStatus,
     queryFn: () => studentFetch<DailyPillarStatusResponse>("/missions/daily-pillar-status"),
-    staleTime: 60 * 1000, // 1 minute — must refresh quickly after completion
+    staleTime: 3 * 60 * 1000, // 3 minutes
   });
 }
 
@@ -250,7 +250,7 @@ export function useMyScores(timeRange: string = "everything") {
   return useQuery({
     queryKey: queryKeys.myScores(timeRange),
     queryFn: () => studentFetch<MyScoresData>(`/student/my-scores?time_range=${timeRange}`),
-    staleTime: 30 * 1000,
+    staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
 

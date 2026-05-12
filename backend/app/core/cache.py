@@ -115,3 +115,28 @@ async def debounced_invalidate(student_id: str, invalidators: list) -> None:
         return
     for fn in invalidators:
         await fn(student_id)
+
+
+async def get_cached_grade_level(classroom_id: str) -> int:
+    """Fetch classroom grade level with 24-hour cache. Grades don't change mid-year."""
+    import asyncio
+    from app.core.supabase_client import get_supabase_admin
+
+    cache_key = make_cache_key("grade_level", classroom_id)
+    cached = await cache_get(cache_key)
+    if cached is not None:
+        return cached
+
+    supabase = get_supabase_admin()
+    resp = await asyncio.to_thread(
+        lambda: supabase.table("classrooms")
+        .select("grade_level")
+        .eq("id", classroom_id)
+        .maybe_single()
+        .execute()
+    )
+    if not resp.data:
+        return 3  # safe default
+    grade = resp.data["grade_level"]
+    await cache_set(cache_key, grade, ttl=86400)  # 24 hours
+    return grade

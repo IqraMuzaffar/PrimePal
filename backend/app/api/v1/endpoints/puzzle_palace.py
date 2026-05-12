@@ -161,26 +161,15 @@ async def get_puzzle_palace_rooms(
     supabase = get_supabase_admin()
 
     # ------------------------------------------------------------------
-    # Step 1: Fetch classroom grade level
+    # Step 1: Fetch grade (cached) + session count in parallel
     # ------------------------------------------------------------------
-    resp = await asyncio.to_thread(
-        lambda: supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
+    from app.core.cache import get_cached_grade_level
+    grade_level, sessions_used = await asyncio.gather(
+        get_cached_grade_level(classroom_id),
+        _count_today_sessions(student_id),
     )
-    if not resp.data:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Classroom not found for this student",
-        )
-    grade_level: int = resp.data["grade_level"]
+    grade_level = int(grade_level)
 
-    # ------------------------------------------------------------------
-    # Step 1b: Check daily limit
-    # ------------------------------------------------------------------
-    sessions_used = await _count_today_sessions(student_id)
     if sessions_used >= DAILY_LIMIT:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -201,7 +190,8 @@ async def get_puzzle_palace_rooms(
     # ------------------------------------------------------------------
     # Step 3: Check cache (1 hour TTL)
     # ------------------------------------------------------------------
-    cache_key = make_cache_key("puzzle_palace", classroom_id, topics_hash, str(sessions_used))
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    cache_key = make_cache_key("puzzle_palace", classroom_id, topics_hash, today_str)
     cached = await cache_get(cache_key)
     if cached:
         logger.info("Cache hit for puzzle palace: %s", cache_key)

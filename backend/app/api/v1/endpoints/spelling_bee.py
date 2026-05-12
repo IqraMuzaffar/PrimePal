@@ -114,18 +114,9 @@ async def _has_correct_attempt_today(student_id: str) -> bool:
 
 
 async def _get_grade_level(classroom_id: str) -> int:
-    """Fetch the grade level for the student's classroom."""
-    supabase = get_supabase_admin()
-    resp = await asyncio.to_thread(
-        lambda: supabase.table("classrooms")
-        .select("grade_level")
-        .eq("id", classroom_id)
-        .maybe_single()
-        .execute()
-    )
-    if resp.data and resp.data.get("grade_level"):
-        return resp.data["grade_level"]
-    return 3  # safe default
+    """Fetch the grade level for the student's classroom (cached 24h)."""
+    from app.core.cache import get_cached_grade_level
+    return await get_cached_grade_level(classroom_id)
 
 
 FALLBACK_WORDS = {
@@ -235,8 +226,10 @@ async def spelling_bee_daily_status(
 ):
     """Check if the student can play today's Spelling Bee."""
     student_id = student["sub"]
-    attempts = await _count_today_attempts(student_id)
-    already_correct = await _has_correct_attempt_today(student_id)
+    attempts, already_correct = await asyncio.gather(
+        _count_today_attempts(student_id),
+        _has_correct_attempt_today(student_id),
+    )
     can_play = attempts < MAX_ATTEMPTS and not already_correct
     return DailyActivityStatus(
         attempts_used=attempts,
@@ -257,8 +250,10 @@ async def get_daily_word(
     classroom_id = student["classroom_id"]
 
     # Check daily limit — allow up to MAX_ATTEMPTS unless already correct
-    attempts = await _count_today_attempts(student_id)
-    already_correct = await _has_correct_attempt_today(student_id)
+    attempts, already_correct = await asyncio.gather(
+        _count_today_attempts(student_id),
+        _has_correct_attempt_today(student_id),
+    )
     if attempts >= MAX_ATTEMPTS or already_correct:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -306,8 +301,10 @@ async def submit_spelling_bee(
     classroom_id = student["classroom_id"]
 
     # Check limits — prevent submission if already correct or out of attempts
-    attempts = await _count_today_attempts(student_id)
-    already_correct = await _has_correct_attempt_today(student_id)
+    attempts, already_correct = await asyncio.gather(
+        _count_today_attempts(student_id),
+        _has_correct_attempt_today(student_id),
+    )
     if already_correct or attempts >= MAX_ATTEMPTS:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,

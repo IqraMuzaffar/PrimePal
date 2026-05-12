@@ -219,7 +219,8 @@ async def get_story(request: Request, student: dict = Depends(get_current_studen
     # ------------------------------------------------------------------
     # Check cache — keyed per session so each daily attempt is unique
     # ------------------------------------------------------------------
-    cache_key = make_cache_key("story_time", classroom_id, topic_title, str(grade_level), str(sessions_used))
+    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    cache_key = make_cache_key("story_time", classroom_id, topic_title, str(grade_level), today_str)
     cached = await cache_get(cache_key)
     if cached:
         logger.info(f"Cache hit for story time: {cache_key}")
