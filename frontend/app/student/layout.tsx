@@ -9,6 +9,7 @@ import { studentFetch } from "@/lib/api-helpers";
 import OfflineBanner from "@/components/student/OfflineBanner";
 import StreakCounter from "@/components/student/StreakCounter";
 import { GenderThemeProvider, useGenderTheme } from "@/lib/gender-theme-context";
+import { VoiceProvider } from "@/lib/voice-context";
 
 const PREFETCH_MAP: Record<string, { queryKey: readonly string[]; url: string; staleTime: number }[]> = {
   "/student/missions": [
@@ -211,7 +212,9 @@ function StudentLayoutWithTheme({ children }: { children: React.ReactNode }) {
 
   return (
     <GenderThemeProvider studentName={studentName}>
-      <StudentLayoutContent>{children}</StudentLayoutContent>
+      <VoiceProvider>
+        <StudentLayoutContent>{children}</StudentLayoutContent>
+      </VoiceProvider>
     </GenderThemeProvider>
   );
 }

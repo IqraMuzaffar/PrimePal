@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import PillarCard from '@/components/student/PillarCard';
 import PageHero from "@/components/student/PageHero";
 import SectionHeading from "@/components/student/SectionHeading";
 import { BookOpen, Edit3, Headphones, Mic } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
-import { useDailyPillarStatus } from '@/lib/hooks/queries';
+import { studentFetch } from '@/lib/api-helpers';
+import { useDailyPillarStatus, queryKeys } from '@/lib/hooks/queries';
 
 type PillarType = 'reading' | 'writing' | 'listening' | 'speaking';
 
@@ -39,9 +41,22 @@ const DIFFICULTY_BADGES: Record<string, { label: string; color: string }> = {
 };
 
 export default function MissionsDashboard() {
+  const queryClient = useQueryClient();
   const [performance, setPerformance] = useState<PerformanceProfile | null>(null);
   const [perfLoading, setPerfLoading] = useState(true);
   const { data: dailyStatus } = useDailyPillarStatus();
+
+  // Prefetch all 4 pillar missions on dashboard mount so pillar pages load instantly
+  useEffect(() => {
+    const pillars = ['reading', 'writing', 'listening', 'speaking'];
+    for (const p of pillars) {
+      queryClient.prefetchQuery({
+        queryKey: queryKeys.missionPillar(p),
+        queryFn: () => studentFetch(`/missions/pillar?pillar=${p}`),
+        staleTime: 5 * 60 * 1000,
+      });
+    }
+  }, [queryClient]);
 
   useEffect(() => {
     const fetchPerformance = async () => {

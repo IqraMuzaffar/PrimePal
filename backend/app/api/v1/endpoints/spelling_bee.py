@@ -2,10 +2,11 @@
 Spelling Bee — daily spelling challenge for bonus points.
 
 Rules:
-  - One attempt per day per student.
+  - Up to 3 attempts per day per student for the same word.
   - LLM generates a grade-appropriate difficult word.
-  - Student has 20 seconds to spell it correctly.
-  - Correct answer awards 30 points.
+  - Student has 20 seconds per attempt to spell it correctly.
+  - 1st try correct = 30 pts, 2nd try = 20 pts, 3rd try = 10 pts.
+  - After a correct answer or 3 wrong attempts, the challenge is done for the day.
 """
 from __future__ import annotations
 
@@ -28,8 +29,8 @@ router = APIRouter()
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
-SPELLING_BEE_POINTS = 30
-DAILY_LIMIT = 1
+POINTS_BY_ATTEMPT = {1: 30, 2: 20, 3: 10}  # attempt_number → points
+MAX_ATTEMPTS = 3
 TIME_LIMIT_SECONDS = 20
 
 
@@ -56,6 +57,9 @@ class SpellingBeeSubmitResponse(BaseModel):
     correct_answer: str
     points_awarded: int
     new_total: int
+    attempt_number: int = 1
+    can_retry: bool = False
+    next_attempt_points: int = 0
     meaning: str = ""
     sentence1: str = ""
     sentence2: str = ""
@@ -88,6 +92,25 @@ async def _count_today_attempts(student_id: str) -> int:
         .execute()
     )
     return resp.count or 0
+
+
+async def _has_correct_attempt_today(student_id: str) -> bool:
+    """Check if student already got the spelling bee correct today."""
+    supabase = get_supabase_admin()
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ).isoformat()
+
+    resp = await asyncio.to_thread(
+        lambda: supabase.table("student_interactions")
+        .select("id", count="exact")
+        .eq("student_id", student_id)
+        .eq("interaction_type", "spelling_bee")
+        .eq("correct", True)
+        .gte("created_at", today_start)
+        .execute()
+    )
+    return (resp.count or 0) > 0
 
 
 async def _get_grade_level(classroom_id: str) -> int:
@@ -213,10 +236,12 @@ async def spelling_bee_daily_status(
     """Check if the student can play today's Spelling Bee."""
     student_id = student["sub"]
     attempts = await _count_today_attempts(student_id)
+    already_correct = await _has_correct_attempt_today(student_id)
+    can_play = attempts < MAX_ATTEMPTS and not already_correct
     return DailyActivityStatus(
         attempts_used=attempts,
-        attempts_limit=DAILY_LIMIT,
-        can_play=attempts < DAILY_LIMIT,
+        attempts_limit=MAX_ATTEMPTS,
+        can_play=can_play,
     )
 
 
@@ -231,12 +256,13 @@ async def get_daily_word(
     student_id = student["sub"]
     classroom_id = student["classroom_id"]
 
-    # Check daily limit
+    # Check daily limit — allow up to MAX_ATTEMPTS unless already correct
     attempts = await _count_today_attempts(student_id)
-    if attempts >= DAILY_LIMIT:
+    already_correct = await _has_correct_attempt_today(student_id)
+    if attempts >= MAX_ATTEMPTS or already_correct:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="You've already attempted today's Spelling Bee! Come back tomorrow.",
+            detail="You've already completed today's Spelling Bee! Come back tomorrow.",
         )
 
     grade_level = await _get_grade_level(classroom_id)
@@ -272,16 +298,20 @@ async def submit_spelling_bee(
     background_tasks: BackgroundTasks,
     student: dict = Depends(get_current_student),
 ):
-    """Submit the student's spelling attempt. Awards 30 points if correct."""
+    """
+    Submit the student's spelling attempt.
+    Awards 30/20/10 points for 1st/2nd/3rd correct attempt.
+    """
     student_id = student["sub"]
     classroom_id = student["classroom_id"]
 
-    # Check daily limit (prevent double submission)
+    # Check limits — prevent submission if already correct or out of attempts
     attempts = await _count_today_attempts(student_id)
-    if attempts >= DAILY_LIMIT:
+    already_correct = await _has_correct_attempt_today(student_id)
+    if already_correct or attempts >= MAX_ATTEMPTS:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Already attempted today's Spelling Bee.",
+            detail="Already completed today's Spelling Bee.",
         )
 
     supabase = get_supabase_admin()
@@ -289,7 +319,13 @@ async def submit_spelling_bee(
     student_answer = body.answer.strip().lower()
     is_correct = student_answer == correct_word
 
-    points_awarded = SPELLING_BEE_POINTS if is_correct else 0
+    # Current attempt number (1-based)
+    attempt_number = attempts + 1
+    points_awarded = POINTS_BY_ATTEMPT.get(attempt_number, 10) if is_correct else 0
+
+    # Can the student retry after this attempt?
+    can_retry = not is_correct and attempt_number < MAX_ATTEMPTS
+    next_attempt_points = POINTS_BY_ATTEMPT.get(attempt_number + 1, 0) if can_retry else 0
 
     # Fetch current points
     student_resp = await asyncio.to_thread(
@@ -337,7 +373,7 @@ async def submit_spelling_bee(
         classroom_id=classroom_id,
         grade_level=grade_level,
         interaction_type="spelling_bee",
-        original_message=f"word={correct_word}, answer={student_answer}",
+        original_message=f"word={correct_word}, answer={student_answer}, attempt={attempt_number}",
         correct=is_correct,
         context_used=False,
         pillar="writing",
@@ -367,8 +403,8 @@ async def submit_spelling_bee(
     word_data = await cache_get(word_cache_key) or {}
 
     logger.info(
-        "Spelling Bee: student %s answered '%s' for word '%s' — %s (%d pts)",
-        student_id, student_answer, correct_word,
+        "Spelling Bee: student %s answered '%s' for word '%s' — attempt %d — %s (%d pts)",
+        student_id, student_answer, correct_word, attempt_number,
         "CORRECT" if is_correct else "WRONG", points_awarded,
     )
 
@@ -377,6 +413,9 @@ async def submit_spelling_bee(
         correct_answer=correct_word,
         points_awarded=points_awarded,
         new_total=new_total,
+        attempt_number=attempt_number,
+        can_retry=can_retry,
+        next_attempt_points=next_attempt_points,
         meaning=word_data.get("meaning", ""),
         sentence1=word_data.get("sentence1", ""),
         sentence2=word_data.get("sentence2", ""),

@@ -7,6 +7,7 @@ import { motion } from 'framer-motion';
 import { useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from '@/lib/api';
 import { useStoryTime, useStoryTimeDailyStatus, queryKeys } from '@/lib/hooks/queries';
+import { useVoice } from '@/lib/voice-context';
 import PageHero from '@/components/student/PageHero';
 import LoadingCountdown from '@/components/student/LoadingCountdown';
 
@@ -58,19 +59,23 @@ export default function StoryTimePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storyLoading, storyData, storyError]);
 
+  const { speak: voiceSpeak } = useVoice();
+
   function speakStory() {
-    if (!window.speechSynthesis || isSpeaking || !story) return;
+    if (!story) return;
+
+    // If already speaking, stop and allow replay
+    if (isSpeaking) {
+      window.speechSynthesis?.cancel();
+      setIsSpeaking(false);
+      return;
+    }
 
     setIsSpeaking(true);
-    window.speechSynthesis.cancel();
-
-    const utterance = new SpeechSynthesisUtterance(story.story_text);
-    utterance.lang = 'en-US';
-    utterance.rate = 0.8;
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    window.speechSynthesis.speak(utterance);
+    const u = voiceSpeak(story.story_text, 0.7);
+    if (!u) { setIsSpeaking(false); return; }
+    u.onend = () => setIsSpeaking(false);
+    u.onerror = () => setIsSpeaking(false);
   }
 
   async function submitAnswer(selectedIndex: number) {
@@ -318,16 +323,15 @@ export default function StoryTimePage() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
                 onClick={speakStory}
-                disabled={isSpeaking}
                 className={[
                   'flex items-center justify-center gap-2 px-5 py-3 rounded-2xl font-baloo font-extrabold text-white transition-all',
                   isSpeaking
-                    ? 'bg-gray-400 cursor-not-allowed'
+                    ? 'bg-red-400 hover:bg-red-500 shadow-[0_4px_12px_rgba(239,68,68,0.3)]'
                     : 'bg-gradient-to-br from-emerald-400 to-emerald-500 shadow-[0_4px_12px_rgba(16,185,129,0.3)]',
                 ].join(' ')}
               >
                 <Volume2 size={20} />
-                {isSpeaking ? 'Listening...' : '🔊 Read Aloud'}
+                {isSpeaking ? '⏹ Stop' : '🔊 Read Aloud'}
               </motion.button>
             </motion.div>
 

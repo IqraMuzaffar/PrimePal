@@ -1148,19 +1148,20 @@ async def get_pillar_missions(
     # Step 0: Check cache (only if not frustrated — frustrated students need fresh questions)
     # ------------------------------------------------------------------
     cache_key = make_cache_key("pillar_missions", student_id, classroom_id, pillar, str(is_frustrated), topics_hash)
+    MIN_CACHE_QUESTIONS = 6  # Accept cached results with >=6 questions
     if not is_frustrated:
         # Check student-specific cache first
         cached = await cache_get(cache_key)
         if cached:
             cached_questions = cached.get("questions", [])
-            if len(cached_questions) >= PILLAR_QUESTIONS_COUNT:
-                logger.info(f"Cache hit for pillar missions (student): {cache_key}")
+            if len(cached_questions) >= MIN_CACHE_QUESTIONS:
+                logger.info(f"Cache hit for pillar missions (student): {cache_key} ({len(cached_questions)} questions)")
                 await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
                 return PillarMissionsResponse(**cached)
             else:
                 logger.warning(
-                    "Stale student cache for %s: only %d/%d questions. Skipping cache.",
-                    cache_key, len(cached_questions), PILLAR_QUESTIONS_COUNT,
+                    "Stale student cache for %s: only %d questions. Skipping cache.",
+                    cache_key, len(cached_questions),
                 )
 
         # Fallback: check generic classroom-level cache (pre-generated)
@@ -1168,8 +1169,8 @@ async def get_pillar_missions(
         generic_cached = await cache_get(generic_key)
         if generic_cached:
             generic_questions = generic_cached.get("questions", [])
-            if len(generic_questions) >= PILLAR_QUESTIONS_COUNT:
-                logger.info(f"Cache hit for pillar missions (generic): {generic_key}")
+            if len(generic_questions) >= MIN_CACHE_QUESTIONS:
+                logger.info(f"Cache hit for pillar missions (generic): {generic_key} ({len(generic_questions)} questions)")
                 await log_cache_hit("missions/pillar", student_id=student_id, classroom_id=classroom_id)
                 background_tasks.add_task(
                     _generate_personalized_missions,
@@ -1180,8 +1181,8 @@ async def get_pillar_missions(
                 return PillarMissionsResponse(**generic_cached)
             else:
                 logger.warning(
-                    "Stale generic cache for %s: only %d/%d questions. Skipping cache.",
-                    generic_key, len(generic_questions), PILLAR_QUESTIONS_COUNT,
+                    "Stale generic cache for %s: only %d questions. Skipping cache.",
+                    generic_key, len(generic_questions),
                 )
 
     # ------------------------------------------------------------------
@@ -1293,45 +1294,42 @@ async def get_pillar_missions(
     merged = merge_bank_and_llm(bank_questions, validated_llm, pillar, PILLAR_QUESTIONS_COUNT)
 
     # ------------------------------------------------------------------
-    # Step 7: H2 — If LLM fails/times out, fill remaining from bank
-    # Final fallback uses bank instead of bypassing topic validation
+    # Step 7: Fill remaining from bank if needed (single fast fallback)
+    # No sequential LLM fallback chain — serve partial results (>=6) instead
+    # of making the student wait 40-60s for more LLM calls.
     # ------------------------------------------------------------------
+    MIN_ACCEPTABLE_QUESTIONS = 6
+
     if len(merged) < PILLAR_QUESTIONS_COUNT:
         deficit = PILLAR_QUESTIONS_COUNT - len(merged)
         logger.warning(
-            "H2: Only %d/%d questions after merge for %s. "
+            "Only %d/%d questions after merge for %s. "
             "Pulling %d more from bank as fallback.",
             len(merged), PILLAR_QUESTIONS_COUNT, pillar, deficit,
         )
-        fallback_questions = await pull_from_bank(
-            grade_level=grade_level,
-            pillar=pillar,
-            topics=active_topic_names,
-            count=deficit,
-            classroom_id=classroom_id,
-        )
-
-        # Validate fallback questions against active topics too
-        if fallback_questions and active_topic_names:
-            fallback_questions = validate_topic_alignment(
-                fallback_questions, active_topic_names, pillar
+        try:
+            fallback_questions = await pull_from_bank(
+                grade_level=grade_level,
+                pillar=pillar,
+                topics=active_topic_names,
+                count=deficit,
+                classroom_id=classroom_id,
             )
+            if fallback_questions:
+                for fq in fallback_questions:
+                    if len(merged) >= PILLAR_QUESTIONS_COUNT:
+                        break
+                    if isinstance(fq, dict) and fq.get("question"):
+                        fq["pillar"] = pillar
+                        fq["points_value"] = 10
+                        fq.setdefault("difficulty", "medium")
+                        merged.append(fq)
+        except Exception as exc:
+            logger.warning("Bank fallback pull failed for %s: %s", pillar, exc)
 
-        # Append fallback questions directly (don't re-merge with distribution
-        # filtering — we just need to fill the remaining slots)
-        if fallback_questions:
-            for fq in fallback_questions:
-                if len(merged) >= PILLAR_QUESTIONS_COUNT:
-                    break
-                if isinstance(fq, dict) and fq.get("question"):
-                    fq["pillar"] = pillar
-                    fq["points_value"] = 10
-                    fq.setdefault("difficulty", "medium")
-                    merged.append(fq)
-
-    # If we have 0 questions after all attempts, try one last emergency LLM call
+    # Emergency: if we have 0 questions, try one LLM call (only case we retry LLM)
     if len(merged) == 0:
-        logger.warning("EMERGENCY: 0 questions after bank+LLM for %s. Attempting emergency generation.", pillar)
+        logger.warning("EMERGENCY: 0 questions for %s. Attempting single emergency LLM call.", pillar)
         try:
             emergency = await generate_pillar_missions(
                 pillar=pillar,
@@ -1350,7 +1348,7 @@ async def get_pillar_missions(
                         merged.append(q)
                 logger.info("Emergency generation produced %d questions for %s", len(merged), pillar)
         except Exception as exc:
-            logger.error("Emergency generation also failed for %s: %s", pillar, exc)
+            logger.error("Emergency generation failed for %s: %s", pillar, exc)
 
     if len(merged) == 0:
         raise HTTPException(
@@ -1358,96 +1356,25 @@ async def get_pillar_missions(
             detail="Could not generate missions right now. Please try again shortly.",
         )
 
-    if len(merged) < PILLAR_QUESTIONS_COUNT:
-        deficit = PILLAR_QUESTIONS_COUNT - len(merged)
-        logger.warning(
-            "Only %d/%d questions for %s after all fallbacks. "
-            "Attempting LLM top-up for %d more.",
-            len(merged), PILLAR_QUESTIONS_COUNT, pillar, deficit,
-        )
-        try:
-            topup = await generate_pillar_missions(
-                pillar=pillar,
-                grade_level=grade_level,
-                active_topics=active_topic_names,
-                student_id=student_id,
-                student_weaknesses=[],
-                is_frustrated=False,
-                performance_profile=None,
-                context_chunks=context_chunks,
-                count=deficit,
-            )
-            if topup:
-                # Append top-up questions directly — don't re-merge with
-                # distribution filtering which would drop valid questions
-                for tq in topup:
-                    if len(merged) >= PILLAR_QUESTIONS_COUNT:
-                        break
-                    if isinstance(tq, dict) and tq.get("question"):
-                        tq["pillar"] = pillar
-                        tq["points_value"] = 10
-                        tq.setdefault("difficulty", "medium")
-                        merged.append(tq)
-                logger.info("LLM top-up brought total to %d for %s", len(merged), pillar)
-        except Exception as exc:
-            logger.error("LLM top-up failed for %s: %s", pillar, exc)
-
-    # ------------------------------------------------------------------
-    # Step 7b: LAST RESORT — if still under target, do one final LLM call
-    # with NO topic validation (accept any valid English question)
-    # ------------------------------------------------------------------
-    if len(merged) < PILLAR_QUESTIONS_COUNT:
-        deficit = PILLAR_QUESTIONS_COUNT - len(merged)
-        logger.warning(
-            "LAST RESORT: Only %d/%d for %s after all fallbacks. "
-            "Generating %d more WITHOUT topic validation.",
-            len(merged), PILLAR_QUESTIONS_COUNT, pillar, deficit,
-        )
-        try:
-            last_resort = await generate_pillar_missions(
-                pillar=pillar,
-                grade_level=grade_level,
-                active_topics=active_topic_names,
-                student_id=student_id,
-                student_weaknesses=[],
-                is_frustrated=False,
-                performance_profile=None,
-                context_chunks=None,
-                count=deficit + 3,  # over-generate slightly
-            )
-            if last_resort:
-                for lq in last_resort:
-                    if len(merged) >= PILLAR_QUESTIONS_COUNT:
-                        break
-                    if isinstance(lq, dict) and lq.get("question"):
-                        lq["pillar"] = pillar
-                        lq["points_value"] = 10
-                        lq.setdefault("difficulty", "medium")
-                        merged.append(lq)
-                logger.info(
-                    "Last resort brought total to %d for %s", len(merged), pillar
-                )
-        except Exception as exc:
-            logger.error("Last resort LLM generation failed for %s: %s", pillar, exc)
-
-    # ------------------------------------------------------------------
-    # Step 7c: ABSOLUTE GUARANTEE — pad to exactly PILLAR_QUESTIONS_COUNT
-    # by recycling existing questions if all generation paths fell short.
-    # A repeated question is better than a missing question.
-    # ------------------------------------------------------------------
-    if 0 < len(merged) < PILLAR_QUESTIONS_COUNT:
-        deficit = PILLAR_QUESTIONS_COUNT - len(merged)
-        logger.warning(
-            "PADDING: Only %d/%d for %s after ALL fallbacks. "
-            "Recycling %d existing questions to guarantee count.",
-            len(merged), PILLAR_QUESTIONS_COUNT, pillar, deficit,
-        )
+    # Pad to target by recycling if we have some but fewer than target
+    # (6-9 questions is fine — only recycle if critically low)
+    if 0 < len(merged) < MIN_ACCEPTABLE_QUESTIONS:
         import copy
+        logger.warning(
+            "PADDING: Only %d/%d for %s — recycling to reach %d.",
+            len(merged), PILLAR_QUESTIONS_COUNT, pillar, MIN_ACCEPTABLE_QUESTIONS,
+        )
         idx = 0
-        while len(merged) < PILLAR_QUESTIONS_COUNT:
+        while len(merged) < MIN_ACCEPTABLE_QUESTIONS:
             recycled = copy.deepcopy(merged[idx % len(merged)])
             merged.append(recycled)
             idx += 1
+
+    if len(merged) < PILLAR_QUESTIONS_COUNT:
+        logger.info(
+            "Serving %d/%d questions for %s (partial is acceptable).",
+            len(merged), PILLAR_QUESTIONS_COUNT, pillar,
+        )
 
     # Re-number all questions and normalize answers/audio_text
     from app.agents.tutor_agent.question_validator import normalize_all_questions
@@ -1481,9 +1408,10 @@ async def get_pillar_missions(
         weakness_focus_questions=weakness_focus_count,
     )
 
-    # Cache the response for future requests — only if we have the full count
-    if not is_frustrated and len(mission_questions) >= PILLAR_QUESTIONS_COUNT:
-        await cache_set(cache_key, response.model_dump(), ttl=14400)  # 4 hours — per-student, refreshes within a school day
+    # Cache the response — cache partial results (>=6) with shorter TTL so they refresh sooner
+    if not is_frustrated and len(mission_questions) >= MIN_ACCEPTABLE_QUESTIONS:
+        ttl = 14400 if len(mission_questions) >= PILLAR_QUESTIONS_COUNT else 1800  # 4h full, 30min partial
+        await cache_set(cache_key, response.model_dump(), ttl=ttl)
     elif not is_frustrated:
         logger.warning(
             "NOT caching pillar missions for %s %s: only %d/%d questions",

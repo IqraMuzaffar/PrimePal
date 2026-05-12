@@ -35,8 +35,8 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 MAX_WEAKNESS_ITEMS = 5
 PILLAR_QUESTIONS_COUNT = 10
-LLM_QUESTIONS_COUNT = 5          # NEW: LLM now generates only 5 (bank provides the other 5)
-BANK_QUESTIONS_COUNT = 5         # NEW: question bank provides 5 instant questions
+LLM_QUESTIONS_COUNT = 2          # LLM generates only 2 (bank provides 8 instant questions)
+BANK_QUESTIONS_COUNT = 8         # question bank provides 8 instant questions
 MULTIPLE_CHOICE_OPTIONS = 4
 DAILY_QUESTIONS_COUNT = 3
 DAILY_MISSIONS_COUNT = 3         # C1: Exact daily mission count validation

@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Volume2 } from 'lucide-react';
 import { useSpellingBeeDailyStatus, queryKeys } from '@/lib/hooks/queries';
+import { useVoice } from '@/lib/voice-context';
 import LoadingCountdown from '@/components/student/LoadingCountdown';
 
 interface DailyWord {
@@ -22,15 +23,20 @@ interface SubmitResult {
   correct_answer: string;
   points_awarded: number;
   new_total: number;
+  attempt_number: number;
+  can_retry: boolean;
+  next_attempt_points: number;
   meaning: string;
   sentence1: string;
   sentence2: string;
   urdu_hint: string;
 }
 
-type GamePhase = 'loading' | 'countdown' | 'ready' | 'playing' | 'result' | 'learning' | 'done';
+type GamePhase = 'loading' | 'countdown' | 'ready' | 'playing' | 'wrong-retry' | 'result' | 'learning' | 'done';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:8000/api/v1';
+
+const POINTS_BY_ATTEMPT: Record<number, number> = { 1: 30, 2: 20, 3: 10 };
 
 export default function SpellingBeePage() {
   const router = useRouter();
@@ -44,10 +50,13 @@ export default function SpellingBeePage() {
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [attemptNumber, setAttemptNumber] = useState(1);
+  const [wrongAnswer, setWrongAnswer] = useState('');
 
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const hasSpoken = useRef(false);
+  const { speak } = useVoice();
 
   // Check auth
   useEffect(() => {
@@ -61,21 +70,15 @@ export default function SpellingBeePage() {
     if (dailyStatus && !dailyStatus.can_play) {
       setPhase('done');
     } else {
+      // Resume attempt count from daily status
+      if (dailyStatus) setAttemptNumber(dailyStatus.attempts_used + 1);
       setPhase('ready');
     }
   }, [dailyStatus, statusLoading]);
 
   const speakWord = useCallback((word: string) => {
-    if (typeof window === 'undefined' || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(word);
-    u.rate = 0.75;
-    u.lang = 'en-US';
-    const voices = window.speechSynthesis.getVoices();
-    const eng = voices.find(v => v.lang.startsWith('en'));
-    if (eng) u.voice = eng;
-    window.speechSynthesis.speak(u);
-  }, []);
+    speak(word, 0.65);
+  }, [speak]);
 
   const fetchAndStartGame = useCallback(async () => {
     setError('');
@@ -167,7 +170,16 @@ export default function SpellingBeePage() {
       }
       const data: SubmitResult = await res.json();
       setResult(data);
-      setPhase('result');
+      setAttemptNumber(data.attempt_number);
+
+      if (!data.is_correct && data.can_retry) {
+        // Wrong but can retry — show retry screen
+        setWrongAnswer(finalAnswer);
+        setPhase('wrong-retry');
+      } else {
+        // Correct or no more retries — show final result
+        setPhase('result');
+      }
 
       // Invalidate caches
       queryClient.invalidateQueries({ queryKey: queryKeys.studentProfile });
@@ -180,6 +192,15 @@ export default function SpellingBeePage() {
     }
   };
 
+  const handleRetry = () => {
+    if (!wordData) return;
+    setAnswer('');
+    setTimeLeft(wordData.time_limit);
+    setPhase('playing');
+    // Re-speak the word
+    setTimeout(() => speakWord(wordData.word), 300);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && answer.trim()) {
       handleSubmit();
@@ -190,6 +211,9 @@ export default function SpellingBeePage() {
   const timerColor = timeLeft > 10 ? 'text-emerald-600' : timeLeft > 5 ? 'text-amber-600' : 'text-red-600';
   const timerBg = timeLeft > 10 ? 'bg-emerald-100' : timeLeft > 5 ? 'bg-amber-100' : 'bg-red-100';
   const timerRing = timeLeft > 10 ? 'ring-emerald-300' : timeLeft > 5 ? 'ring-amber-300' : 'ring-red-300';
+
+  // Current points at stake
+  const currentPoints = POINTS_BY_ATTEMPT[attemptNumber] ?? 10;
 
   return (
     <div className="space-y-6 pb-10">
@@ -206,15 +230,15 @@ export default function SpellingBeePage() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3 mt-4">
+        <div className="flex items-center gap-3 mt-4 flex-wrap">
           <span className="bg-white/25 backdrop-blur-sm rounded-xl px-3 py-1.5 text-xs sm:text-sm font-baloo font-extrabold">
-            +30 Points
+            3 Tries
           </span>
           <span className="bg-white/25 backdrop-blur-sm rounded-xl px-3 py-1.5 text-xs sm:text-sm font-baloo font-extrabold">
-            20 Seconds
+            20 Seconds Each
           </span>
           <span className="bg-white/25 backdrop-blur-sm rounded-xl px-3 py-1.5 text-xs sm:text-sm font-baloo font-extrabold">
-            1 Try / Day
+            30 → 20 → 10 Points
           </span>
         </div>
       </div>
@@ -260,7 +284,7 @@ export default function SpellingBeePage() {
           <div className="text-center">
             <h2 className="font-baloo font-extrabold text-xl sm:text-2xl text-slate-900">Ready for today&apos;s word?</h2>
             <p className="font-nunito font-semibold text-sm sm:text-base text-slate-500 mt-2">
-              You&apos;ll hear a word. Type the correct spelling within 20 seconds.
+              You get 3 tries! 1st try = 30 pts, 2nd = 20 pts, 3rd = 10 pts.
             </p>
           </div>
           <motion.button
@@ -277,10 +301,32 @@ export default function SpellingBeePage() {
       {/* Playing state — timer + audio + input */}
       {phase === 'playing' && wordData && (
         <motion.div
+          key={`playing-${attemptNumber}`}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className="bg-white rounded-3xl border-2 border-amber-100 p-6 sm:p-10 shadow-[0_8px_24px_rgba(245,158,11,0.08)]"
         >
+          {/* Attempt indicator */}
+          <div className="flex justify-center mb-4">
+            <div className="flex items-center gap-2">
+              {[1, 2, 3].map(n => (
+                <div
+                  key={n}
+                  className={`w-3 h-3 rounded-full transition-all ${
+                    n < attemptNumber
+                      ? 'bg-rose-400'
+                      : n === attemptNumber
+                      ? 'bg-amber-500 ring-4 ring-amber-200 scale-125'
+                      : 'bg-slate-200'
+                  }`}
+                />
+              ))}
+              <span className="ml-2 text-sm font-baloo font-extrabold text-slate-500">
+                Try {attemptNumber} of 3 &mdash; {currentPoints} pts
+              </span>
+            </div>
+          </div>
+
           {/* Timer */}
           <div className="flex justify-center mb-6">
             <div className={`${timerBg} ${timerRing} ring-4 rounded-full w-20 h-20 sm:w-24 sm:h-24 flex items-center justify-center`}>
@@ -339,8 +385,94 @@ export default function SpellingBeePage() {
         </motion.div>
       )}
 
-      {/* Result + Learning — single AnimatePresence for clean page transitions */}
+      {/* Wrong answer — retry screen */}
       <AnimatePresence mode="wait">
+        {phase === 'wrong-retry' && result && wordData && (
+          <motion.div
+            key="wrong-retry"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            transition={{ duration: 0.3 }}
+            className="space-y-5"
+          >
+            <div className="rounded-3xl border-2 border-orange-300 bg-gradient-to-br from-orange-50 to-amber-50 p-8 sm:p-10 text-center shadow-[0_12px_32px_rgba(0,0,0,0.08)]">
+              <motion.span
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ type: 'spring', bounce: 0.5, delay: 0.1 }}
+                className="text-6xl sm:text-7xl block mb-4"
+              >
+                🤔
+              </motion.span>
+
+              <h2 className="font-baloo font-extrabold text-2xl sm:text-3xl text-orange-700 mb-2">
+                Not quite right!
+              </h2>
+
+              {wrongAnswer.trim() && (
+                <p className="font-nunito font-semibold text-sm text-slate-500 mb-4">
+                  You typed: <span className="text-slate-700 italic">&ldquo;{wrongAnswer.trim()}&rdquo;</span>
+                </p>
+              )}
+
+              {/* Retry info */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-white/80 rounded-2xl p-5 mb-6 border border-orange-200"
+              >
+                <div className="flex items-center justify-center gap-3 mb-3">
+                  {[1, 2, 3].map(n => (
+                    <div key={n} className="flex flex-col items-center gap-1">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-baloo font-extrabold ${
+                        n <= result.attempt_number
+                          ? 'bg-rose-100 text-rose-500 border-2 border-rose-300'
+                          : n === result.attempt_number + 1
+                          ? 'bg-amber-100 text-amber-700 border-2 border-amber-400 ring-2 ring-amber-200'
+                          : 'bg-slate-100 text-slate-400 border-2 border-slate-200'
+                      }`}>
+                        {n <= result.attempt_number ? '✗' : n}
+                      </div>
+                      <span className={`text-xs font-baloo font-extrabold ${
+                        n <= result.attempt_number ? 'text-rose-400 line-through' : 'text-slate-500'
+                      }`}>
+                        {POINTS_BY_ATTEMPT[n]} pts
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="font-nunito font-bold text-base text-slate-700">
+                  You have <span className="text-amber-600 font-extrabold">{3 - result.attempt_number}</span> {3 - result.attempt_number === 1 ? 'try' : 'tries'} left for <span className="text-amber-600 font-extrabold">{result.next_attempt_points} points</span>!
+                </p>
+              </motion.div>
+
+              {/* Listen again + Try again buttons */}
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => speakWord(wordData.word)}
+                  className="flex items-center gap-2 px-5 py-3 bg-indigo-100 text-indigo-700 font-baloo font-extrabold rounded-2xl hover:bg-indigo-200 transition-colors"
+                >
+                  <Volume2 size={20} />
+                  Listen Again
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={handleRetry}
+                  className="px-8 py-3 bg-gradient-to-br from-amber-400 to-orange-500 text-white font-baloo font-extrabold text-lg rounded-2xl shadow-[0_4px_0_rgba(194,120,3,0.4)] hover:shadow-[0_2px_0_rgba(194,120,3,0.4)] hover:translate-y-0.5 transition-all"
+                >
+                  Try Again! ✏️
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Final result — correct or all attempts used */}
         {phase === 'result' && result && (
           <motion.div
             key="result"
@@ -367,8 +499,32 @@ export default function SpellingBeePage() {
               <h2 className={`font-baloo font-extrabold text-3xl sm:text-4xl mb-3 ${
                 result.is_correct ? 'text-emerald-700' : 'text-rose-700'
               }`}>
-                {result.is_correct ? 'Perfect Spelling!' : 'Nice Try!'}
+                {result.is_correct
+                  ? result.attempt_number === 1 ? 'Perfect Spelling!' : result.attempt_number === 2 ? 'Great Job!' : 'You Got It!'
+                  : 'Good Effort!'}
               </h2>
+
+              {/* Attempt summary dots */}
+              <div className="flex items-center justify-center gap-2 mb-4">
+                {[1, 2, 3].map(n => (
+                  <div
+                    key={n}
+                    className={`w-4 h-4 rounded-full ${
+                      n < result.attempt_number
+                        ? 'bg-rose-400'
+                        : n === result.attempt_number
+                        ? result.is_correct ? 'bg-emerald-500' : 'bg-rose-400'
+                        : 'bg-slate-200'
+                    }`}
+                    title={n <= result.attempt_number ? (n === result.attempt_number && result.is_correct ? 'Correct!' : 'Wrong') : 'Not used'}
+                  />
+                ))}
+                <span className="ml-2 text-sm font-nunito font-semibold text-slate-500">
+                  {result.is_correct
+                    ? `Got it on try ${result.attempt_number}!`
+                    : `Used all 3 tries`}
+                </span>
+              </div>
 
               {!result.is_correct && (
                 <div className="mb-4">
@@ -387,11 +543,6 @@ export default function SpellingBeePage() {
                       </span>
                     ))}
                   </p>
-                  {answer.trim() && (
-                    <p className="font-nunito font-semibold text-sm text-slate-400 mt-2">
-                      You typed: <span className="text-slate-600 italic">&ldquo;{answer.trim()}&rdquo;</span>
-                    </p>
-                  )}
                 </div>
               )}
 

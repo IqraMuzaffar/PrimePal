@@ -6,6 +6,7 @@ import TaskRouter from './tasks/TaskRouter';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MissionQuestion, getTimerSeconds } from '@/types/missions';
 import { Star, ArrowRight } from 'lucide-react';
+import { useVoice } from '@/lib/voice-context';
 
 // ---------------------------------------------------------------------------
 // Session persistence helpers (localStorage)
@@ -196,6 +197,7 @@ function MissionSummary({ results, questions: _questions, onContinue }: {
 }
 
 export default function MissionGameplay({ questions, pillar, onComplete }: MissionGameplayProps) {
+  const { prewarm } = useVoice();
   const questionIds = questions.map(q => q.id);
   const saved = useRef(loadSession(pillar ?? '', questionIds)).current;
 
@@ -213,6 +215,20 @@ export default function MissionGameplay({ questions, pillar, onComplete }: Missi
   const taskType = currentQuestion?.task_type ?? currentQuestion?.type ?? 'multiple_choice';
   const defaultTimerSeconds = getTimerSeconds(taskType);
   const timerSeconds = resumedTimerSeconds !== null ? resumedTimerSeconds : defaultTimerSeconds;
+
+  // Pre-warm audio for the next question so TTS is instant when student advances
+  useEffect(() => {
+    const nextIdx = currentIndex + 1;
+    if (nextIdx < questions.length) {
+      const next = questions[nextIdx];
+      const audioText = next.audio_text;
+      if (audioText) {
+        // Small delay so current question's audio isn't interrupted
+        const t = setTimeout(() => prewarm(audioText), 1500);
+        return () => clearTimeout(t);
+      }
+    }
+  }, [currentIndex, questions, prewarm]);
 
   // Persist session on every state change
   useEffect(() => {
