@@ -258,7 +258,7 @@ export default function SpellingBeePage() {
         </motion.div>
       )}
 
-      <AnimatePresence mode="wait">
+      <AnimatePresence mode="sync">
 
       {/* 3-2-1 Countdown */}
       {phase === 'countdown' && (
@@ -610,12 +610,7 @@ export default function SpellingBeePage() {
                 </motion.div>
               )}
 
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.6 }}
-                className="mt-6"
-              >
+              <div className="mt-6">
                 <motion.button
                   whileHover={{ scale: 1.04 }}
                   whileTap={{ scale: 0.96 }}
@@ -624,7 +619,7 @@ export default function SpellingBeePage() {
                 >
                   Next — Learn this Word 📖
                 </motion.button>
-              </motion.div>
+              </div>
             </div>
           </motion.div>
         )}
