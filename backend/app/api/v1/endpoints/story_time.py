@@ -10,6 +10,7 @@ Endpoints (all require student JWT):
 import asyncio
 import json
 import logging
+import random
 from datetime import datetime, timezone
 from openai import AsyncOpenAI, APITimeoutError, APIConnectionError
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
@@ -230,12 +231,16 @@ async def get_story(request: Request, student: dict = Depends(get_current_studen
     # ------------------------------------------------------------------
     # Generate story via LLM (with 12s timeout)
     # ------------------------------------------------------------------
+    POOL_SIZE = 8
+    SERVE_SIZE = 3
+
     prompt = f"""You are generating a reading comprehension activity for Grade {grade_level} Pakistani primary school students studying English.
 
 Topic: {topic_title}
 
 Write a short story (4–6 sentences) appropriate for this grade level and topic, using simple vocabulary.
-Then write exactly 3 multiple-choice comprehension questions about the story.
+Then write exactly {POOL_SIZE} multiple-choice comprehension questions about the story.
+Include a mix of factual recall, inference, and vocabulary questions.
 
 Return ONLY valid JSON (no markdown code blocks).
 {{
@@ -244,7 +249,7 @@ Return ONLY valid JSON (no markdown code blocks).
   "questions": [
     {{"id": 1, "question": "...", "options": ["A", "B", "C", "D"], "correct_index": 0}},
     {{"id": 2, "question": "...", "options": ["A", "B", "C", "D"], "correct_index": 1}},
-    {{"id": 3, "question": "...", "options": ["A", "B", "C", "D"], "correct_index": 2}}
+    ...up to {POOL_SIZE} questions
   ]
 }}
 """
@@ -257,7 +262,7 @@ Return ONLY valid JSON (no markdown code blocks).
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.7,
-                    max_tokens=800,
+                    max_tokens=1500,
                 ),
                 timeout=25.0,
             )
@@ -275,10 +280,11 @@ Return ONLY valid JSON (no markdown code blocks).
             raise ValueError("Expected JSON object")
         if "questions" not in data or not isinstance(data["questions"], list):
             raise ValueError("Missing or invalid questions array")
-        if len(data["questions"]) != 3:
-            raise ValueError(f"Expected exactly 3 questions, got {len(data['questions'])}")
+        if len(data["questions"]) < SERVE_SIZE:
+            raise ValueError(f"Expected at least {SERVE_SIZE} questions, got {len(data['questions'])}")
 
-        questions: list[ComprehensionQuestion] = []
+        # Validate all questions in the pool
+        pool: list[ComprehensionQuestion] = []
         for i, q in enumerate(data["questions"]):
             if not isinstance(q, dict) or "question" not in q or "options" not in q or "correct_index" not in q:
                 raise ValueError(f"Question {i} missing required fields (need question, options, correct_index)")
@@ -287,12 +293,18 @@ Return ONLY valid JSON (no markdown code blocks).
             if not isinstance(q["correct_index"], int) or q["correct_index"] < 0 or q["correct_index"] > 3:
                 raise ValueError(f"Question {i} has invalid correct_index")
 
-            questions.append(ComprehensionQuestion(
+            pool.append(ComprehensionQuestion(
                 id=i + 1,
                 question=q["question"],
                 options=q["options"],
                 correct_index=q["correct_index"],
             ))
+
+        # Sample SERVE_SIZE questions from the pool for this session
+        questions = random.sample(pool, min(SERVE_SIZE, len(pool)))
+        # Re-number sequentially for the student
+        for idx, q in enumerate(questions):
+            q.id = idx + 1
 
     except (asyncio.TimeoutError, APITimeoutError):
         logger.error(f"Story generation timeout for topic: {topic_title}")
@@ -327,7 +339,7 @@ Return ONLY valid JSON (no markdown code blocks).
         questions=questions,
     )
 
-    # Cache for 24 hours (same topic/grade will get same story)
+    # Cache for 24 hours (same topic/grade/session will get same story)
     await cache_set(cache_key, response.model_dump(), ttl=86400)
 
     # Log session start (counts toward daily limit)
