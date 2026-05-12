@@ -190,15 +190,22 @@ async def get_puzzle_palace_rooms(
     # ------------------------------------------------------------------
     # Step 3: Check cache (1 hour TTL)
     # ------------------------------------------------------------------
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    cache_key = make_cache_key("puzzle_palace", classroom_id, topics_hash, today_str)
+    cache_key = make_cache_key("puzzle_palace", classroom_id, topics_hash, str(sessions_used))
     cached = await cache_get(cache_key)
     if cached:
-        logger.info("Cache hit for puzzle palace: %s", cache_key)
-        await log_cache_hit("puzzle_palace/rooms", student_id=student_id, classroom_id=classroom_id)
-        # Log session start even on cache hit (counts toward daily limit)
-        await _log_session_start(student_id, classroom_id, grade_level)
-        return PuzzlePalaceResponse(**cached)
+        # Guard: reject cached responses with 0 questions (stale broken data)
+        cached_total_qs = sum(len(r.get("questions", [])) for r in cached.get("rooms", []))
+        if cached_total_qs == 0:
+            logger.warning(
+                "Puzzle Palace: purging stale 0-question cache entry %s", cache_key
+            )
+            await cache_delete(cache_key)
+        else:
+            logger.info("Cache hit for puzzle palace: %s", cache_key)
+            await log_cache_hit("puzzle_palace/rooms", student_id=student_id, classroom_id=classroom_id)
+            # Log session start even on cache hit (counts toward daily limit)
+            await _log_session_start(student_id, classroom_id, grade_level)
+            return PuzzlePalaceResponse(**cached)
 
     # ------------------------------------------------------------------
     # Step 4: Retrieve RAG context chunks
@@ -334,13 +341,25 @@ async def get_puzzle_palace_rooms(
 
     response = PuzzlePalaceResponse(rooms=rooms, topic=topic_label)
 
-    # Cache for 1 hour
-    await cache_set(cache_key, response.model_dump(), ttl=3600)
+    total_qs = sum(len(r.questions) for r in rooms)
+
+    # Only cache if we actually have questions — never persist a broken empty response
+    if total_qs > 0:
+        await cache_set(cache_key, response.model_dump(), ttl=3600)
+    else:
+        logger.warning(
+            "Puzzle Palace: 0 questions generated for student %s (grade %d). "
+            "Skipping cache so next request retries generation.",
+            student_id, grade_level,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not generate questions right now. Please try again in a moment.",
+        )
 
     # Log session start (counts toward daily limit)
     await _log_session_start(student_id, classroom_id, grade_level)
 
-    total_qs = sum(len(r.questions) for r in rooms)
     logger.info(
         "Puzzle Palace returned %d questions across %d rooms for student %s (session %d/%d today)",
         total_qs,

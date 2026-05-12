@@ -102,6 +102,11 @@ export default function PuzzlePalacePage() {
 
   /* ---------- handlers ---------- */
 
+  function handleSkip() {
+    // Skipping counts as wrong (0 points) and advances the question
+    handleAnswer('', false);
+  }
+
   function handleAnswer(answer: string, isCorrect: boolean) {
     setShowFeedback(true);
     setDisabled(true);
@@ -304,14 +309,28 @@ export default function PuzzlePalacePage() {
             </div>
           )}
 
-          <motion.button
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.97, translateY: '4px' }}
-            onClick={() => setPhase('playing')}
-            className="w-full mt-4 py-4 rounded-2xl font-baloo font-extrabold text-xl text-white bg-gradient-to-r from-violet-500 to-pink-500 shadow-[0_6px_0_#7c3aed,0_8px_18px_rgba(139,92,246,0.3)] active:translate-y-1 active:shadow-[0_2px_0_#7c3aed] transition-all"
-          >
-            Enter the Palace!
-          </motion.button>
+          {totalQuestions === 0 ? (
+            <div className="bg-red-50 border border-red-200 rounded-2xl px-4 py-4 text-center mt-4">
+              <p className="font-nunito font-semibold text-red-600 mb-3">
+                Questions could not be loaded. Please go back and try again.
+              </p>
+              <button
+                onClick={() => router.push('/student/home')}
+                className="px-6 py-3 rounded-xl font-baloo font-extrabold text-white bg-violet-600 hover:bg-violet-700 transition-colors"
+              >
+                Back Home
+              </button>
+            </div>
+          ) : (
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97, translateY: '4px' }}
+              onClick={() => setPhase('playing')}
+              className="w-full mt-4 py-4 rounded-2xl font-baloo font-extrabold text-xl text-white bg-gradient-to-r from-violet-500 to-pink-500 shadow-[0_6px_0_#7c3aed,0_8px_18px_rgba(139,92,246,0.3)] active:translate-y-1 active:shadow-[0_2px_0_#7c3aed] transition-all"
+            >
+              Enter the Palace!
+            </motion.button>
+          )}
         </div>
       </div>
     );
@@ -447,7 +466,9 @@ export default function PuzzlePalacePage() {
   /* ================================================================ */
 
   const m = meta(currentRoom.room_name);
-  const progressPercent = Math.round(((questionsAnsweredBefore + (showFeedback ? 1 : 0)) / totalQuestions) * 100);
+  const progressPercent = totalQuestions > 0
+    ? Math.round(((questionsAnsweredBefore + (showFeedback ? 1 : 0)) / totalQuestions) * 100)
+    : 0;
 
   return (
     <div className="min-h-screen pb-10">
@@ -502,12 +523,24 @@ export default function PuzzlePalacePage() {
             className="bg-white rounded-3xl p-6 sm:p-8 shadow-[0_12px_40px_rgba(15,23,42,0.06)]"
           >
             {currentQuestion && (
-              <TaskRouter
-                question={currentQuestion}
-                onAnswer={handleAnswer}
-                showFeedback={showFeedback}
-                disabled={disabled}
-              />
+              <>
+                <TaskRouter
+                  question={currentQuestion}
+                  onAnswer={handleAnswer}
+                  showFeedback={showFeedback}
+                  disabled={disabled}
+                />
+                {!showFeedback && !disabled && (
+                  <div className="mt-4 flex justify-end">
+                    <button
+                      onClick={handleSkip}
+                      className="font-nunito text-sm font-semibold text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      Skip →
+                    </button>
+                  </div>
+                )}
+              </>
             )}
           </motion.div>
         </AnimatePresence>
