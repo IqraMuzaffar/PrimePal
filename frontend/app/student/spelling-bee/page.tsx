@@ -264,10 +264,10 @@ export default function SpellingBeePage() {
       {phase === 'countdown' && (
         <motion.div
           key="countdown"
-          initial={{ opacity: 0, scale: 0.92 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 1.05 }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
+          initial={{ opacity: 0, scale: 0.96, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: -12 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 28 }}
         >
           <LoadingCountdown loadingText="Getting your word..." emoji="🐝" />
         </motion.div>
@@ -277,10 +277,10 @@ export default function SpellingBeePage() {
       {phase === 'loading' && !error && (
         <motion.div
           key="loading"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.3 }}
+          initial={{ opacity: 0, scale: 0.96, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: -12 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 28 }}
           className="bg-white rounded-3xl border-2 border-amber-100 p-12 flex flex-col items-center gap-4"
         >
           <motion.span
@@ -298,10 +298,10 @@ export default function SpellingBeePage() {
       {phase === 'ready' && (
         <motion.div
           key="ready"
-          initial={{ opacity: 0, y: 32 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: -24, scale: 0.97 }}
-          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0, scale: 0.96, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: -12 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 28 }}
         >
         <div className="bg-white rounded-3xl border-2 border-amber-100 p-8 sm:p-12 flex flex-col items-center gap-6 shadow-[0_8px_24px_rgba(245,158,11,0.08)]">
           <motion.span
@@ -351,10 +351,10 @@ export default function SpellingBeePage() {
       {phase === 'playing' && wordData && (
         <motion.div
           key={`playing-${attemptNumber}`}
-          initial={{ opacity: 0, x: 50, scale: 0.97 }}
-          animate={{ opacity: 1, x: 0, scale: 1 }}
-          exit={{ opacity: 0, x: -50, scale: 0.97 }}
-          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          initial={{ opacity: 0, scale: 0.96, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: -12 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 28 }}
           className="bg-white rounded-3xl border-2 border-amber-100 p-6 sm:p-10 shadow-[0_8px_24px_rgba(245,158,11,0.08)]"
         >
           {/* Attempt indicator */}
@@ -440,10 +440,10 @@ export default function SpellingBeePage() {
         {phase === 'wrong-retry' && result && wordData && (
           <motion.div
             key="wrong-retry"
-            initial={{ opacity: 0, y: 40, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -30, scale: 0.97 }}
-            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -12 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
             className="space-y-5"
           >
             <div className="rounded-3xl border-2 border-orange-300 bg-gradient-to-br from-orange-50 to-amber-50 p-8 sm:p-10 text-center shadow-[0_12px_32px_rgba(0,0,0,0.08)]">
@@ -526,10 +526,10 @@ export default function SpellingBeePage() {
         {phase === 'result' && result && (
           <motion.div
             key="result"
-            initial={{ opacity: 0, scale: 0.88, y: 20 }}
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, y: -32, scale: 0.97 }}
-            transition={{ type: 'spring', stiffness: 260, damping: 22 }}
+            exit={{ opacity: 0, scale: 0.96, y: -12 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
             className="space-y-5"
           >
             <div className={`rounded-3xl border-2 p-8 sm:p-12 text-center shadow-[0_12px_32px_rgba(0,0,0,0.08)] ${
@@ -632,10 +632,10 @@ export default function SpellingBeePage() {
         {phase === 'learning' && result && (
           <motion.div
             key="learning"
-            initial={{ opacity: 0, y: 50 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 30 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: -12 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 28 }}
             className="space-y-5"
           >
             <div className="bg-white rounded-3xl border-2 border-amber-200 p-6 sm:p-8 shadow-[0_8px_24px_rgba(245,158,11,0.10)]">
@@ -651,7 +651,7 @@ export default function SpellingBeePage() {
                 <motion.div
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
+                  transition={{ delay: 0.1 }}
                   className="bg-amber-50 rounded-2xl p-4 mb-4 border border-amber-100"
                 >
                   <p className="text-xs font-baloo font-extrabold text-amber-600 uppercase tracking-wider mb-1">Meaning</p>
@@ -664,7 +664,7 @@ export default function SpellingBeePage() {
                 <motion.div
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
+                  transition={{ delay: 0.2 }}
                   className="space-y-3 mb-4"
                 >
                   <p className="text-xs font-baloo font-extrabold text-indigo-600 uppercase tracking-wider">Example Sentences</p>
@@ -688,7 +688,7 @@ export default function SpellingBeePage() {
                 <motion.div
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.6 }}
+                  transition={{ delay: 0.3 }}
                   className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100"
                 >
                   <p className="text-xs font-baloo font-extrabold text-emerald-600 uppercase tracking-wider mb-1">Urdu Translation</p>
@@ -709,7 +709,7 @@ export default function SpellingBeePage() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.8 }}
+              transition={{ delay: 0.4 }}
               className="flex justify-center"
             >
               <motion.button
@@ -731,10 +731,10 @@ export default function SpellingBeePage() {
       {phase === 'done' && (
         <motion.div
           key="done"
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0 }}
-          transition={{ duration: 0.4, ease: 'easeOut' }}
+          initial={{ opacity: 0, scale: 0.96, y: 12 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.96, y: -12 }}
+          transition={{ type: 'spring', stiffness: 300, damping: 28 }}
           className="bg-white rounded-3xl border-2 border-amber-100 p-8 sm:p-12 flex flex-col items-center gap-5 shadow-[0_8px_24px_rgba(245,158,11,0.08)]"
         >
           <motion.span
