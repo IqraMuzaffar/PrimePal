@@ -226,13 +226,8 @@ async def get_daily_missions(
     # ------------------------------------------------------------------
     # Step 1: Fetch classroom grade (needed for active topics)
     # ------------------------------------------------------------------
-    async def fetch_classroom_grade():
-        """Fetch classroom grade level (cached 24h)."""
-        from app.core.cache import get_cached_grade_level
-        return await get_cached_grade_level(classroom_id)
-
-    # Fetch grade level first (needed for active topics)
-    grade_level = await asyncio.to_thread(fetch_classroom_grade)
+    from app.core.cache import get_cached_grade_level
+    grade_level = await get_cached_grade_level(classroom_id)
 
     # ------------------------------------------------------------------
     # Step 2: Resolve active topics for topic-aware cache key + seed phrase

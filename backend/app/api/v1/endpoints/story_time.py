@@ -145,30 +145,36 @@ async def get_story(request: Request, student: dict = Depends(get_current_studen
     """
     supabase = get_supabase_admin()
     classroom_id: str = student["classroom_id"]
+    student_id: str = student["sub"]
 
+    # Run all three independent DB queries in parallel
     try:
-        classroom_resp, syllabus_resp = await asyncio.gather(
-            asyncio.to_thread(
-                lambda: supabase.table("classrooms")
-                .select("grade_level")
-                .eq("id", classroom_id)
-                .maybe_single()
-                .execute()
+        (classroom_resp, syllabus_resp), sessions_used = await asyncio.gather(
+            asyncio.gather(
+                asyncio.to_thread(
+                    lambda: supabase.table("classrooms")
+                    .select("grade_level")
+                    .eq("id", classroom_id)
+                    .maybe_single()
+                    .execute()
+                ),
+                asyncio.to_thread(
+                    lambda: supabase.table("classroom_syllabus")
+                    .select("topic_title, week_number")
+                    .eq("classroom_id", classroom_id)
+                    .eq("status", "active")
+                    .order("week_number")
+                    .limit(1)
+                    .maybe_single()
+                    .execute()
+                ),
             ),
-            asyncio.to_thread(
-                lambda: supabase.table("classroom_syllabus")
-                .select("topic_title, week_number")
-                .eq("classroom_id", classroom_id)
-                .eq("status", "active")
-                .order("week_number")
-                .limit(1)
-                .maybe_single()
-                .execute()
-            ),
+            _count_today_sessions(student_id),
         )
     except Exception:
         classroom_resp = None
         syllabus_resp = None
+        sessions_used = 0
 
     if not classroom_resp or not classroom_resp.data:
         raise HTTPException(
@@ -180,8 +186,6 @@ async def get_story(request: Request, student: dict = Depends(get_current_studen
     # ------------------------------------------------------------------
     # Check daily limit
     # ------------------------------------------------------------------
-    student_id = student["sub"]
-    sessions_used = await _count_today_sessions(student_id)
     if sessions_used >= DAILY_LIMIT:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
@@ -219,8 +223,7 @@ async def get_story(request: Request, student: dict = Depends(get_current_studen
     # ------------------------------------------------------------------
     # Check cache — keyed per session so each daily attempt is unique
     # ------------------------------------------------------------------
-    today_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    cache_key = make_cache_key("story_time", classroom_id, topic_title, str(grade_level), today_str)
+    cache_key = make_cache_key("story_time", classroom_id, topic_title, str(grade_level), str(sessions_used))
     cached = await cache_get(cache_key)
     if cached:
         logger.info(f"Cache hit for story time: {cache_key}")
@@ -263,7 +266,7 @@ Return ONLY valid JSON (no markdown code blocks).
                     model="gpt-4o-mini",
                     messages=[{"role": "user", "content": prompt}],
                     temperature=0.7,
-                    max_tokens=1500,
+                    max_tokens=950,
                 ),
                 timeout=25.0,
             )
