@@ -121,7 +121,7 @@ async def _log_session_start(student_id: str, classroom_id: str, grade_level: in
 # ---------------------------------------------------------------------------
 
 @router.get("/daily-status", response_model=DailyActivityStatus, summary="Story Time daily usage")
-async def get_daily_status(student: dict = Depends(get_current_student)):
+async def get_story_time_daily_status(student: dict = Depends(get_current_student)):
     """Return how many Story Time sessions the student has used today."""
     student_id: str = student["sub"]
     used = await _count_today_sessions(student_id)
@@ -216,9 +216,9 @@ async def get_story(request: Request, student: dict = Depends(get_current_studen
         week_number: int = syllabus_resp.data["week_number"]
 
     # ------------------------------------------------------------------
-    # Check cache first (1 hour TTL)
+    # Check cache — keyed per session so each daily attempt is unique
     # ------------------------------------------------------------------
-    cache_key = make_cache_key("story_time", classroom_id, topic_title, str(grade_level))
+    cache_key = make_cache_key("story_time", classroom_id, topic_title, str(grade_level), str(sessions_used))
     cached = await cache_get(cache_key)
     if cached:
         logger.info(f"Cache hit for story time: {cache_key}")
