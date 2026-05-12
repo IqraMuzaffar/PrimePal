@@ -118,7 +118,7 @@ async def _log_session_start(student_id: str, classroom_id: str, grade_level: in
 # ---------------------------------------------------------------------------
 
 @router.get("/daily-status", response_model=DailyActivityStatus, summary="Puzzle Palace daily usage")
-async def get_daily_status(student: dict = Depends(get_current_student)):
+async def get_puzzle_palace_daily_status(student: dict = Depends(get_current_student)):
     """Return how many Puzzle Palace sessions the student has used today."""
     student_id: str = student["sub"]
     used = await _count_today_sessions(student_id)
@@ -201,7 +201,7 @@ async def get_puzzle_palace_rooms(
     # ------------------------------------------------------------------
     # Step 3: Check cache (1 hour TTL)
     # ------------------------------------------------------------------
-    cache_key = make_cache_key("puzzle_palace", classroom_id, topics_hash)
+    cache_key = make_cache_key("puzzle_palace", classroom_id, topics_hash, str(sessions_used))
     cached = await cache_get(cache_key)
     if cached:
         logger.info("Cache hit for puzzle palace: %s", cache_key)
@@ -345,7 +345,7 @@ async def get_puzzle_palace_rooms(
     response = PuzzlePalaceResponse(rooms=rooms, topic=topic_label)
 
     # Cache for 1 hour
-    await cache_set(cache_key, response.model_dump(), ttl=86400)  # 24 hours
+    await cache_set(cache_key, response.model_dump(), ttl=3600)
 
     # Log session start (counts toward daily limit)
     await _log_session_start(student_id, classroom_id, grade_level)
