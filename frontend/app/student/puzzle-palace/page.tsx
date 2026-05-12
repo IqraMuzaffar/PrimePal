@@ -76,11 +76,13 @@ export default function PuzzlePalacePage() {
     isLoading,
     error,
     refetch,
+    isFetching,
   } = useQuery<PuzzlePalaceData>({
     queryKey: ['puzzlePalaceRooms'],
     queryFn: () => studentFetch<PuzzlePalaceData>('/puzzle-palace/rooms'),
     staleTime: Infinity,
-    retry: 1,
+    retry: 2,
+    retryDelay: (attempt) => attempt * 3000, // 3s then 6s
     enabled: canPlay,
   });
 
@@ -157,9 +159,18 @@ export default function PuzzlePalacePage() {
   }
 
   function advanceToNextRoom() {
-    setRoomIndex((prev) => prev + 1);
-    setQuestionIndexInRoom(0);
-    setPhase('playing');
+    // Skip any rooms with 0 questions
+    let next = roomIndex + 1;
+    while (next < rooms.length && rooms[next].questions.length === 0) {
+      next++;
+    }
+    if (next >= rooms.length) {
+      setPhase('finished');
+    } else {
+      setRoomIndex(next);
+      setQuestionIndexInRoom(0);
+      setPhase('playing');
+    }
   }
 
   function resetGame() {
@@ -227,7 +238,7 @@ export default function PuzzlePalacePage() {
     );
   }
 
-  if (isLoading) {
+  if (isLoading || isFetching) {
     return (
       <LoadingCountdown
         loadingText="Preparing the Palace..."
@@ -239,15 +250,35 @@ export default function PuzzlePalacePage() {
   if (error || !data) {
     return (
       <div className="flex items-center justify-center min-h-screen px-4">
-        <div className="bg-white rounded-2xl border border-red-200 p-8 max-w-sm text-center shadow-md">
-          <p className="text-red-600 font-semibold mb-4">Failed to load Puzzle Palace. Please try again.</p>
-          <button
-            onClick={() => router.push('/student/home')}
-            className="px-4 py-2 bg-violet-600 text-white font-semibold rounded-lg hover:bg-violet-700 transition-colors"
-          >
-            Back Home
-          </button>
-        </div>
+        <motion.div
+          initial={{ scale: 0.9, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          className="bg-white rounded-3xl border-2 border-rose-200 p-8 max-w-sm w-full text-center shadow-xl"
+        >
+          <span className="text-5xl block mb-4">🏰</span>
+          <h2 className="font-baloo font-extrabold text-xl text-slate-800 mb-2">
+            Couldn&apos;t Load the Palace
+          </h2>
+          <p className="font-nunito text-sm text-slate-500 mb-6">
+            The questions couldn&apos;t be prepared. This sometimes happens when the server is busy — tap Try Again!
+          </p>
+          <div className="flex flex-col gap-3">
+            <motion.button
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.97 }}
+              onClick={() => refetch()}
+              className="w-full py-3 rounded-2xl font-baloo font-extrabold text-white bg-gradient-to-r from-violet-500 to-pink-500 shadow-[0_4px_0_#7c3aed] active:translate-y-1 transition-all"
+            >
+              Try Again 🔄
+            </motion.button>
+            <button
+              onClick={() => router.push('/student/home')}
+              className="w-full py-3 rounded-2xl font-baloo font-extrabold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-colors"
+            >
+              Back Home
+            </button>
+          </div>
+        </motion.div>
       </div>
     );
   }
@@ -464,6 +495,12 @@ export default function PuzzlePalacePage() {
   /* ================================================================ */
   /*  RENDER: Playing                                                  */
   /* ================================================================ */
+
+  // Safety: if current room somehow has no questions, advance
+  if (!currentQuestion && phase === 'playing') {
+    advanceToNextRoom();
+    return null;
+  }
 
   const m = meta(currentRoom.room_name);
   const progressPercent = totalQuestions > 0
