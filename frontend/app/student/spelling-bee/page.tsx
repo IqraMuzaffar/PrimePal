@@ -77,7 +77,7 @@ export default function SpellingBeePage() {
   }, [dailyStatus, statusLoading]);
 
   const speakWord = useCallback((word: string) => {
-    speak(word, 0.65);
+    speak(word, 0.6);
   }, [speak]);
 
   const fetchAndStartGame = useCallback(async () => {
@@ -111,7 +111,12 @@ export default function SpellingBeePage() {
   }, [speakWord]);
 
   const startGame = () => {
-    setPhase('countdown');
+    if (attemptNumber > 1) {
+      // Resuming mid-session — skip countdown, go straight to word
+      fetchAndStartGame();
+    } else {
+      setPhase('countdown');
+    }
   };
 
   // After countdown finishes (LoadingCountdown takes ~2.1s), fetch the word
@@ -282,9 +287,13 @@ export default function SpellingBeePage() {
             🐝
           </motion.span>
           <div className="text-center">
-            <h2 className="font-baloo font-extrabold text-xl sm:text-2xl text-slate-900">Ready for today&apos;s word?</h2>
+            <h2 className="font-baloo font-extrabold text-xl sm:text-2xl text-slate-900">
+              {attemptNumber > 1 ? `Continue — Try ${attemptNumber} of 3` : "Ready for today's word?"}
+            </h2>
             <p className="font-nunito font-semibold text-sm sm:text-base text-slate-500 mt-2">
-              You get 3 tries! 1st try = 30 pts, 2nd = 20 pts, 3rd = 10 pts.
+              {attemptNumber > 1
+                ? `You have ${4 - attemptNumber} ${4 - attemptNumber === 1 ? 'try' : 'tries'} left — worth ${POINTS_BY_ATTEMPT[attemptNumber] ?? 10} points!`
+                : 'You get 3 tries! 1st try = 30 pts, 2nd = 20 pts, 3rd = 10 pts.'}
             </p>
           </div>
           <motion.button
@@ -293,7 +302,7 @@ export default function SpellingBeePage() {
             onClick={startGame}
             className="px-8 py-4 bg-gradient-to-br from-amber-400 to-orange-500 text-white font-baloo font-extrabold text-lg sm:text-xl rounded-2xl shadow-[0_6px_0_rgba(194,120,3,0.5)] hover:shadow-[0_4px_0_rgba(194,120,3,0.5)] hover:translate-y-0.5 transition-all"
           >
-            Start! 🎤
+            {attemptNumber > 1 ? `Try ${attemptNumber}! ✏️` : 'Start! 🎤'}
           </motion.button>
         </div>
       )}
@@ -478,8 +487,8 @@ export default function SpellingBeePage() {
             key="result"
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            transition={{ duration: 0.3 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.5 }}
             className="space-y-5"
           >
             <div className={`rounded-3xl border-2 p-8 sm:p-12 text-center shadow-[0_12px_32px_rgba(0,0,0,0.08)] ${
@@ -563,7 +572,7 @@ export default function SpellingBeePage() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
+                transition={{ delay: 0.6 }}
                 className="mt-6"
               >
                 <motion.button
@@ -572,7 +581,7 @@ export default function SpellingBeePage() {
                   onClick={() => setPhase('learning')}
                   className="px-8 py-3 bg-gradient-to-br from-indigo-500 to-violet-600 text-white font-baloo font-extrabold text-lg rounded-2xl shadow-[0_4px_0_rgba(79,70,229,0.4)] hover:shadow-[0_2px_0_rgba(79,70,229,0.4)] hover:translate-y-0.5 transition-all"
                 >
-                  Learn This Word 📖
+                  Next — Learn this Word 📖
                 </motion.button>
               </motion.div>
             </div>
@@ -582,10 +591,10 @@ export default function SpellingBeePage() {
         {phase === 'learning' && result && (
           <motion.div
             key="learning"
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 40 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
+            exit={{ opacity: 0, y: 20 }}
+            transition={{ duration: 0.5, ease: 'easeOut' }}
             className="space-y-5"
           >
             <div className="bg-white rounded-3xl border-2 border-amber-200 p-6 sm:p-8 shadow-[0_8px_24px_rgba(245,158,11,0.10)]">
@@ -601,7 +610,7 @@ export default function SpellingBeePage() {
                 <motion.div
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
+                  transition={{ delay: 0.2 }}
                   className="bg-amber-50 rounded-2xl p-4 mb-4 border border-amber-100"
                 >
                   <p className="text-xs font-baloo font-extrabold text-amber-600 uppercase tracking-wider mb-1">Meaning</p>
@@ -614,7 +623,7 @@ export default function SpellingBeePage() {
                 <motion.div
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.25 }}
+                  transition={{ delay: 0.4 }}
                   className="space-y-3 mb-4"
                 >
                   <p className="text-xs font-baloo font-extrabold text-indigo-600 uppercase tracking-wider">Example Sentences</p>
@@ -638,7 +647,7 @@ export default function SpellingBeePage() {
                 <motion.div
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.4 }}
+                  transition={{ delay: 0.6 }}
                   className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100"
                 >
                   <p className="text-xs font-baloo font-extrabold text-emerald-600 uppercase tracking-wider mb-1">Urdu Translation</p>
@@ -659,16 +668,19 @@ export default function SpellingBeePage() {
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
+              transition={{ delay: 0.8 }}
               className="flex justify-center"
             >
               <motion.button
                 whileHover={{ scale: 1.04 }}
                 whileTap={{ scale: 0.96 }}
-                onClick={() => router.push('/student/home')}
+                onClick={() => {
+                  setPhase('done');
+                  setTimeout(() => router.push('/student/home'), 400);
+                }}
                 className="px-8 py-3 bg-gradient-to-br from-amber-400 to-orange-500 text-white font-baloo font-extrabold text-lg rounded-2xl shadow-[0_4px_0_rgba(194,120,3,0.4)] hover:shadow-[0_2px_0_rgba(194,120,3,0.4)] hover:translate-y-0.5 transition-all"
               >
-                Back to Home
+                Continue →
               </motion.button>
             </motion.div>
           </motion.div>
