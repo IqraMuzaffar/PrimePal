@@ -1006,8 +1006,41 @@ async def get_pillar_missions(
     active_topic_names = [t["topic_name"] for t in active_topic_objs]
     topics_hash = hashlib.md5(",".join(sorted(active_topic_names)).encode()).hexdigest()[:12]
 
-    cache_key = make_cache_key("pillar_missions", student_id, classroom_id, pillar, str(is_frustrated), topics_hash)
+    # Cache key includes today's date so it never carries stale questions across days.
+    today_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    cache_key = make_cache_key("pillar_missions", student_id, classroom_id, pillar, str(is_frustrated), topics_hash, today_date)
     MIN_CACHE_QUESTIONS = 6
+
+    # ------------------------------------------------------------------
+    # Step 1b: Daily limit check — ALWAYS runs before cache so the cache
+    # can never bypass the limit and serve repeated questions.
+    # ------------------------------------------------------------------
+    PILLAR_DAILY_LIMIT = 10
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    ).isoformat()
+    try:
+        pillar_check_resp = await asyncio.to_thread(
+            lambda: supabase.table("student_interactions")
+            .select("interaction_type")
+            .eq("student_id", student_id)
+            .eq("pillar", pillar)
+            .gte("created_at", today_start)
+            .execute()
+        )
+        pillar_today_count = sum(
+            1 for row in (pillar_check_resp.data or [])
+            if (row.get("interaction_type") or "").startswith("mission")
+        )
+        if pillar_today_count >= PILLAR_DAILY_LIMIT:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Pillar '{pillar}' is completed for today ({PILLAR_DAILY_LIMIT}/{PILLAR_DAILY_LIMIT} questions done). Come back tomorrow!",
+            )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.warning("Could not check pillar daily limit: %s", exc)
 
     if not is_frustrated:
         cached = await cache_get(cache_key)
@@ -1031,36 +1064,6 @@ async def get_pillar_missions(
                     active_topic_names, [], None, cache_key,
                 )
                 return PillarMissionsResponse(**generic_cached)
-
-    # ------------------------------------------------------------------
-    # Step 1b: Check pillar completion (only on cache MISS)
-    # ------------------------------------------------------------------
-    PILLAR_DAILY_LIMIT = 10
-    try:
-        today_start = datetime.now(timezone.utc).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        ).isoformat()
-        pillar_check_resp = await asyncio.to_thread(
-            lambda: supabase.table("student_interactions")
-            .select("interaction_type")
-            .eq("student_id", student_id)
-            .eq("pillar", pillar)
-            .gte("created_at", today_start)
-            .execute()
-        )
-        pillar_today_count = sum(
-            1 for row in (pillar_check_resp.data or [])
-            if (row.get("interaction_type") or "").startswith("mission")
-        )
-        if pillar_today_count >= PILLAR_DAILY_LIMIT:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail=f"Pillar '{pillar}' is completed for today ({PILLAR_DAILY_LIMIT}/{PILLAR_DAILY_LIMIT} questions done). Come back tomorrow!",
-            )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.warning("Could not check pillar daily limit: %s", exc)
 
     # ------------------------------------------------------------------
     # Step 2: Fetch weaknesses + performance profile (only on cache MISS)
@@ -1226,14 +1229,22 @@ async def get_pillar_missions(
                 classroom_id=classroom_id,
             )
             if fallback_questions:
+                # Build a set of question texts already in merged to prevent duplicates.
+                # Without this, when the bank has < 10 questions the fallback returns the
+                # same rows already in `merged`, creating silent Q1…Q5,Q1…Q5 repetition.
+                existing_texts = {(q.get("question") or "").strip().lower() for q in merged}
                 for fq in fallback_questions:
                     if len(merged) >= PILLAR_QUESTIONS_COUNT:
                         break
                     if isinstance(fq, dict) and fq.get("question"):
+                        fq_text = (fq.get("question") or "").strip().lower()
+                        if fq_text in existing_texts:
+                            continue  # already have this question — skip duplicate
                         fq["pillar"] = pillar
                         fq["points_value"] = 10
                         fq.setdefault("difficulty", "medium")
                         merged.append(fq)
+                        existing_texts.add(fq_text)
         except Exception as exc:
             logger.warning("Bank fallback pull failed for %s: %s", pillar, exc)
 
@@ -1266,19 +1277,12 @@ async def get_pillar_missions(
             detail="Could not generate missions right now. Please try again shortly.",
         )
 
-    # Pad to target by recycling if we have some but fewer than target
-    # (6-9 questions is fine — only recycle if critically low)
-    if 0 < len(merged) < MIN_ACCEPTABLE_QUESTIONS:
-        import copy
+    # Never recycle questions — serve fewer rather than show duplicates.
+    if len(merged) < MIN_ACCEPTABLE_QUESTIONS:
         logger.warning(
-            "PADDING: Only %d/%d for %s — recycling to reach %d.",
-            len(merged), PILLAR_QUESTIONS_COUNT, pillar, MIN_ACCEPTABLE_QUESTIONS,
+            "Only %d/%d unique questions for %s — serving partial set.",
+            len(merged), PILLAR_QUESTIONS_COUNT, pillar,
         )
-        idx = 0
-        while len(merged) < MIN_ACCEPTABLE_QUESTIONS:
-            recycled = copy.deepcopy(merged[idx % len(merged)])
-            merged.append(recycled)
-            idx += 1
 
     if len(merged) < PILLAR_QUESTIONS_COUNT:
         logger.info(
