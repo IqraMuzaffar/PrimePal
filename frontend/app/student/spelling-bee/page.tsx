@@ -290,11 +290,25 @@ export default function SpellingBeePage() {
             <h2 className="font-baloo font-extrabold text-xl sm:text-2xl text-slate-900">
               {attemptNumber > 1 ? `Continue — Try ${attemptNumber} of 3` : "Ready for today's word?"}
             </h2>
-            <p className="font-nunito font-semibold text-sm sm:text-base text-slate-500 mt-2">
-              {attemptNumber > 1
-                ? `You have ${4 - attemptNumber} ${4 - attemptNumber === 1 ? 'try' : 'tries'} left — worth ${POINTS_BY_ATTEMPT[attemptNumber] ?? 10} points!`
-                : 'You get 3 tries! 1st try = 30 pts, 2nd = 20 pts, 3rd = 10 pts.'}
-            </p>
+            {attemptNumber > 1 ? (
+              <p className="font-nunito font-semibold text-sm sm:text-base text-slate-500 mt-2">
+                You have <span className="text-amber-600 font-extrabold">{4 - attemptNumber}</span> {4 - attemptNumber === 1 ? 'try' : 'tries'} left — worth <span className="text-amber-600 font-extrabold">{POINTS_BY_ATTEMPT[attemptNumber] ?? 10} pts</span>!
+              </p>
+            ) : (
+              <div className="flex items-center justify-center gap-2 mt-4">
+                {[
+                  { try: 1, pts: 30, color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+                  { try: 2, pts: 20, color: 'bg-amber-100 text-amber-700 border-amber-200' },
+                  { try: 3, pts: 10, color: 'bg-rose-100 text-rose-600 border-rose-200' },
+                ].map(({ try: t, pts, color }) => (
+                  <div key={t} className={`flex flex-col items-center gap-1 px-4 py-2 rounded-2xl border-2 ${color}`}>
+                    <span className="font-baloo font-extrabold text-xs uppercase tracking-wide opacity-70">Try {t}</span>
+                    <span className="font-baloo font-extrabold text-lg leading-none">⭐ {pts}</span>
+                    <span className="font-nunito font-semibold text-xs opacity-70">points</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <motion.button
             whileHover={{ scale: 1.05 }}
