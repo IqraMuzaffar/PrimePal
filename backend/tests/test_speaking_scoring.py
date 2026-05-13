@@ -32,7 +32,7 @@ def score_speaking(expected_text: str, transcription: str) -> dict:
     if not is_correct:
         expected_words = expected_lower.split()
         if len(expected_words) <= 2:
-            spoken_set = set(transcription_lower.split())
+            spoken_set = {w.strip('.,!?;:\'"') for w in transcription_lower.split()}
             if all(ew in spoken_set for ew in expected_words):
                 is_correct = True
 
@@ -67,6 +67,11 @@ class TestKeywordFallback:
     def test_what_is_this_natural_phrase(self):
         # Student says "it is a cat" when expected is just "cat"
         result = score_speaking("cat", "it is a cat")
+        assert result["is_correct"] is True
+
+    def test_what_is_this_with_trailing_punctuation(self):
+        # Whisper appends punctuation — "it is a cat." must still match "cat"
+        result = score_speaking("cat", "it is a cat.")
         assert result["is_correct"] is True
 
     def test_what_is_this_with_article(self):

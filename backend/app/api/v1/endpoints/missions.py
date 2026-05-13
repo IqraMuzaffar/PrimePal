@@ -1455,7 +1455,7 @@ async def submit_speaking_answer(
     if not is_correct:
         expected_words = expected_lower.split()
         if len(expected_words) <= 2:
-            spoken_set = set(transcription_lower.split())
+            spoken_set = {w.strip('.,!?;:\'"') for w in transcription_lower.split()}
             if all(ew in spoken_set for ew in expected_words):
                 is_correct = True
 
