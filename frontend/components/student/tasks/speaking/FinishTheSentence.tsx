@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 export default function FinishTheSentence({ question, onAnswer, showFeedback, disabled }: TaskProps) {
   const [transcription, setTranscription] = useState('');
 
-  const handleResult = (isCorrect: boolean, transcript: string) => {
+  const handleResult = (isCorrect: boolean, transcript: string, _similarity: number) => {
     setTranscription(transcript);
     onAnswer(transcript, isCorrect);
   };
