@@ -1467,6 +1467,18 @@ async def submit_speaking_answer(
             if all(ew in spoken_set for ew in expected_words):
                 is_correct = True
 
+    # Wrong-answer retry: give students up to _GARBLED_MAX_ATTEMPTS tries
+    # even when Whisper heard them clearly but the answer was incorrect.
+    if not is_correct and attempt_number < _GARBLED_MAX_ATTEMPTS:
+        return SpeakingSubmissionResponse(
+            is_correct=False,
+            similarity_score=round(similarity, 2),
+            transcription=transcription,
+            points_awarded=0,
+            new_total=0,
+            status="retry",
+        )
+
     points_awarded = _POINTS_PER_CORRECT if is_correct else 0
 
     student_resp, classroom_resp = await asyncio.gather(
