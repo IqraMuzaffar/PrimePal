@@ -3,7 +3,7 @@
 import { useState, useMemo } from 'react';
 import {
   DndContext, closestCenter, DragEndEvent,
-  PointerSensor, TouchSensor, useSensor, useSensors,
+  MouseSensor, TouchSensor, useSensor, useSensors,
 } from '@dnd-kit/core';
 import { SortableContext, horizontalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -25,7 +25,7 @@ function SortableWord({ id, word, disabled }: { id: string; word: string; disabl
       style={style}
       {...attributes}
       {...listeners}
-      className={`px-4 py-2 bg-white border-2 border-indigo-200 rounded-lg font-semibold text-sm text-gray-800 touch-manipulation select-none ${
+      className={`px-4 py-2 bg-white border-2 border-indigo-200 rounded-lg font-semibold text-sm text-gray-800 touch-none select-none ${
         disabled ? 'opacity-60 cursor-default' : 'cursor-grab active:cursor-grabbing'
       } ${isDragging ? 'z-10 shadow-lg border-indigo-400' : ''}`}
     >
@@ -44,14 +44,14 @@ export default function SentenceScramble({ question, onAnswer, showFeedback, dis
   const [words, setWords] = useState<IndexedWord[]>(initialWords);
   const [submitted, setSubmitted] = useState(false);
 
-  // Require 5px movement before drag starts — prevents stuck taps on mobile
-  const pointerSensor = useSensor(PointerSensor, {
+  // MouseSensor for desktop, TouchSensor for mobile (uses non-passive listeners to prevent scroll conflict)
+  const mouseSensor = useSensor(MouseSensor, {
     activationConstraint: { distance: 5 },
   });
   const touchSensor = useSensor(TouchSensor, {
     activationConstraint: { delay: 150, tolerance: 5 },
   });
-  const sensors = useSensors(pointerSensor, touchSensor);
+  const sensors = useSensors(mouseSensor, touchSensor);
 
   const isLocked = disabled || showFeedback || submitted;
 
