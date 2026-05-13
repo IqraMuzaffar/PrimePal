@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 export default function WhatIsThis({ question, onAnswer, showFeedback, disabled }: TaskProps) {
   const [transcription, setTranscription] = useState('');
 
-  const handleResult = (isCorrect: boolean, transcript: string) => {
+  const handleResult = (isCorrect: boolean, transcript: string, _similarity: number) => {
     setTranscription(transcript);
     onAnswer(transcript, isCorrect);
   };
@@ -16,9 +16,17 @@ export default function WhatIsThis({ question, onAnswer, showFeedback, disabled 
   return (
     <div>
       <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 leading-tight">What is this? Say it!</h2>
-      <div className="flex justify-center mb-6">
+      <div className="flex justify-center mb-4">
         <span className="text-8xl">{question.image_context ?? '?'}</span>
       </div>
+
+      {/* Format hint */}
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-2 mb-4 text-center">
+        <p className="text-sm font-semibold text-amber-700">
+          Say the name of what you see — or say <span className="italic">&ldquo;It is a [name]&rdquo;</span>
+        </p>
+      </div>
+
       {!showFeedback && (
         <MissionRecorder
           expectedText={question.correct_answer ?? ''}
