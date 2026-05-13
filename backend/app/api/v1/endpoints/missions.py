@@ -923,6 +923,13 @@ async def _generate_personalized_missions(
         for i, q in enumerate(merged):
             q["id"] = i + 1
 
+        # Normalize correct_answer format (same step as main request flow)
+        # Without this, bank questions with text correct_answer (e.g. "cat" instead
+        # of "a") are cached and served raw, causing the frontend to mark correct
+        # answers as wrong.
+        from app.agents.tutor_agent.question_validator import normalize_all_questions as _normalize
+        _normalize(merged)
+
         weakness_focus_count = sum(
             1 for q in merged if q.get("is_weakness_focused", False)
         )
@@ -1440,6 +1447,18 @@ async def submit_speaking_answer(
         )
 
     is_correct = similarity >= 0.6
+
+    # Keyword-contains fallback: if expected answer is 1-2 words and every
+    # expected word appears as a standalone word in the transcript, award
+    # credit. Handles "it is a cat" matching expected "cat" for what_is_this,
+    # and short finish_the_sentence completions.
+    if not is_correct:
+        expected_words = expected_lower.split()
+        if len(expected_words) <= 2:
+            spoken_set = set(transcription_lower.split())
+            if all(ew in spoken_set for ew in expected_words):
+                is_correct = True
+
     points_awarded = _POINTS_PER_CORRECT if is_correct else 0
 
     student_resp, classroom_resp = await asyncio.gather(
