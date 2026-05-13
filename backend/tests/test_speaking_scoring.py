@@ -120,3 +120,18 @@ class TestFinishTheSentenceAfterFrontendFix:
         # Student says just "sleeping" — similarity is low, no fallback (>2 words)
         result = score_speaking("the cat is sleeping", "sleeping")
         assert result["is_correct"] is False
+
+
+class TestGarbledGateInteraction:
+    """Verify that the garbled gate does not block valid short-answer keyword matches."""
+
+    def test_natural_phrase_not_garbled(self):
+        # "it is a cat" has low similarity to "cat" but should not be garbled
+        # because the keyword match pre-check fires first
+        result = score_speaking("cat", "it is a cat")
+        assert result["is_correct"] is True
+
+    def test_truly_garbled_still_rejected(self):
+        # Random noise should still be rejected
+        result = score_speaking("cat", "blah blah blah")
+        assert result["is_correct"] is False

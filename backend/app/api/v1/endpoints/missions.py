@@ -1411,11 +1411,19 @@ async def submit_speaking_answer(
     transcription_lower = transcription.lower().strip()
     similarity = SequenceMatcher(None, expected_lower, transcription_lower).ratio()
 
+    # Pre-compute keyword match so the garbled gate doesn't block valid short answers.
+    # E.g., "it is a cat." has low similarity to "cat" but contains the expected word.
+    _expected_words_pre = expected_lower.split()
+    _keyword_pre_match = False
+    if len(_expected_words_pre) <= 2 and len(transcription_lower) >= 3:
+        _spoken_set_pre = {w.strip('.,!?;:\'"') for w in transcription_lower.split()}
+        _keyword_pre_match = all(ew in _spoken_set_pre for ew in _expected_words_pre)
+
     # Garbled input detection: if similarity is very low, offer retry
     is_garbled = (
         not transcription_lower
         or len(transcription_lower) < 3
-        or similarity < _GARBLED_SIMILARITY_THRESHOLD
+        or (similarity < _GARBLED_SIMILARITY_THRESHOLD and not _keyword_pre_match)
     )
 
     if is_garbled:
