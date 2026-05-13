@@ -47,9 +47,10 @@ export const TIMER_SECONDS: Record<string, number> = {
   passage_true_false: 30,
   sentence_scramble: 30,
   guided_translation: 30,
-  listen_and_spell: 20,
-  finish_the_sentence: 20,
-  repeat_after_me: 20,
+  listen_and_spell: 30,
+  finish_the_sentence: 30,
+  repeat_after_me: 30,
+  what_is_this: 25,
 };
 
 export const DEFAULT_TIMER = 15;
