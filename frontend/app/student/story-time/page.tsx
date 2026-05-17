@@ -10,6 +10,15 @@ import { useStoryTime, useStoryTimeDailyStatus, queryKeys } from '@/lib/hooks/qu
 import { useVoice } from '@/lib/voice-context';
 import PageHero from '@/components/student/PageHero';
 import LoadingCountdown from '@/components/student/LoadingCountdown';
+import QuestionTimer from '@/components/student/QuestionTimer';
+
+/** Seconds allowed per comprehension question, scaled by grade level.
+ *  Grade 1-2: 30s
+ *  Grade 3-5: 45s
+ */
+function getQuestionSeconds(gradeLevel: number): number {
+  return gradeLevel >= 3 ? 45 : 30;
+}
 
 type GameState = 'loading' | 'reading' | 'questioning' | 'finished';
 
@@ -32,6 +41,7 @@ export default function StoryTimePage() {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [answerResult, setAnswerResult] = useState<{ correct: boolean; message: string } | null>(null);
   const [gameStarted, setGameStarted] = useState(false);
+  const [timerKey, setTimerKey] = useState(0);
 
   function getToken(): string | null {
     if (typeof window === 'undefined') return null;
@@ -126,10 +136,22 @@ export default function StoryTimePage() {
       setCurrentQuestionIndex((prev) => prev + 1);
       setSelectedAnswer(null);
       setAnswerResult(null);
+      setTimerKey((k) => k + 1); // reset timer for next question
       setGameState('questioning');
     } else {
       setGameState('finished');
     }
+  }
+
+  async function handleTimeUp() {
+    // Time expired — mark question as skipped (no points, move on)
+    if (answerResult !== null || !story) return;
+    const currentQuestion = story.questions[currentQuestionIndex];
+    setAnswerResult({
+      correct: false,
+      message: `⏰ Time's up! Answer: ${currentQuestion.options[currentQuestion.correct_index]}`,
+    });
+    setTimeout(() => advanceToNextQuestion(), 1500);
   }
 
   /* ================================================================ */
@@ -338,7 +360,7 @@ export default function StoryTimePage() {
             <motion.button
               whileHover={{ scale: 1.02 }}
               whileTap={{ scale: 0.98 }}
-              onClick={() => setGameState('questioning')}
+              onClick={() => { setTimerKey((k) => k + 1); setGameState('questioning'); }}
               className="w-full py-4 bg-gradient-to-r from-emerald-500 to-green-500 text-white font-bold text-lg rounded-xl hover:from-emerald-600 hover:to-green-600 transition-all shadow-md"
             >
               Start Questions →
@@ -375,6 +397,16 @@ export default function StoryTimePage() {
               animate={{ opacity: 1, y: 0 }}
               className="space-y-6"
             >
+              {/* Question timer — only shown before the student answers */}
+              {!answerResult && (
+                <QuestionTimer
+                  key={timerKey}
+                  initialSeconds={getQuestionSeconds(story.grade_level ?? 1)}
+                  onTimeUp={handleTimeUp}
+                  paused={answerResult !== null}
+                />
+              )}
+
               {/* Question card */}
               <div className="bg-white rounded-3xl border-2 border-emerald-100 p-6 sm:p-8 shadow-[0_12px_40px_rgba(15,23,42,0.06)]">
                 <p className="text-sm font-semibold text-gray-600 mb-2 uppercase tracking-widest">Question</p>

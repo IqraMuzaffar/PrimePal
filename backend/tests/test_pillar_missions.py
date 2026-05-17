@@ -4,14 +4,16 @@ Tests for Feature 3: Pillar-based Missions Endpoint
 Covers:
   - GET /api/v1/missions/pillar (endpoint integration)
   - Pillar parameter validation (reading, writing, listening, speaking)
-  - Fetching current_week_topic from classroom
   - Retrieving student weaknesses from interactions table
-  - Generating 10 questions with weakness focus
-  - Stripping correct_answer from client response
+  - Generating questions with weakness focus
+  - correct_answer included in response (frontend validation)
+  - generate_pillar_missions signature and LangChain integration
 
 Patching conventions:
   - Supabase:                app.api.v1.endpoints.missions.get_supabase_admin
   - Mission generator:       app.api.v1.endpoints.missions.generate_pillar_missions
+  - Bank pull:               app.api.v1.endpoints.missions.pull_from_bank
+  - Grade level cache:       app.api.v1.endpoints.missions.get_cached_grade_level (via cache module)
   - Student auth is overridden via app.dependency_overrides[get_current_student]
 """
 import json
@@ -19,11 +21,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from httpx import AsyncClient
-
-from app.agents.tutor_agent.mission_generator import (
-    MissionQuestion,
-    QuestionOption,
-)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -48,107 +45,152 @@ MOCK_CLASSROOM_WITHOUT_TOPIC = {
     "current_week_topic": None,
 }
 
-# Mock 10 pillar questions
-def _make_mock_pillar_questions():
-    """Create 10 mock MissionQuestion objects."""
+
+def _make_mock_pillar_questions(pillar: str = "reading"):
+    """Create 10 mock mission question dicts (not MissionQuestion objects).
+
+    Uses task_type (the current required field, not the legacy 'type' alias).
+    Question texts are deliberately distinct to avoid the 0.85 fuzzy-dedup threshold.
+    """
+    # (task_type, question_text) pairs — each text must be clearly unique
+    questions_by_pillar = {
+        "reading": [
+            ("sentence_picture_match", "Which picture best matches the sentence about a red apple?"),
+            ("odd_one_out",            "Which word does NOT belong: cat, dog, table, bird?"),
+            ("fill_blank_word_bank",   "The boy ___ to school every morning."),
+            ("passage_true_false",     "Is it true that fish can breathe underwater?"),
+            ("sentence_picture_match", "Choose the image that shows a child reading a book."),
+            ("odd_one_out",            "Circle the item that is not a fruit: mango, banana, chair, orange."),
+            ("fill_blank_word_bank",   "She drinks ___ with her breakfast."),
+            ("passage_true_false",     "Elephants are the smallest animals on land — true or false?"),
+            ("sentence_picture_match", "Which photo matches the sentence: the sun is shining brightly?"),
+            ("odd_one_out",            "Find the word that does not fit: happy, sad, run, angry."),
+        ],
+        "writing": [
+            ("sentence_scramble",    "Arrange these words: school / goes / Ahmed / to."),
+            ("missing_letter",       "Complete the word: b_tter_ly"),
+            ("guided_translation",   "Write in English: بلی درخت پر بیٹھی ہے"),
+            ("sentence_scramble",    "Put in order: breakfast / eats / she / every day."),
+            ("missing_letter",       "Fill the blank: s_nfl_wer"),
+            ("guided_translation",   "Translate: کتاب میز پر ہے"),
+            ("sentence_scramble",    "Arrange: plays / football / brother / my."),
+            ("missing_letter",       "Complete: r_inb_w"),
+            ("guided_translation",   "Write in English: پرندہ آسمان میں اڑتا ہے"),
+            ("sentence_scramble",    "Order the words: market / goes / mother / the / to."),
+        ],
+        "listening": [
+            ("listen_and_choose", "Listen and choose the animal you heard described."),
+            ("simon_says",        "Touch your nose when you hear the command."),
+            ("listen_and_spell",  "Spell the word you hear for a type of fruit."),
+            ("listen_and_choose", "Pick the correct picture for the weather word you heard."),
+            ("simon_says",        "Clap twice when you hear a colour word."),
+            ("listen_and_spell",  "Write the animal name that was spoken aloud."),
+            ("listen_and_choose", "Select the image matching the action described in the audio."),
+            ("simon_says",        "Stand up when you hear a number greater than five."),
+            ("listen_and_spell",  "Spell the vehicle name from the audio clip."),
+            ("listen_and_choose", "Choose the correct season based on what you heard."),
+        ],
+        "speaking": [
+            ("repeat_after_me",      "Repeat: The cat sat on the mat."),
+            ("what_is_this",         "What is this object used for in a kitchen?"),
+            ("finish_the_sentence",  "The sky is blue and the grass is ___."),
+            ("repeat_after_me",      "Say aloud: My name is Ahmed and I am eight years old."),
+            ("what_is_this",         "Name the animal shown in the picture."),
+            ("finish_the_sentence",  "We use an umbrella when it ___."),
+            ("repeat_after_me",      "Repeat clearly: She sells seashells by the seashore."),
+            ("what_is_this",         "What do we call this tool used for writing?"),
+            ("finish_the_sentence",  "I brush my teeth before I go to ___."),
+            ("repeat_after_me",      "Say: The quick brown fox jumps over the lazy dog."),
+        ],
+    }
+    entries = questions_by_pillar.get(pillar, questions_by_pillar["reading"])
     questions = []
-    for i in range(10):
-        is_weakness_focused = i < 3
-        q = MissionQuestion(
-            id=i + 1,
-            type="multiple_choice" if i < 7 else "fill_blank",
-            question=f"Sample reading question {i + 1}",
-            options=(
-                [
-                    QuestionOption(id="a", text="Option A"),
-                    QuestionOption(id="b", text="Option B"),
-                    QuestionOption(id="c", text="Option C"),
-                    QuestionOption(id="d", text="Option D"),
-                ]
-                if i < 7
-                else None
-            ),
-            correct_answer="a" if i < 7 else "answer",
-            emoji_hint="📖",
-        )
-        # Add metadata as dict for testing
+    for i, (task_type, question_text) in enumerate(entries):
         questions.append({
-            **q.model_dump(),
-            "is_weakness_focused": is_weakness_focused,
+            "id": i + 1,
+            "task_type": task_type,
+            "pillar": pillar,
+            "question": question_text,
+            "difficulty": "medium",
+            "points_value": 10,
+            "correct_answer": "a",
+            "emoji_hint": "📖",
+            "urdu_hint": "",
+            "is_weakness_focused": i < 3,
+            "source": "llm",
         })
     return questions
 
 
 # ── Supabase mock helpers ─────────────────────────────────────────────────────
 
-def _make_classroom_supabase_mock(classroom_data=None):
+def _make_full_supabase_mock(grade_level: int = 3, session_count: int = 0):
     """
-    Mock supabase_admin that returns a classroom row.
+    Mock supabase_admin that handles classrooms, classroom_active_topics,
+    snc_topics, grade_topic_selections, and student_interactions tables.
     """
-    if classroom_data is None:
-        classroom_data = MOCK_CLASSROOM_WITH_TOPIC
-
-    mock_client = MagicMock()
-    classroom_result = MagicMock()
-    classroom_result.data = classroom_data
-    (
-        mock_client.table.return_value
-        .select.return_value
-        .eq.return_value
-        .maybe_single.return_value
-        .execute.return_value
-    ) = classroom_result
-    return mock_client
-
-
-def _make_missing_classroom_mock():
-    """Mock supabase_admin where classroom lookup returns None."""
-    mock_client = MagicMock()
-    classroom_result = MagicMock()
-    classroom_result.data = None
-    (
-        mock_client.table.return_value
-        .select.return_value
-        .eq.return_value
-        .maybe_single.return_value
-        .execute.return_value
-    ) = classroom_result
-    return mock_client
-
-
-def _make_supabase_with_interactions_mock(classroom_data=None, interactions_data=None):
-    """
-    Mock supabase_admin that handles both classrooms and interactions tables.
-    """
-    if classroom_data is None:
-        classroom_data = MOCK_CLASSROOM_WITH_TOPIC
-    if interactions_data is None:
-        interactions_data = []
-
     mock_client = MagicMock()
 
     def table_side_effect(table_name):
         table_mock = MagicMock()
+
         if table_name == "classrooms":
-            classroom_result = MagicMock()
-            classroom_result.data = classroom_data
-            (
-                table_mock.select.return_value
-                .eq.return_value
-                .maybe_single.return_value
-                .execute.return_value
-            ) = classroom_result
-        elif table_name == "interactions":
-            interactions_result = MagicMock()
-            interactions_result.data = interactions_data
-            (
-                table_mock.select.return_value
-                .eq.return_value
-                .eq.return_value
-                .order.return_value
-                .limit.return_value
-                .execute.return_value
-            ) = interactions_result
+            result = MagicMock()
+            result.data = {"grade_level": grade_level}
+            table_mock.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = result
+
+        elif table_name == "classroom_active_topics":
+            result = MagicMock()
+            result.data = []  # No saved topic IDs → use all grade topics
+            table_mock.select.return_value.eq.return_value.execute.return_value = result
+
+        elif table_name == "snc_topics":
+            result = MagicMock()
+            result.data = [
+                {"id": 1, "grade_level": grade_level, "skill": "listening", "topic_name": "Animals"},
+                {"id": 2, "grade_level": grade_level, "skill": "reading",   "topic_name": "Colors"},
+            ]
+            table_mock.select.return_value.eq.return_value.order.return_value.execute.return_value = result
+            table_mock.select.return_value.in_.return_value.order.return_value.execute.return_value = result
+
+        elif table_name == "grade_topic_selections":
+            result = MagicMock()
+            result.data = []  # No deactivated topics
+            table_mock.select.return_value.eq.return_value.eq.return_value.execute.return_value = result
+
+        elif table_name == "student_interactions":
+            result = MagicMock()
+            result.data = []
+            result.count = session_count
+            # Handle any chain of calls
+            chain = table_mock.select.return_value
+            for _ in range(6):
+                chain = chain.eq.return_value
+            chain.execute.return_value = result
+            chain.gte.return_value.execute.return_value = result
+            table_mock.select.return_value.eq.return_value.eq.return_value.gte.return_value.execute.return_value = result
+            table_mock.select.return_value.eq.return_value.not_.is_.return_value.gte.return_value.execute.return_value = result
+            table_mock.select.return_value.eq.return_value.eq.return_value.gte.return_value.lte.return_value.limit.return_value.execute.return_value = result
+
+        return table_mock
+
+    mock_client.table.side_effect = table_side_effect
+    return mock_client
+
+
+def _make_missing_classroom_mock():
+    """Mock supabase_admin where classroom grade lookup returns 0 (not found)."""
+    mock_client = MagicMock()
+
+    def table_side_effect(table_name):
+        table_mock = MagicMock()
+        result = MagicMock()
+        result.data = None
+        result.count = 0
+        # Return None data for any call
+        table_mock.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value = result
+        table_mock.select.return_value.eq.return_value.execute.return_value = result
+        table_mock.select.return_value.eq.return_value.eq.return_value.gte.return_value.execute.return_value = result
         return table_mock
 
     mock_client.table.side_effect = table_side_effect
@@ -171,23 +213,25 @@ class TestGetPillarMissions:
 
     async def test_happy_path_reading_pillar(self, client: AsyncClient):
         """
-        Valid pillar=reading, classroom found with current_week_topic → 200 OK.
-        Returns 10 questions with weakness focus count.
+        Valid pillar=reading, classroom found → 200 OK with 10 questions.
         """
-        mock_questions = _make_mock_pillar_questions()
+        mock_questions = _make_mock_pillar_questions("reading")
 
         with (
-            patch(
-                "app.api.v1.endpoints.missions.get_supabase_admin",
-                return_value=_make_supabase_with_interactions_mock(
-                    classroom_data=MOCK_CLASSROOM_WITH_TOPIC,
-                    interactions_data=[],
-                ),
-            ),
-            patch(
-                "app.api.v1.endpoints.missions.generate_pillar_missions",
-                new=AsyncMock(return_value=mock_questions),
-            ),
+            patch("app.api.v1.endpoints.missions.get_supabase_admin",
+                  return_value=_make_full_supabase_mock()),
+            patch("app.core.cache.get_cached_grade_level",
+                  new=AsyncMock(return_value=3)),
+            patch("app.api.v1.endpoints.missions.pull_from_bank",
+                  new=AsyncMock(return_value=[])),
+            patch("app.api.v1.endpoints.missions.generate_pillar_missions",
+                  new=AsyncMock(return_value=mock_questions)),
+            patch("app.api.v1.endpoints.missions.retrieve_grade_filtered_chunks",
+                  new=AsyncMock(return_value=[])),
+            patch("app.api.v1.endpoints.missions.cache_get",
+                  new=AsyncMock(return_value=None)),
+            patch("app.api.v1.endpoints.missions.cache_set",
+                  new=AsyncMock()),
         ):
             resp = await client.get(
                 "/api/v1/missions/pillar",
@@ -198,26 +242,28 @@ class TestGetPillarMissions:
         assert resp.status_code == 200
         body = resp.json()
         assert body["pillar"] == "reading"
-        assert body["current_week_topic"] == "Animals"
         assert len(body["questions"]) == 10
         assert body["weakness_focus_questions"] == 3  # First 3 are marked as weakness_focused
 
     async def test_pillar_writing_returns_correct_pillar(self, client: AsyncClient):
         """Test that pillar=writing is accepted and returned correctly."""
-        mock_questions = _make_mock_pillar_questions()
+        mock_questions = _make_mock_pillar_questions("writing")
 
         with (
-            patch(
-                "app.api.v1.endpoints.missions.get_supabase_admin",
-                return_value=_make_supabase_with_interactions_mock(
-                    classroom_data=MOCK_CLASSROOM_WITHOUT_TOPIC,
-                    interactions_data=[],
-                ),
-            ),
-            patch(
-                "app.api.v1.endpoints.missions.generate_pillar_missions",
-                new=AsyncMock(return_value=mock_questions),
-            ),
+            patch("app.api.v1.endpoints.missions.get_supabase_admin",
+                  return_value=_make_full_supabase_mock(grade_level=5)),
+            patch("app.core.cache.get_cached_grade_level",
+                  new=AsyncMock(return_value=5)),
+            patch("app.api.v1.endpoints.missions.pull_from_bank",
+                  new=AsyncMock(return_value=[])),
+            patch("app.api.v1.endpoints.missions.generate_pillar_missions",
+                  new=AsyncMock(return_value=mock_questions)),
+            patch("app.api.v1.endpoints.missions.retrieve_grade_filtered_chunks",
+                  new=AsyncMock(return_value=[])),
+            patch("app.api.v1.endpoints.missions.cache_get",
+                  new=AsyncMock(return_value=None)),
+            patch("app.api.v1.endpoints.missions.cache_set",
+                  new=AsyncMock()),
         ):
             resp = await client.get(
                 "/api/v1/missions/pillar",
@@ -228,24 +274,26 @@ class TestGetPillarMissions:
         assert resp.status_code == 200
         body = resp.json()
         assert body["pillar"] == "writing"
-        assert body["current_week_topic"] is None  # Teacher hasn't set it
 
     async def test_pillar_listening(self, client: AsyncClient):
-        """Test listening pillar is accepted."""
-        mock_questions = _make_mock_pillar_questions()
+        """Test listening pillar is accepted and returns listening questions."""
+        mock_questions = _make_mock_pillar_questions("listening")
 
         with (
-            patch(
-                "app.api.v1.endpoints.missions.get_supabase_admin",
-                return_value=_make_supabase_with_interactions_mock(
-                    classroom_data=MOCK_CLASSROOM_WITH_TOPIC,
-                    interactions_data=[],
-                ),
-            ),
-            patch(
-                "app.api.v1.endpoints.missions.generate_pillar_missions",
-                new=AsyncMock(return_value=mock_questions),
-            ),
+            patch("app.api.v1.endpoints.missions.get_supabase_admin",
+                  return_value=_make_full_supabase_mock()),
+            patch("app.core.cache.get_cached_grade_level",
+                  new=AsyncMock(return_value=3)),
+            patch("app.api.v1.endpoints.missions.pull_from_bank",
+                  new=AsyncMock(return_value=[])),
+            patch("app.api.v1.endpoints.missions.generate_pillar_missions",
+                  new=AsyncMock(return_value=mock_questions)),
+            patch("app.api.v1.endpoints.missions.retrieve_grade_filtered_chunks",
+                  new=AsyncMock(return_value=[])),
+            patch("app.api.v1.endpoints.missions.cache_get",
+                  new=AsyncMock(return_value=None)),
+            patch("app.api.v1.endpoints.missions.cache_set",
+                  new=AsyncMock()),
         ):
             resp = await client.get(
                 "/api/v1/missions/pillar",
@@ -254,24 +302,32 @@ class TestGetPillarMissions:
             )
 
         assert resp.status_code == 200
-        assert resp.json()["pillar"] == "listening"
+        body = resp.json()
+        assert body["pillar"] == "listening"
+        assert len(body["questions"]) == 10
+        # Verify listening-specific task types are present
+        task_types = {q["task_type"] for q in body["questions"]}
+        assert task_types <= {"listen_and_choose", "simon_says", "listen_and_spell"}
 
     async def test_pillar_speaking(self, client: AsyncClient):
         """Test speaking pillar is accepted."""
-        mock_questions = _make_mock_pillar_questions()
+        mock_questions = _make_mock_pillar_questions("speaking")
 
         with (
-            patch(
-                "app.api.v1.endpoints.missions.get_supabase_admin",
-                return_value=_make_supabase_with_interactions_mock(
-                    classroom_data=MOCK_CLASSROOM_WITH_TOPIC,
-                    interactions_data=[],
-                ),
-            ),
-            patch(
-                "app.api.v1.endpoints.missions.generate_pillar_missions",
-                new=AsyncMock(return_value=mock_questions),
-            ),
+            patch("app.api.v1.endpoints.missions.get_supabase_admin",
+                  return_value=_make_full_supabase_mock()),
+            patch("app.core.cache.get_cached_grade_level",
+                  new=AsyncMock(return_value=3)),
+            patch("app.api.v1.endpoints.missions.pull_from_bank",
+                  new=AsyncMock(return_value=[])),
+            patch("app.api.v1.endpoints.missions.generate_pillar_missions",
+                  new=AsyncMock(return_value=mock_questions)),
+            patch("app.api.v1.endpoints.missions.retrieve_grade_filtered_chunks",
+                  new=AsyncMock(return_value=[])),
+            patch("app.api.v1.endpoints.missions.cache_get",
+                  new=AsyncMock(return_value=None)),
+            patch("app.api.v1.endpoints.missions.cache_set",
+                  new=AsyncMock()),
         ):
             resp = await client.get(
                 "/api/v1/missions/pillar",
@@ -284,9 +340,11 @@ class TestGetPillarMissions:
 
     async def test_invalid_pillar_returns_400(self, client: AsyncClient):
         """Invalid pillar value → HTTP 400 with descriptive error."""
-        with patch(
-            "app.api.v1.endpoints.missions.get_supabase_admin",
-            return_value=_make_supabase_with_interactions_mock(),
+        with (
+            patch("app.api.v1.endpoints.missions.get_supabase_admin",
+                  return_value=_make_full_supabase_mock()),
+            patch("app.core.cache.get_cached_grade_level",
+                  new=AsyncMock(return_value=3)),
         ):
             resp = await client.get(
                 "/api/v1/missions/pillar",
@@ -299,10 +357,12 @@ class TestGetPillarMissions:
         assert "reading" in resp.json()["detail"]
 
     async def test_classroom_not_found_returns_404(self, client: AsyncClient):
-        """If classroom cannot be found → HTTP 404."""
-        with patch(
-            "app.api.v1.endpoints.missions.get_supabase_admin",
-            return_value=_make_missing_classroom_mock(),
+        """If classroom grade cannot be resolved → HTTP 404."""
+        with (
+            patch("app.api.v1.endpoints.missions.get_supabase_admin",
+                  return_value=_make_missing_classroom_mock()),
+            patch("app.core.cache.get_cached_grade_level",
+                  new=AsyncMock(return_value=0)),  # 0 = not found
         ):
             resp = await client.get(
                 "/api/v1/missions/pillar",
@@ -313,22 +373,25 @@ class TestGetPillarMissions:
         assert resp.status_code == 404
         assert "Classroom not found" in resp.json()["detail"]
 
-    async def test_correct_answer_not_in_response(self, client: AsyncClient):
-        """The questions in the response must NOT expose correct_answer."""
-        mock_questions = _make_mock_pillar_questions()
+    async def test_correct_answer_included_in_response(self, client: AsyncClient):
+        """correct_answer IS included in the response for frontend validation."""
+        mock_questions = _make_mock_pillar_questions("reading")
 
         with (
-            patch(
-                "app.api.v1.endpoints.missions.get_supabase_admin",
-                return_value=_make_supabase_with_interactions_mock(
-                    classroom_data=MOCK_CLASSROOM_WITH_TOPIC,
-                    interactions_data=[],
-                ),
-            ),
-            patch(
-                "app.api.v1.endpoints.missions.generate_pillar_missions",
-                new=AsyncMock(return_value=mock_questions),
-            ),
+            patch("app.api.v1.endpoints.missions.get_supabase_admin",
+                  return_value=_make_full_supabase_mock()),
+            patch("app.core.cache.get_cached_grade_level",
+                  new=AsyncMock(return_value=3)),
+            patch("app.api.v1.endpoints.missions.pull_from_bank",
+                  new=AsyncMock(return_value=[])),
+            patch("app.api.v1.endpoints.missions.generate_pillar_missions",
+                  new=AsyncMock(return_value=mock_questions)),
+            patch("app.api.v1.endpoints.missions.retrieve_grade_filtered_chunks",
+                  new=AsyncMock(return_value=[])),
+            patch("app.api.v1.endpoints.missions.cache_get",
+                  new=AsyncMock(return_value=None)),
+            patch("app.api.v1.endpoints.missions.cache_set",
+                  new=AsyncMock()),
         ):
             resp = await client.get(
                 "/api/v1/missions/pillar",
@@ -337,16 +400,17 @@ class TestGetPillarMissions:
             )
 
         assert resp.status_code == 200
+        # correct_answer is included for frontend validation (primary students, learning-focused)
         for question in resp.json()["questions"]:
-            assert "correct_answer" not in question, (
-                "correct_answer must be stripped before sending to the client"
+            assert "correct_answer" in question, (
+                "correct_answer must be present for frontend validation"
             )
 
     async def test_pillar_parameter_required(self, client: AsyncClient):
         """Requesting without pillar parameter → HTTP 422 (Unprocessable Entity)."""
-        with patch(
-            "app.api.v1.endpoints.missions.get_supabase_admin",
-            return_value=_make_supabase_with_interactions_mock(),
+        with (
+            patch("app.api.v1.endpoints.missions.get_supabase_admin",
+                  return_value=_make_full_supabase_mock()),
         ):
             resp = await client.get(
                 "/api/v1/missions/pillar",
@@ -371,41 +435,49 @@ class TestGetPillarMissions:
         """
         Student weaknesses from interactions table are fetched and passed to generator.
         """
-        weak_interactions = [
-            {
-                "id": "int-1",
-                "student_id": STUDENT_ID,
-                "pillar": "reading",
-                "score": 0.3,  # Failed
-                "input_text": "The student answered incorrectly",
-                "audio_transcript": None,
-                "created_at": "2026-04-21T10:00:00Z",
-            },
-            {
-                "id": "int-2",
-                "student_id": STUDENT_ID,
-                "pillar": "reading",
-                "score": 0.5,  # Failed
-                "input_text": "Another weak answer",
-                "audio_transcript": None,
-                "created_at": "2026-04-21T09:00:00Z",
-            },
-        ]
-        mock_questions = _make_mock_pillar_questions()
+        mock_questions = _make_mock_pillar_questions("reading")
         generator_mock = AsyncMock(return_value=mock_questions)
 
+        # Build a supabase mock that returns some weakness interactions
+        mock_sb = _make_full_supabase_mock()
+        # Override student_interactions to return some data for weakness calc
+        interactions_result = MagicMock()
+        interactions_result.data = [
+            {"pillar": "reading", "correct": False, "interaction_type": "mission_mc"},
+            {"pillar": "reading", "correct": False, "interaction_type": "mission_mc"},
+            {"pillar": "reading", "correct": False, "interaction_type": "mission_mc"},
+        ]
+        interactions_result.count = 3
+
+        def _table(name):
+            if name == "student_interactions":
+                tbl = MagicMock()
+                tbl.select.return_value.eq.return_value.not_.is_.return_value.order.return_value.limit.return_value.execute.return_value = interactions_result
+                tbl.select.return_value.eq.return_value.eq.return_value.gte.return_value.execute.return_value = interactions_result
+                tbl.select.return_value.eq.return_value.not_.is_.return_value.gte.return_value.execute.return_value = interactions_result
+                return tbl
+            return mock_sb.table(name)
+
+        mock_sb_patched = MagicMock()
+        mock_sb_patched.table.side_effect = _table
+
         with (
-            patch(
-                "app.api.v1.endpoints.missions.get_supabase_admin",
-                return_value=_make_supabase_with_interactions_mock(
-                    classroom_data=MOCK_CLASSROOM_WITH_TOPIC,
-                    interactions_data=weak_interactions,
-                ),
-            ),
-            patch(
-                "app.api.v1.endpoints.missions.generate_pillar_missions",
-                new=generator_mock,
-            ),
+            patch("app.api.v1.endpoints.missions.get_supabase_admin",
+                  return_value=mock_sb_patched),
+            patch("app.core.cache.get_cached_grade_level",
+                  new=AsyncMock(return_value=3)),
+            patch("app.api.v1.endpoints.missions.pull_from_bank",
+                  new=AsyncMock(return_value=[])),
+            patch("app.api.v1.endpoints.missions.generate_pillar_missions",
+                  new=generator_mock),
+            patch("app.api.v1.endpoints.missions.retrieve_grade_filtered_chunks",
+                  new=AsyncMock(return_value=[])),
+            patch("app.api.v1.endpoints.missions.cache_get",
+                  new=AsyncMock(return_value=None)),
+            patch("app.api.v1.endpoints.missions.cache_set",
+                  new=AsyncMock()),
+            patch("app.api.v1.endpoints.missions.get_student_performance_profile",
+                  new=AsyncMock(return_value=None)),
         ):
             resp = await client.get(
                 "/api/v1/missions/pillar",
@@ -414,312 +486,233 @@ class TestGetPillarMissions:
             )
 
         assert resp.status_code == 200
-        # Verify generator was called with weaknesses
         generator_mock.assert_called_once()
-        call_args = generator_mock.call_args
-        assert call_args is not None
-        assert "student_weaknesses" in call_args.kwargs
-        assert len(call_args.kwargs["student_weaknesses"]) == 2
+        call_kwargs = generator_mock.call_args.kwargs
+        assert "student_weaknesses" in call_kwargs
 
 
-# ── Tests for LLM-based Mission Generator ──────────────────────────────────────
+# ── Tests for generate_pillar_missions function ────────────────────────────────
 
-class TestMissionGeneratorLLMBased:
-    """Tests for the LLM-based generate_pillar_missions function."""
+def _make_wait_for_mock(mock_result):
+    """Return a drop-in for asyncio.wait_for that yields mock_result immediately.
 
-    @pytest.mark.asyncio
-    async def test_reading_pillar_generates_10_questions(self):
-        """Test that reading pillar generates exactly 10 questions."""
-        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
+    LangChain's RunnableSequence.ainvoke uses internal dispatch that bypasses a
+    plain mock on ``runnable.ainvoke``.  Patching asyncio.wait_for is the most
+    reliable interception point — it's the single call site in generate_pillar_missions
+    that wraps the chain invocation, so returning mock_result here skips the chain
+    entirely while leaving asyncio.sleep (used by the retry loop) untouched.
+    """
+    async def _fake_wait_for(coro, timeout=None):
+        # Drain the coroutine cleanly so Python does not warn about it never
+        # being awaited.  We ignore any exception it raises — we are replacing it.
+        try:
+            coro.close()
+        except Exception:
+            pass
+        return mock_result
+    return _fake_wait_for
 
-        # Mock the OpenAI API response
-        json_response = """\
-[
-  {"id": 1, "type": "multiple_choice", "question": "What does 'happy' mean?", "options": [{"id": "a", "text": "Sad"}, {"id": "b", "text": "Joyful"}, {"id": "c", "text": "Angry"}, {"id": "d", "text": "Tired"}], "correct_answer": "b", "emoji_hint": "😊", "is_weakness_focused": false},
-  {"id": 2, "type": "multiple_choice", "question": "Which is a color?", "options": [{"id": "a", "text": "Blue"}, {"id": "b", "text": "Run"}, {"id": "c", "text": "Jump"}, {"id": "d", "text": "Sleep"}], "correct_answer": "a", "emoji_hint": "🎨", "is_weakness_focused": false},
-  {"id": 3, "type": "multiple_choice", "question": "What does 'cat' do?", "options": [{"id": "a", "text": "Swims"}, {"id": "b", "text": "Meows"}, {"id": "c", "text": "Flies"}, {"id": "d", "text": "Crawls"}], "correct_answer": "b", "emoji_hint": "🐱", "is_weakness_focused": true},
-  {"id": 4, "type": "multiple_choice", "question": "Choose the animal:", "options": [{"id": "a", "text": "Car"}, {"id": "b", "text": "Dog"}, {"id": "c", "text": "Chair"}, {"id": "d", "text": "Table"}], "correct_answer": "b", "emoji_hint": "🐕", "is_weakness_focused": false},
-  {"id": 5, "type": "multiple_choice", "question": "What is big?", "options": [{"id": "a", "text": "Ant"}, {"id": "b", "text": "Elephant"}, {"id": "c", "text": "Bee"}, {"id": "d", "text": "Pin"}], "correct_answer": "b", "emoji_hint": "🐘", "is_weakness_focused": false},
-  {"id": 6, "type": "multiple_choice", "question": "Opposite of hot?", "options": [{"id": "a", "text": "Warm"}, {"id": "b", "text": "Cold"}, {"id": "c", "text": "Cool"}, {"id": "d", "text": "Hot"}], "correct_answer": "b", "emoji_hint": "❄️", "is_weakness_focused": true},
-  {"id": 7, "type": "multiple_choice", "question": "What can fly?", "options": [{"id": "a", "text": "Fish"}, {"id": "b", "text": "Snake"}, {"id": "c", "text": "Bird"}, {"id": "d", "text": "Turtle"}], "correct_answer": "c", "emoji_hint": "🦅", "is_weakness_focused": false},
-  {"id": 8, "type": "fill_blank", "question": "A ___ says meow.", "options": null, "correct_answer": "cat", "emoji_hint": "🐱", "is_weakness_focused": true},
-  {"id": 9, "type": "fill_blank", "question": "The sun is ___.", "options": null, "correct_answer": "yellow", "emoji_hint": "☀️", "is_weakness_focused": false},
-  {"id": 10, "type": "fill_blank", "question": "I like to ___.", "options": null, "correct_answer": "play", "emoji_hint": "🎮", "is_weakness_focused": false}
-]
-"""
 
-        with patch(
-            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
-        ) as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_openai_class.return_value = mock_client
-
-            # Create a proper mock response object
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = json_response
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
-            questions = await generate_pillar_missions(
-                pillar="reading",
-                grade_level=3,
-                current_week_topic="Animals",
-                student_id="student-123",
-                student_weaknesses=["What is a cat?"],
-            )
-
-        assert len(questions) == 10
-        assert all(q["type"] in ["multiple_choice", "fill_blank"] for q in questions)
-        weakness_focused = [q for q in questions if q.get("is_weakness_focused")]
-        assert len(weakness_focused) >= 1
+class TestGeneratePillarMissions:
+    """Unit tests for the generate_pillar_missions function."""
 
     @pytest.mark.asyncio
-    async def test_writing_pillar_has_correct_emoji(self):
-        """Test that writing pillar uses writing emoji."""
-        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
-
-        json_response = """\
-[
-  {"id": 1, "type": "multiple_choice", "question": "Choose correct spelling:", "options": [{"id": "a", "text": "Cat"}, {"id": "b", "text": "Kat"}, {"id": "c", "text": "Katt"}, {"id": "d", "text": "Catt"}], "correct_answer": "a", "emoji_hint": "✍️", "is_weakness_focused": false},
-  {"id": 2, "type": "multiple_choice", "question": "Spell 'dog':", "options": [{"id": "a", "text": "Dog"}, {"id": "b", "text": "Dug"}, {"id": "c", "text": "Dag"}, {"id": "d", "text": "Doog"}], "correct_answer": "a", "emoji_hint": "✍️", "is_weakness_focused": false},
-  {"id": 3, "type": "multiple_choice", "question": "Write 'hello':", "options": [{"id": "a", "text": "Helo"}, {"id": "b", "text": "Hello"}, {"id": "c", "text": "Hallo"}, {"id": "d", "text": "Helo"}], "correct_answer": "b", "emoji_hint": "✍️", "is_weakness_focused": false},
-  {"id": 4, "type": "multiple_choice", "question": "Correct spelling:", "options": [{"id": "a", "text": "Bok"}, {"id": "b", "text": "Book"}, {"id": "c", "text": "Buk"}, {"id": "d", "text": "Bok"}], "correct_answer": "b", "emoji_hint": "✍️", "is_weakness_focused": false},
-  {"id": 5, "type": "multiple_choice", "question": "Pick correct form:", "options": [{"id": "a", "text": "Run"}, {"id": "b", "text": "Runn"}, {"id": "c", "text": "Rune"}, {"id": "d", "text": "Run"}], "correct_answer": "a", "emoji_hint": "✍️", "is_weakness_focused": false},
-  {"id": 6, "type": "multiple_choice", "question": "Spell 'apple':", "options": [{"id": "a", "text": "Apple"}, {"id": "b", "text": "Aple"}, {"id": "c", "text": "Appel"}, {"id": "d", "text": "Apel"}], "correct_answer": "a", "emoji_hint": "✍️", "is_weakness_focused": false},
-  {"id": 7, "type": "multiple_choice", "question": "Correct word:", "options": [{"id": "a", "text": "Play"}, {"id": "b", "text": "Pley"}, {"id": "c", "text": "Plai"}, {"id": "d", "text": "Pleigh"}], "correct_answer": "a", "emoji_hint": "✍️", "is_weakness_focused": false},
-  {"id": 8, "type": "fill_blank", "question": "The ___: tree (fill in article)", "options": null, "correct_answer": "is", "emoji_hint": "✍️", "is_weakness_focused": false},
-  {"id": 9, "type": "fill_blank", "question": "She ___ happy.", "options": null, "correct_answer": "is", "emoji_hint": "✍️", "is_weakness_focused": false},
-  {"id": 10, "type": "fill_blank", "question": "We ___ school.", "options": null, "correct_answer": "like", "emoji_hint": "✍️", "is_weakness_focused": false}
-]
-"""
-
-        with patch(
-            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
-        ) as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_openai_class.return_value = mock_client
-
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = json_response
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
-            questions = await generate_pillar_missions(
-                pillar="writing",
-                grade_level=2,
-                current_week_topic="Spelling",
-                student_id="student-456",
-                student_weaknesses=[],
-            )
-
-        assert len(questions) == 10
-        assert all(q["emoji_hint"] in ["✍️", "📝", "✏️"] or not q["emoji_hint"].isidentifier() for q in questions)
-
-    @pytest.mark.asyncio
-    async def test_listening_pillar_all_multiple_choice(self):
-        """Test that listening pillar uses only multiple_choice questions."""
-        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
-
-        # Generate mock JSON for 10 listening questions
-        listening_questions = [
-            {
-                "id": i + 1,
-                "type": "multiple_choice",
-                "question": f"Listen to the story. Question {i + 1}?",
-                "options": [
-                    {"id": "a", "text": f"Answer A for Q{i+1}"},
-                    {"id": "b", "text": f"Answer B for Q{i+1}"},
-                    {"id": "c", "text": f"Answer C for Q{i+1}"},
-                    {"id": "d", "text": f"Answer D for Q{i+1}"},
-                ],
-                "correct_answer": chr(97 + (i % 4)),
-                "emoji_hint": "👂",
-                "is_weakness_focused": i < 3,
-            }
-            for i in range(10)
-        ]
-
-        with patch(
-            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
-        ) as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_openai_class.return_value = mock_client
-
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = json.dumps(listening_questions)
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
-            questions = await generate_pillar_missions(
-                pillar="listening",
-                grade_level=4,
-                current_week_topic="Stories",
-                student_id="student-789",
-                student_weaknesses=["I don't understand stories"],
-            )
-
-        assert len(questions) == 10
-        assert all(q["type"] == "multiple_choice" for q in questions)
-        assert all(len(q["options"]) == 4 for q in questions if q["options"])
-
-    @pytest.mark.asyncio
-    async def test_speaking_pillar_all_fill_blank(self):
-        """Test that speaking pillar uses only fill_blank (prompt) questions."""
-        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
-
-        speaking_questions = [
-            {
-                "id": i + 1,
-                "type": "fill_blank",
-                "question": f"Speak about prompt {i + 1}",
-                "options": None,
-                "correct_answer": f"Example answer {i+1}",
-                "emoji_hint": "🗣️",
-                "is_weakness_focused": i < 3,
-            }
-            for i in range(10)
-        ]
-
-        with patch(
-            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
-        ) as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_openai_class.return_value = mock_client
-
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = json.dumps(speaking_questions)
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
-            questions = await generate_pillar_missions(
-                pillar="speaking",
-                grade_level=2,
-                current_week_topic="Greetings",
-                student_id="student-999",
-                student_weaknesses=[],
-            )
-
-        assert len(questions) == 10
-        assert all(q["type"] == "fill_blank" for q in questions)
-        assert all(q["options"] is None for q in questions)
-
-    @pytest.mark.asyncio
-    async def test_invalid_pillar_raises_error(self):
-        """Test that invalid pillar raises ValueError."""
+    async def test_invalid_pillar_raises_value_error(self):
+        """Invalid pillar raises ValueError immediately (no LLM call needed)."""
         from app.agents.tutor_agent.mission_generator import generate_pillar_missions
 
         with pytest.raises(ValueError, match="Invalid pillar"):
             await generate_pillar_missions(
                 pillar="invalid_pillar",
                 grade_level=3,
-                current_week_topic="Topic",
+                active_topics=["Animals"],
                 student_id="student-123",
                 student_weaknesses=[],
             )
 
     @pytest.mark.asyncio
-    async def test_handles_malformed_json_response(self):
-        """Test that malformed LLM response raises RuntimeError."""
-        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
+    async def test_listening_pillar_accepted(self):
+        """Listening pillar is a valid pillar — returns at least one question dict."""
+        from app.agents.tutor_agent.mission_generator import (
+            generate_pillar_missions,
+            PillarMissions,
+            MissionQuestion,
+        )
 
-        with patch(
-            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
-        ) as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_openai_class.return_value = mock_client
-
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = "This is not valid JSON"
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
-            with pytest.raises(RuntimeError, match="Failed to parse LLM response"):
-                await generate_pillar_missions(
-                    pillar="reading",
-                    grade_level=3,
-                    current_week_topic="Topic",
-                    student_id="student-123",
-                    student_weaknesses=[],
-                )
-
-    @pytest.mark.asyncio
-    async def test_handles_wrong_question_count(self):
-        """Test that LLM response with wrong question count raises RuntimeError."""
-        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
-
-        # Only 5 questions instead of 10
-        questions_data = [
-            {
-                "id": i + 1,
-                "type": "multiple_choice",
-                "question": f"Question {i+1}",
-                "options": [{"id": "a", "text": "A"}, {"id": "b", "text": "B"}, {"id": "c", "text": "C"}, {"id": "d", "text": "D"}],
-                "correct_answer": "a",
-                "emoji_hint": "📖",
-                "is_weakness_focused": False,
-            }
-            for i in range(5)  # Only 5, not 10
+        mock_questions = [
+            MissionQuestion(
+                id=i + 1,
+                task_type="listen_and_choose",
+                pillar="listening",
+                question=f"Which image matches the word '{('cat','dog','fish')[i]}'?",
+                difficulty="medium",
+                points_value=10,
+                correct_answer="a",
+                emoji_hint="👂",
+                audio_text=f"A {('cat','dog','fish')[i]} is sleeping",
+                image_options=[
+                    {"id": "a", "text": "cat",  "emoji": "🐱"},
+                    {"id": "b", "text": "dog",  "emoji": "🐶"},
+                    {"id": "c", "text": "fish", "emoji": "🐟"},
+                    {"id": "d", "text": "bird", "emoji": "🐦"},
+                ],
+            )
+            for i in range(2)
         ]
+        mock_result = PillarMissions(questions=mock_questions)
 
-        with patch(
-            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
-        ) as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_openai_class.return_value = mock_client
+        mock_llm_instance = MagicMock()
+        mock_llm_instance.with_structured_output.return_value = MagicMock()
 
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = json.dumps(questions_data)
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
+        mock_semantic = MagicMock()
+        mock_semantic.validate_questions.return_value = (
+            [q.model_dump() for q in mock_questions],  # all valid
+            [],                                          # none invalid
+            [],                                          # no issues
+        )
 
-            with pytest.raises(RuntimeError, match="Expected exactly 10 questions"):
-                await generate_pillar_missions(
-                    pillar="reading",
-                    grade_level=3,
-                    current_week_topic="Topic",
-                    student_id="student-123",
-                    student_weaknesses=[],
-                )
-
-    @pytest.mark.asyncio
-    async def test_extracts_json_from_markdown_code_blocks(self):
-        """Test that JSON wrapped in markdown code blocks is extracted correctly."""
-        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
-
-        questions_data = [
-            {
-                "id": i + 1,
-                "type": "multiple_choice",
-                "question": f"Question {i+1}",
-                "options": [{"id": "a", "text": "A"}, {"id": "b", "text": "B"}, {"id": "c", "text": "C"}, {"id": "d", "text": "D"}],
-                "correct_answer": "a",
-                "emoji_hint": "📖",
-                "is_weakness_focused": False,
-            }
-            for i in range(10)
-        ]
-
-        # Wrap JSON in markdown code blocks
-        json_content = f"```json\n{json.dumps(questions_data)}\n```"
-
-        with patch(
-            "app.agents.tutor_agent.mission_generator.AsyncOpenAI"
-        ) as mock_openai_class:
-            mock_client = AsyncMock()
-            mock_openai_class.return_value = mock_client
-
-            mock_response = MagicMock()
-            mock_response.choices = [MagicMock()]
-            mock_response.choices[0].message.content = json_content
-            mock_client.chat.completions.create = AsyncMock(return_value=mock_response)
-
+        with (
+            patch("app.agents.tutor_agent.mission_generator.ChatOpenAI",
+                  return_value=mock_llm_instance),
+            patch("app.agents.tutor_agent.mission_generator.asyncio.wait_for",
+                  _make_wait_for_mock(mock_result)),
+            patch("app.agents.tutor_agent.semantic_quality_validator.SemanticQualityValidator",
+                  return_value=mock_semantic),
+        ):
             questions = await generate_pillar_missions(
+                pillar="listening",
+                grade_level=3,
+                active_topics=["Animals"],
+                student_id="student-123",
+                student_weaknesses=[],
+            )
+
+        assert isinstance(questions, list)
+        assert len(questions) >= 1
+        assert all(isinstance(q, dict) for q in questions)
+
+    @pytest.mark.asyncio
+    async def test_function_signature_has_no_current_week_topic(self):
+        """generate_pillar_missions does NOT accept current_week_topic parameter."""
+        from app.agents.tutor_agent.mission_generator import generate_pillar_missions
+        import inspect
+
+        sig = inspect.signature(generate_pillar_missions)
+        assert "current_week_topic" not in sig.parameters, (
+            "current_week_topic was removed from generate_pillar_missions — "
+            "use active_topics instead"
+        )
+        assert "active_topics" in sig.parameters, (
+            "active_topics is the replacement for current_week_topic"
+        )
+
+    @pytest.mark.asyncio
+    async def test_returns_list_of_dicts(self):
+        """generate_pillar_missions returns list[dict], not list[MissionQuestion]."""
+        from app.agents.tutor_agent.mission_generator import (
+            generate_pillar_missions,
+            PillarMissions,
+            MissionQuestion,
+        )
+
+        mock_q = MissionQuestion(
+            id=1,
+            task_type="sentence_picture_match",
+            pillar="reading",
+            question="Which picture shows a red apple on the table?",
+            difficulty="medium",
+            points_value=10,
+            correct_answer="a",
+            emoji_hint="📖",
+            image_options=[
+                {"id": "a", "text": "cat",  "emoji": "🐱"},
+                {"id": "b", "text": "dog",  "emoji": "🐶"},
+                {"id": "c", "text": "fish", "emoji": "🐟"},
+                {"id": "d", "text": "bird", "emoji": "🐦"},
+            ],
+        )
+        mock_result = PillarMissions(questions=[mock_q])
+
+        mock_llm_instance = MagicMock()
+        mock_llm_instance.with_structured_output.return_value = MagicMock()
+
+        mock_semantic = MagicMock()
+        mock_semantic.validate_questions.return_value = (
+            [mock_q.model_dump()],  # all valid
+            [],
+            [],
+        )
+
+        with (
+            patch("app.agents.tutor_agent.mission_generator.ChatOpenAI",
+                  return_value=mock_llm_instance),
+            patch("app.agents.tutor_agent.mission_generator.asyncio.wait_for",
+                  _make_wait_for_mock(mock_result)),
+            patch("app.agents.tutor_agent.semantic_quality_validator.SemanticQualityValidator",
+                  return_value=mock_semantic),
+        ):
+            result = await generate_pillar_missions(
                 pillar="reading",
                 grade_level=3,
-                current_week_topic="Topic",
+                active_topics=["Animals"],
                 student_id="student-123",
                 student_weaknesses=[],
             )
 
-        assert len(questions) == 10
-        assert all(q["type"] == "multiple_choice" for q in questions)
+        assert isinstance(result, list)
+        assert all(isinstance(q, dict) for q in result), (
+            "generate_pillar_missions must return list[dict], not list[MissionQuestion]"
+        )
+        assert all("task_type" in q for q in result), (
+            "Each question dict must have a 'task_type' key"
+        )
+
+    @pytest.mark.asyncio
+    async def test_questions_get_pillar_tag(self):
+        """All returned questions have the correct pillar set."""
+        from app.agents.tutor_agent.mission_generator import (
+            generate_pillar_missions,
+            PillarMissions,
+            MissionQuestion,
+        )
+
+        mock_q = MissionQuestion(
+            id=1,
+            task_type="listen_and_spell",
+            pillar="listening",
+            question="Spell the animal name you hear in the audio clip.",
+            difficulty="medium",
+            points_value=10,
+            correct_answer="cat",
+            emoji_hint="👂",
+            audio_text="cat",
+        )
+        mock_result = PillarMissions(questions=[mock_q])
+
+        mock_llm_instance = MagicMock()
+        mock_llm_instance.with_structured_output.return_value = MagicMock()
+
+        mock_semantic = MagicMock()
+        mock_semantic.validate_questions.return_value = (
+            [mock_q.model_dump()],
+            [],
+            [],
+        )
+
+        with (
+            patch("app.agents.tutor_agent.mission_generator.ChatOpenAI",
+                  return_value=mock_llm_instance),
+            patch("app.agents.tutor_agent.mission_generator.asyncio.wait_for",
+                  _make_wait_for_mock(mock_result)),
+            patch("app.agents.tutor_agent.semantic_quality_validator.SemanticQualityValidator",
+                  return_value=mock_semantic),
+        ):
+            questions = await generate_pillar_missions(
+                pillar="listening",
+                grade_level=3,
+                active_topics=["Animals"],
+                student_id="student-abc",
+                student_weaknesses=[],
+            )
+
+        assert all(q["pillar"] == "listening" for q in questions)

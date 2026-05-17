@@ -4,13 +4,21 @@ export async function apiFetch<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const res = await fetch(`${BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options.headers
-    },
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 45000);
+  let res: Response;
+  try {
+    res = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      signal: options.signal ?? controller.signal,
+      headers: {
+        "Content-Type": "application/json",
+        ...options.headers
+      },
+    });
+  } finally {
+    clearTimeout(timeoutId);
+  }
   if (!res.ok) {
     const error = await res.json().catch(() => ({}));
     throw new Error(error?.detail ?? `API error ${res.status}`);

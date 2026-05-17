@@ -147,6 +147,7 @@ interface StoryData {
   story_text: string;
   topic: string;
   week_number: number;
+  grade_level?: number;
   questions: ComprehensionQuestion[];
 }
 
@@ -208,6 +209,8 @@ export function useMissionPillar(pillar: string) {
       ),
     enabled: !!pillar,
     staleTime: 5 * 60 * 1000,
+    retry: 1,
+    retryDelay: 3000,
   });
 }
 

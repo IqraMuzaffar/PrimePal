@@ -112,7 +112,7 @@ RULES — follow every rule strictly:
 5. GROUNDING: Every question must naturally reference words or concepts from the context below.
 6. EMOJI: Add a single relevant emoji as emoji_hint for each question (e.g. "🐱" for a cat question).
 7. TOPIC: Set the topic field to a short 1-3 word label that describes all 3 questions.
-8. URDU_HINT: Add an `urdu_hint` field with the Urdu translation of the key vocabulary in each question. Use simple Urdu appropriate for Grade {grade_level}. Example: for "The cat is on the table", urdu_hint could be "بلی میز پر ہے".
+8. URDU_HINT: Add an `urdu_hint` field with the Urdu translation of the CORRECT ANSWER vocabulary for each question. Use simple Urdu appropriate for Grade {grade_level}. The hint MUST match what the question is testing — translate the correct answer word/phrase, NOT a random word. Example: if the correct answer is "cat", urdu_hint must be "بلی" (not any other word). For sentences, translate the full correct sentence.
 
 SNC CURRICULUM CONTEXT (Grade {grade_level}):
 {context}
@@ -139,7 +139,7 @@ RULES — follow every rule strictly:
 4. ENCOURAGEMENT: Frame questions in a positive, game-like tone.
 5. EMOJI: Add a single relevant emoji as emoji_hint for each question.
 6. TOPIC: Set the topic field to a short 1-3 word label that describes all 3 questions.
-7. URDU_HINT: Add an `urdu_hint` field with the Urdu translation of the key vocabulary in each question. Use simple Urdu appropriate for Grade {grade_level}. Example: for "The cat is on the table", urdu_hint could be "بلی میز پر ہے".
+7. URDU_HINT: Add an `urdu_hint` field with the Urdu translation of the CORRECT ANSWER vocabulary for each question. Use simple Urdu appropriate for Grade {grade_level}. The hint MUST match what the question is testing — translate the correct answer word/phrase, NOT a random word. Example: if the correct answer is "cat", urdu_hint must be "بلی". For sentences, translate the full correct sentence.
 
 {confidence_builder_override}
 """
@@ -744,7 +744,7 @@ RULES:
 4. Use Pakistani cultural context where relevant.
 5. For multiple choice fields (options, image_options): always provide exactly 4 items with ids "a","b","c","d".
 6. correct_answer for option-based questions must be one of "a","b","c","d".
-7. URDU_HINT: Add an urdu_hint field with the Urdu translation of the key vocabulary or sentence. Use simple Urdu appropriate for Grade {grade_level}. For example: "The cat is sleeping" → "بلی سو رہی ہے".
+7. URDU_HINT: Add an urdu_hint field with the Urdu translation of the CORRECT ANSWER for each question. The hint MUST match what the question tests — translate the correct answer word/phrase only. Examples: correct_answer "cat" → urdu_hint "بلی" | correct_answer "the cat is sleeping" → urdu_hint "بلی سو رہی ہے". For guided_translation tasks, set urdu_hint to "" (empty — the question is already in Urdu). NEVER translate a random word unrelated to the correct answer.
 
 🚨 CRITICAL QUESTION QUALITY REQUIREMENTS (MANDATORY):
 

@@ -81,8 +81,8 @@ export default function PuzzlePalacePage() {
     queryKey: ['puzzlePalaceRooms'],
     queryFn: () => studentFetch<PuzzlePalaceData>('/puzzle-palace/rooms'),
     staleTime: Infinity,
-    retry: 2,
-    retryDelay: (attempt) => attempt * 3000, // 3s then 6s
+    retry: 1,
+    retryDelay: 2000,
     enabled: canPlay,
   });
 

@@ -162,6 +162,11 @@ def normalize_correct_answer(question: dict) -> dict:
             if question["audio_text"]:
                 logger.info(f"Auto-filled audio_text for {tt}: '{question['audio_text'][:40]}'")
 
+    # For guided_translation: question IS already Urdu — clear urdu_hint to avoid
+    # showing a duplicate/mismatched Urdu hint alongside an Urdu question.
+    if tt == "guided_translation":
+        question["urdu_hint"] = ""
+
     # Fix sentence_scramble / guided_translation issues
     if tt == "sentence_scramble":
         # 1. Question should be generic instruction, not contain the scrambled words

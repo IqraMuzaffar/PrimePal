@@ -25,6 +25,7 @@ from app.api.v1.endpoints.classroom import get_active_topics
 from app.api.v1.endpoints.missions import MissionQuestionOut, _strip_answer
 from app.agents.tutor_agent.mission_generator import generate_pillar_missions
 from app.agents.tutor_agent.chatbot import retrieve_grade_filtered_chunks
+from app.utils.question_bank import pull_from_bank
 from app.core.cache import cache_get, cache_set, cache_delete, make_cache_key
 from app.core.llm_tracker import log_cache_hit
 from app.core.security import get_current_student
@@ -211,6 +212,28 @@ async def get_puzzle_palace_rooms(
             return PuzzlePalaceResponse(**cached)
 
     # ------------------------------------------------------------------
+    # Step 3.5: Pull bank questions first (fast path, avoids LLM for warm bank)
+    # ------------------------------------------------------------------
+    bank_reading = await pull_from_bank(
+        grade_level=grade_level,
+        pillar="reading",
+        topics=active_topic_names,
+        count=8,
+        classroom_id=classroom_id,
+    )
+    bank_writing = await pull_from_bank(
+        grade_level=grade_level,
+        pillar="writing",
+        topics=active_topic_names,
+        count=6,
+        classroom_id=classroom_id,
+    )
+    logger.info(
+        "Puzzle Palace bank pull: %d reading, %d writing questions",
+        len(bank_reading), len(bank_writing),
+    )
+
+    # ------------------------------------------------------------------
     # Step 4: Retrieve RAG context chunks
     # ------------------------------------------------------------------
     seed_phrase = (
@@ -240,18 +263,14 @@ async def get_puzzle_palace_rooms(
         context_chunks = []
 
     # ------------------------------------------------------------------
-    # Step 5: Generate reading and writing questions in parallel
+    # Step 5: Generate remaining questions via LLM (only what bank didn't provide)
     # ------------------------------------------------------------------
-    # reading=8: proportional distribution across 4 types (raw_total=10) gives
-    #   round(3*8/10)=2 sentence_picture_match, round(3*8/10)=2 odd_one_out,
-    #   round(2*8/10)=2 fill_blank_word_bank, remainder=2 passage_true_false
-    # → exactly 2 of each needed type for rooms 1/3/5, plus 2 bonus questions.
-    # writing=6: gives 2 sentence_scramble, 2 missing_letter, 2 guided_translation
-    # → exactly 2 of each needed type for rooms 2/4.
-    reading_count = 8
-    writing_count = 6
+    reading_needed = max(0, 6 - len(bank_reading))
+    writing_needed = max(0, 4 - len(bank_writing))
 
     async def gen_reading():
+        if reading_needed == 0:
+            return []
         try:
             return await generate_pillar_missions(
                 pillar="reading",
@@ -260,13 +279,15 @@ async def get_puzzle_palace_rooms(
                 student_id=student_id,
                 student_weaknesses=[],
                 context_chunks=context_chunks,
-                count=reading_count,
+                count=reading_needed,
             )
         except Exception as exc:
             logger.error("Puzzle Palace reading generation failed: %s", exc)
             return []
 
     async def gen_writing():
+        if writing_needed == 0:
+            return []
         try:
             return await generate_pillar_missions(
                 pillar="writing",
@@ -275,17 +296,17 @@ async def get_puzzle_palace_rooms(
                 student_id=student_id,
                 student_weaknesses=[],
                 context_chunks=context_chunks,
-                count=writing_count,
+                count=writing_needed,
             )
         except Exception as exc:
             logger.error("Puzzle Palace writing generation failed: %s", exc)
             return []
 
-    reading_qs, writing_qs = await asyncio.gather(gen_reading(), gen_writing())
+    llm_reading, llm_writing = await asyncio.gather(gen_reading(), gen_writing())
 
-    # Ensure we have lists of dicts
-    reading_qs = [q for q in (reading_qs or []) if isinstance(q, dict)]
-    writing_qs = [q for q in (writing_qs or []) if isinstance(q, dict)]
+    # Merge bank + LLM questions
+    reading_qs = list(bank_reading) + [q for q in (llm_reading or []) if isinstance(q, dict)]
+    writing_qs = list(bank_writing) + [q for q in (llm_writing or []) if isinstance(q, dict)]
 
     logger.info(
         "Puzzle Palace generated: %d reading, %d writing questions",
@@ -345,35 +366,37 @@ async def get_puzzle_palace_rooms(
             questions=[_strip_answer(q) for q in room_assignments[idx]],
         ))
 
+    empty_rooms = [r.room_name for r in rooms if len(r.questions) == 0]
+
+    # Skip rooms with 0 questions rather than failing entirely
+    if empty_rooms:
+        logger.warning(
+            "Puzzle Palace: skipping empty rooms %s for student %s (grade %d).",
+            empty_rooms, student_id, grade_level,
+        )
+        rooms = [r for r in rooms if len(r.questions) > 0]
+
+    # Need at least 3 rooms to make a meaningful session
+    MIN_ROOMS = 3
+    if len(rooms) < MIN_ROOMS:
+        logger.warning(
+            "Puzzle Palace: only %d rooms available (need %d) for student %s.",
+            len(rooms), MIN_ROOMS, student_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not prepare enough rooms. Please try again in a moment.",
+        )
+
     response = PuzzlePalaceResponse(rooms=rooms, topic=topic_label)
 
     total_qs = sum(len(r.questions) for r in rooms)
-    empty_rooms = [r.room_name for r in rooms if len(r.questions) == 0]
-
-    # Reject if any room is completely empty — broken state must not be cached
-    if empty_rooms:
-        logger.warning(
-            "Puzzle Palace: rooms with 0 questions: %s (student %s, grade %d). "
-            "Skipping cache so next request retries generation.",
-            empty_rooms, student_id, grade_level,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Could not generate questions for all rooms. Please try again in a moment.",
-        )
-
-    if total_qs == 0:
-        logger.warning(
-            "Puzzle Palace: 0 questions total for student %s (grade %d).",
-            student_id, grade_level,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Could not generate questions right now. Please try again in a moment.",
-        )
 
     # Log session start (counts toward daily limit)
     await _log_session_start(student_id, classroom_id, grade_level)
+
+    # Cache the filtered response
+    await cache_set(cache_key, response.model_dump(), ttl=3600)
 
     logger.info(
         "Puzzle Palace returned %d questions across %d rooms for student %s (session %d/%d today)",
