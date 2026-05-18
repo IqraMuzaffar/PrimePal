@@ -8,24 +8,36 @@ import { motion } from 'framer-motion';
 export default function FinishTheSentence({ question, onAnswer, showFeedback, disabled }: TaskProps) {
   const [transcription, setTranscription] = useState('');
 
-  const handleResult = (isCorrect: boolean, transcript: string) => {
+  const handleResult = (isCorrect: boolean, transcript: string, _similarity: number) => {
     setTranscription(transcript);
     onAnswer(transcript, isCorrect);
   };
 
+  // Strip trailing "..." / "…" so the full sentence reads cleanly
+  const sentenceStart = (question.sentence_start ?? question.question ?? '').replace(/\.{2,}$|…$/, '').trim();
+  const fullSentence = sentenceStart
+    ? `${sentenceStart} ${question.correct_answer ?? ''}`.trim()
+    : (question.correct_answer ?? '');
+
   return (
     <div>
       <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 leading-tight">Finish this sentence!</h2>
-      <div className="bg-slate-50 rounded-xl p-4 mb-6 border border-slate-200">
+      <div className="bg-slate-50 rounded-xl p-4 mb-3 border border-slate-200">
         <p className="text-xl font-bold text-gray-800">
           {question.sentence_start ?? question.question}
           <span className="text-indigo-500"> ...</span>
         </p>
       </div>
-      <p className="text-center text-gray-500 text-sm mb-4">Say the complete sentence out loud</p>
+
+      {/* Format hint — tells the student to say the FULL sentence */}
+      <div className="bg-indigo-50 border border-indigo-200 rounded-xl px-4 py-2 mb-4 text-center">
+        <p className="text-xs font-semibold text-indigo-500 mb-0.5">Say the complete sentence:</p>
+        <p className="text-base font-bold text-indigo-900">&ldquo;{fullSentence}&rdquo;</p>
+      </div>
+
       {!showFeedback && (
         <MissionRecorder
-          expectedText={question.correct_answer ?? ''}
+          expectedText={fullSentence}
           disabled={disabled}
           onResult={handleResult}
         />

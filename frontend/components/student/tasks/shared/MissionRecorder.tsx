@@ -112,7 +112,12 @@ export default function MissionRecorder({ expectedText, pillar = 'speaking', onR
 
           // Handle retry status
           if (data.status === 'retry') {
-            setRetryMessage("I couldn't hear you clearly — let's try again! 🎤");
+            // If we got a transcription back, Whisper heard them but answer was wrong.
+            // If no transcription, audio was garbled.
+            const msg = data.transcription
+              ? "Not quite — try again! Say it clearly. 💪"
+              : "I couldn't hear you clearly — let's try again! 🎤";
+            setRetryMessage(msg);
             setAttemptNumber((prev) => prev + 1);
             setRecorderState('retry');
             return;

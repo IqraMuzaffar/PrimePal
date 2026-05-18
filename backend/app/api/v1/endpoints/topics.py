@@ -7,7 +7,7 @@ Returns all predefined SNC English topics for the specified grade level.
 No auth required for listing topics — topics are public reference data.
 Grade-selection endpoints require teacher auth.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from pydantic import BaseModel
 
 from app.core.security import get_current_teacher
@@ -152,6 +152,7 @@ async def get_grade_selections(
 async def update_grade_selections(
     grade_level: int,
     body: GradeSelectionsUpdate,
+    background_tasks: BackgroundTasks,
     teacher: dict = Depends(get_current_teacher),
 ):
     """
@@ -183,6 +184,10 @@ async def update_grade_selections(
         supabase.table("grade_topic_selections").upsert(
             rows, on_conflict="grade_level,topic_id"
         ).execute()
+
+        # Invalidate caches + repopulate bank for all classrooms at this grade
+        from app.api.v1.endpoints.admin import _invalidate_and_repopulate_grade
+        background_tasks.add_task(_invalidate_and_repopulate_grade, grade_level)
 
     # Return the updated full list (re-use GET logic)
     return await get_grade_selections(grade_level, teacher)

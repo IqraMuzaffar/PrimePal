@@ -11,9 +11,18 @@ export default function SentencePictureMatch({ question, onAnswer, showFeedback,
   const handleTap = (id: string) => {
     if (disabled || showFeedback) return;
     setSelected(id);
-    // Case-insensitive comparison and trim whitespace
-    const isCorrect = id.toLowerCase().trim() === (question.correct_answer ?? '').toLowerCase().trim();
-    onAnswer(id, isCorrect);
+    const ca = (question.correct_answer ?? '').toLowerCase().trim();
+    // Check by option ID first, fall back to text match in case LLM returned option
+    // text instead of option ID in correct_answer (e.g. "cat" instead of "a")
+    const idMatch = id.toLowerCase().trim() === ca;
+    const opt = options.find(o => o.id === id);
+    const textMatch = opt ? opt.text.toLowerCase().trim() === ca : false;
+    onAnswer(id, idMatch || textMatch);
+  };
+
+  const isCorrectOption = (opt: { id: string; text: string }) => {
+    const ca = (question.correct_answer ?? '').toLowerCase().trim();
+    return opt.id.toLowerCase().trim() === ca || opt.text.toLowerCase().trim() === ca;
   };
 
   return (
@@ -27,7 +36,7 @@ export default function SentencePictureMatch({ question, onAnswer, showFeedback,
             emoji={opt.emoji ?? '❓'}
             label={opt.text}
             selected={selected === opt.id}
-            isCorrect={opt.id.toLowerCase().trim() === (question.correct_answer ?? '').toLowerCase().trim()}
+            isCorrect={isCorrectOption(opt)}
             showFeedback={showFeedback}
             disabled={disabled}
             onTap={handleTap}

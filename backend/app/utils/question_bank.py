@@ -292,7 +292,7 @@ async def _bulk_insert(
 
 
 # ---------------------------------------------------------------------------
-# Stale topic cleanup
+# Stale / cross-pillar cleanup
 # ---------------------------------------------------------------------------
 
 async def _delete_stale_topics(

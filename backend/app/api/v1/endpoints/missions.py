@@ -923,6 +923,13 @@ async def _generate_personalized_missions(
         for i, q in enumerate(merged):
             q["id"] = i + 1
 
+        # Normalize correct_answer format (same step as main request flow)
+        # Without this, bank questions with text correct_answer (e.g. "cat" instead
+        # of "a") are cached and served raw, causing the frontend to mark correct
+        # answers as wrong.
+        from app.agents.tutor_agent.question_validator import normalize_all_questions as _normalize
+        _normalize(merged)
+
         weakness_focus_count = sum(
             1 for q in merged if q.get("is_weakness_focused", False)
         )
@@ -1404,11 +1411,19 @@ async def submit_speaking_answer(
     transcription_lower = transcription.lower().strip()
     similarity = SequenceMatcher(None, expected_lower, transcription_lower).ratio()
 
+    # Pre-compute keyword match so the garbled gate doesn't block valid short answers.
+    # E.g., "it is a cat." has low similarity to "cat" but contains the expected word.
+    _expected_words_pre = expected_lower.split()
+    _keyword_pre_match = False
+    if len(_expected_words_pre) <= 2 and len(transcription_lower) >= 3:
+        _spoken_set_pre = {w.strip('.,!?;:\'"') for w in transcription_lower.split()}
+        _keyword_pre_match = all(ew in _spoken_set_pre for ew in _expected_words_pre)
+
     # Garbled input detection: if similarity is very low, offer retry
     is_garbled = (
         not transcription_lower
         or len(transcription_lower) < 3
-        or similarity < _GARBLED_SIMILARITY_THRESHOLD
+        or (similarity < _GARBLED_SIMILARITY_THRESHOLD and not _keyword_pre_match)
     )
 
     if is_garbled:
@@ -1440,6 +1455,30 @@ async def submit_speaking_answer(
         )
 
     is_correct = similarity >= 0.6
+
+    # Keyword-contains fallback: if expected answer is 1-2 words and every
+    # expected word appears as a standalone word in the transcript, award
+    # credit. Handles "it is a cat" matching expected "cat" for what_is_this,
+    # and short finish_the_sentence completions.
+    if not is_correct:
+        expected_words = expected_lower.split()
+        if len(expected_words) <= 2:
+            spoken_set = {w.strip('.,!?;:\'"') for w in transcription_lower.split()}
+            if all(ew in spoken_set for ew in expected_words):
+                is_correct = True
+
+    # Wrong-answer retry: give students up to _GARBLED_MAX_ATTEMPTS tries
+    # even when Whisper heard them clearly but the answer was incorrect.
+    if not is_correct and attempt_number < _GARBLED_MAX_ATTEMPTS:
+        return SpeakingSubmissionResponse(
+            is_correct=False,
+            similarity_score=round(similarity, 2),
+            transcription=transcription,
+            points_awarded=0,
+            new_total=0,
+            status="retry",
+        )
+
     points_awarded = _POINTS_PER_CORRECT if is_correct else 0
 
     student_resp, classroom_resp = await asyncio.gather(

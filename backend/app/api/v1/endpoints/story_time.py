@@ -55,6 +55,7 @@ class StoryResponse(BaseModel):
     story_text: str
     topic: str
     week_number: int
+    grade_level: int = 1
     questions: list[ComprehensionQuestion]
 
 
@@ -340,6 +341,7 @@ Return ONLY valid JSON (no markdown code blocks).
         story_text=data.get("story_text", ""),
         topic=topic_title,
         week_number=week_number,
+        grade_level=grade_level,
         questions=questions,
     )
 

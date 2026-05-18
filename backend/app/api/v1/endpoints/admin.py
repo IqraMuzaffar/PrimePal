@@ -10,7 +10,7 @@ import tempfile
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, UploadFile, status
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 import secrets
@@ -1328,6 +1328,40 @@ async def delete_classroom(
 VALID_SKILLS = ("listening", "speaking", "reading", "writing")
 
 
+async def _invalidate_and_repopulate_grade(grade_level: int) -> None:
+    """
+    Background helper: invalidate mission caches and repopulate question bank
+    for all classrooms at a given grade level.
+
+    Called after any admin change to snc_topics or grade_topic_selections that
+    affects what questions students see.
+    """
+    import asyncio
+    import logging
+    from app.core.supabase_client import get_supabase_admin
+    from app.api.v1.endpoints.classroom import invalidate_classroom_missions_cache
+    from app.utils.question_bank import populate_question_bank
+
+    logger = logging.getLogger(__name__)
+    supabase_admin = get_supabase_admin()
+
+    try:
+        classrooms_resp = await asyncio.to_thread(
+            lambda: supabase_admin.table("classrooms")
+            .select("id")
+            .eq("grade_level", grade_level)
+            .execute()
+        )
+        classroom_ids = [r["id"] for r in (classrooms_resp.data or [])]
+        logger.info("admin: refreshing %d classrooms for grade %d", len(classroom_ids), grade_level)
+
+        for cid in classroom_ids:
+            await invalidate_classroom_missions_cache(cid)
+            await populate_question_bank(cid)
+    except Exception as exc:
+        logger.error("admin: _invalidate_and_repopulate_grade failed for grade %d: %s", grade_level, exc)
+
+
 class TopicCreateRequest(BaseModel):
     grade_level: int
     skill: str
@@ -1400,6 +1434,7 @@ async def create_topic(
 async def edit_topic(
     topic_id: int,
     req: TopicEditRequest,
+    background_tasks: BackgroundTasks,
     current_admin: dict = Depends(get_current_admin),
 ):
     """Edit a topic's name or skill."""
@@ -1417,10 +1452,30 @@ async def edit_topic(
     supabase_admin = get_supabase_admin()
 
     try:
+        # Fetch old topic data BEFORE update so we can fix the question bank
+        old_resp = supabase_admin.table("snc_topics").select("topic_name, grade_level, skill").eq("id", topic_id).maybe_single().execute()
+        if not old_resp.data:
+            raise HTTPException(status_code=404, detail="Topic not found")
+        old_name = old_resp.data["topic_name"]
+        old_skill = old_resp.data["skill"]
+        grade_level = old_resp.data["grade_level"]
+
         result = supabase_admin.table("snc_topics").update(update_data).eq("id", topic_id).execute()
 
         if not result.data:
             raise HTTPException(status_code=404, detail="Topic not found")
+
+        # If topic name changed, rename in question_bank so existing questions
+        # aren't orphaned under the old name.
+        new_name = update_data.get("topic_name", old_name)
+        if new_name != old_name:
+            supabase_admin.table("question_bank").update({"topic": new_name}).eq("topic", old_name).execute()
+
+        # If skill (pillar) changed, wipe question_bank rows for this topic so
+        # they get regenerated under the correct pillar by populate_question_bank.
+        new_skill = update_data.get("skill", old_skill)
+        if new_skill != old_skill:
+            supabase_admin.table("question_bank").delete().eq("topic", new_name).execute()
 
         supabase_admin.table("admin_audit_log").insert({
             "admin_id": current_admin["id"],
@@ -1429,6 +1484,9 @@ async def edit_topic(
             "resource_id": str(topic_id),
             "details": update_data,
         }).execute()
+
+        # Invalidate caches + repopulate bank for all classrooms at this grade
+        background_tasks.add_task(_invalidate_and_repopulate_grade, grade_level)
 
         return result.data[0]
     except HTTPException:
@@ -1440,12 +1498,23 @@ async def edit_topic(
 @router.delete("/topics/{topic_id}")
 async def delete_topic(
     topic_id: int,
+    background_tasks: BackgroundTasks,
     current_admin: dict = Depends(get_current_admin),
 ):
     """Delete a topic. Also removes related grade_topic_selections and classroom_active_topics."""
     supabase_admin = get_supabase_admin()
 
     try:
+        # Fetch topic data BEFORE deleting so we can clean up the question bank
+        old_resp = supabase_admin.table("snc_topics").select("topic_name, grade_level").eq("id", topic_id).maybe_single().execute()
+        if not old_resp.data:
+            raise HTTPException(status_code=404, detail="Topic not found")
+        old_name = old_resp.data["topic_name"]
+        grade_level = old_resp.data["grade_level"]
+
+        # Delete question_bank rows for this topic proactively (saves populate time)
+        supabase_admin.table("question_bank").delete().eq("topic", old_name).execute()
+
         # Clean up related selections (CASCADE should handle this, but be explicit)
         supabase_admin.table("grade_topic_selections").delete().eq("topic_id", topic_id).execute()
         supabase_admin.table("classroom_active_topics").delete().eq("topic_id", topic_id).execute()
@@ -1462,6 +1531,9 @@ async def delete_topic(
             "resource_id": str(topic_id),
             "details": {},
         }).execute()
+
+        # Invalidate stale caches + repopulate bank for all classrooms at this grade
+        background_tasks.add_task(_invalidate_and_repopulate_grade, grade_level)
 
         return {"deleted": True}
     except HTTPException:
