@@ -74,7 +74,9 @@ TASK_TYPES_WITH_IMAGE_OPTIONS = {
 }
 
 # Similarity threshold for de-duplication (0.0 – 1.0)
-DEDUP_SIMILARITY_THRESHOLD = 0.85  # Catch near-duplicates and close paraphrases
+# 0.92: only drop near-identical questions; avoids over-deduplication when
+# content-specific fields are used as the comparison key (see _question_text_key).
+DEDUP_SIMILARITY_THRESHOLD = 0.92
 
 # Task types where correct_answer must be an option ID ("a","b","c","d")
 OPTION_ID_ANSWER_TYPES = {
@@ -283,8 +285,38 @@ def _field_is_present(question: dict, field_name: str) -> bool:
 
 
 def _question_text_key(q: dict) -> str:
-    """Normalised text used for similarity comparison."""
-    return (q.get("question") or "").strip().lower()
+    """
+    Normalised text used for similarity/deduplication comparison.
+
+    Many task types use a fixed instruction string in the `question` field
+    (e.g. sentence_scramble always has "Put the words in the correct order").
+    Using that field would make every question of that type look identical and
+    cause _dedup_within to drop all but one.  For these types we use the
+    content-specific field that actually distinguishes questions.
+    """
+    tt = q.get("task_type", "")
+    if tt in ("sentence_scramble", "guided_translation"):
+        # Unique content is the actual sentence (correct_answer or correct_order)
+        content = (
+            q.get("correct_answer")
+            or " ".join(q.get("correct_order") or [])
+            or q.get("question", "")
+        )
+    elif tt == "missing_letter":
+        # Unique content is the word being completed
+        content = q.get("correct_answer") or q.get("word_with_blanks") or q.get("question", "")
+    elif tt in ("repeat_after_me", "listen_and_choose", "simon_says", "listen_and_spell"):
+        # Unique content is the spoken text
+        content = q.get("audio_text") or q.get("correct_answer") or q.get("question", "")
+    elif tt == "what_is_this":
+        # Unique content is the image/object being named
+        content = q.get("image_context") or q.get("correct_answer") or q.get("question", "")
+    elif tt == "finish_the_sentence":
+        # Unique content is the sentence stem
+        content = q.get("sentence_start") or q.get("correct_answer") or q.get("question", "")
+    else:
+        content = q.get("question") or ""
+    return content.strip().lower()
 
 
 def _are_similar(a: str, b: str, threshold: float = DEDUP_SIMILARITY_THRESHOLD) -> bool:

@@ -50,63 +50,113 @@ def _make_mock_pillar_questions(pillar: str = "reading"):
     """Create 10 mock mission question dicts (not MissionQuestion objects).
 
     Uses task_type (the current required field, not the legacy 'type' alias).
-    Question texts are deliberately distinct to avoid the 0.85 fuzzy-dedup threshold.
+    Content-specific fields (correct_answer, audio_text, etc.) are deliberately
+    distinct so the dedup logic in merge_bank_and_llm keeps all 10 questions.
+    The dedup key is task-type-aware (correct_answer for sentence_scramble etc.)
+    so each question must have a unique value for the field the dedup checks.
     """
-    # (task_type, question_text) pairs — each text must be clearly unique
+    # Each entry: (task_type, question_text, extra_fields_dict)
     questions_by_pillar = {
         "reading": [
-            ("sentence_picture_match", "Which picture best matches the sentence about a red apple?"),
-            ("odd_one_out",            "Which word does NOT belong: cat, dog, table, bird?"),
-            ("fill_blank_word_bank",   "The boy ___ to school every morning."),
-            ("passage_true_false",     "Is it true that fish can breathe underwater?"),
-            ("sentence_picture_match", "Choose the image that shows a child reading a book."),
-            ("odd_one_out",            "Circle the item that is not a fruit: mango, banana, chair, orange."),
-            ("fill_blank_word_bank",   "She drinks ___ with her breakfast."),
-            ("passage_true_false",     "Elephants are the smallest animals on land — true or false?"),
-            ("sentence_picture_match", "Which photo matches the sentence: the sun is shining brightly?"),
-            ("odd_one_out",            "Find the word that does not fit: happy, sad, run, angry."),
+            ("sentence_picture_match", "Which picture matches: a red apple on the table?",
+             {"correct_answer": "a", "image_options": [{"id":"a","text":"apple","emoji":"🍎"},{"id":"b","text":"dog","emoji":"🐶"},{"id":"c","text":"car","emoji":"🚗"},{"id":"d","text":"book","emoji":"📖"}]}),
+            ("odd_one_out",            "Which word does NOT belong: cat, dog, table, bird?",
+             {"correct_answer": "c", "options": [{"id":"a","text":"cat"},{"id":"b","text":"dog"},{"id":"c","text":"table"},{"id":"d","text":"bird"}]}),
+            ("fill_blank_word_bank",   "The boy ___ to school every morning.",
+             {"correct_answer": "b", "options": [{"id":"a","text":"runs"},{"id":"b","text":"goes"},{"id":"c","text":"flies"},{"id":"d","text":"swims"}]}),
+            ("passage_true_false",     "Fish can breathe underwater.",
+             {"correct_answer": "true", "passage": "Fish live in water and breathe through gills."}),
+            ("sentence_picture_match", "Which image shows a child reading a book?",
+             {"correct_answer": "b", "image_options": [{"id":"a","text":"running","emoji":"🏃"},{"id":"b","text":"reading","emoji":"📚"},{"id":"c","text":"sleeping","emoji":"😴"},{"id":"d","text":"eating","emoji":"🍽️"}]}),
+            ("odd_one_out",            "Which is NOT a fruit: mango, banana, chair, orange?",
+             {"correct_answer": "c", "options": [{"id":"a","text":"mango"},{"id":"b","text":"banana"},{"id":"c","text":"chair"},{"id":"d","text":"orange"}]}),
+            ("fill_blank_word_bank",   "She drinks ___ with her breakfast.",
+             {"correct_answer": "a", "options": [{"id":"a","text":"milk"},{"id":"b","text":"sand"},{"id":"c","text":"rock"},{"id":"d","text":"wind"}]}),
+            ("passage_true_false",     "Elephants are the smallest animals on land.",
+             {"correct_answer": "false", "passage": "Elephants are the largest land animals on Earth."}),
+            ("sentence_picture_match", "Which photo shows the sun shining brightly?",
+             {"correct_answer": "d", "image_options": [{"id":"a","text":"rain","emoji":"🌧️"},{"id":"b","text":"snow","emoji":"❄️"},{"id":"c","text":"cloud","emoji":"☁️"},{"id":"d","text":"sun","emoji":"☀️"}]}),
+            ("odd_one_out",            "Find the word that does not fit: happy, sad, run, angry.",
+             {"correct_answer": "c", "options": [{"id":"a","text":"happy"},{"id":"b","text":"sad"},{"id":"c","text":"run"},{"id":"d","text":"angry"}]}),
         ],
         "writing": [
-            ("sentence_scramble",    "Arrange these words: school / goes / Ahmed / to."),
-            ("missing_letter",       "Complete the word: b_tter_ly"),
-            ("guided_translation",   "Write in English: بلی درخت پر بیٹھی ہے"),
-            ("sentence_scramble",    "Put in order: breakfast / eats / she / every day."),
-            ("missing_letter",       "Fill the blank: s_nfl_wer"),
-            ("guided_translation",   "Translate: کتاب میز پر ہے"),
-            ("sentence_scramble",    "Arrange: plays / football / brother / my."),
-            ("missing_letter",       "Complete: r_inb_w"),
-            ("guided_translation",   "Write in English: پرندہ آسمان میں اڑتا ہے"),
-            ("sentence_scramble",    "Order the words: market / goes / mother / the / to."),
+            # sentence_scramble: dedup key = correct_answer (the sentence), must be distinct
+            ("sentence_scramble",   "Put the words in the correct order",
+             {"correct_answer": "Ahmed goes to school", "word_bank": ["goes","to","school","Ahmed"], "correct_order": ["Ahmed","goes","to","school"]}),
+            # missing_letter: dedup key = correct_answer (the word), must be distinct
+            ("missing_letter",      "Fill in the missing letter(s)",
+             {"correct_answer": "butterfly", "word_with_blanks": "b_tterf_y", "letter_options": ["u","l","a","e","i","o"]}),
+            # guided_translation: dedup key = correct_answer (English sentence), must be distinct
+            ("guided_translation",  "بلی درخت پر بیٹھی ہے",
+             {"correct_answer": "the cat sits on the tree", "word_bank": ["cat","the","on","tree","sits"], "correct_order": ["the","cat","sits","on","the","tree"]}),
+            ("sentence_scramble",   "Put the words in the correct order",
+             {"correct_answer": "she eats breakfast every day", "word_bank": ["eats","she","every","breakfast","day"], "correct_order": ["she","eats","breakfast","every","day"]}),
+            ("missing_letter",      "Fill in the missing letter(s)",
+             {"correct_answer": "sunflower", "word_with_blanks": "s_nfl_wer", "letter_options": ["u","o","a","e","i","w"]}),
+            ("guided_translation",  "کتاب میز پر ہے",
+             {"correct_answer": "the book is on the table", "word_bank": ["book","the","on","table","is"], "correct_order": ["the","book","is","on","the","table"]}),
+            ("sentence_scramble",   "Put the words in the correct order",
+             {"correct_answer": "my brother plays football", "word_bank": ["brother","plays","my","football"], "correct_order": ["my","brother","plays","football"]}),
+            ("missing_letter",      "Fill in the missing letter(s)",
+             {"correct_answer": "rainbow", "word_with_blanks": "r_inb_w", "letter_options": ["a","o","u","e","i","b"]}),
+            ("guided_translation",  "پرندہ آسمان میں اڑتا ہے",
+             {"correct_answer": "the bird flies in the sky", "word_bank": ["bird","the","in","sky","flies"], "correct_order": ["the","bird","flies","in","the","sky"]}),
+            ("sentence_scramble",   "Put the words in the correct order",
+             {"correct_answer": "the mother goes to the market", "word_bank": ["mother","goes","the","market","to"], "correct_order": ["the","mother","goes","to","the","market"]}),
         ],
         "listening": [
-            ("listen_and_choose", "Listen and choose the animal you heard described."),
-            ("simon_says",        "Touch your nose when you hear the command."),
-            ("listen_and_spell",  "Spell the word you hear for a type of fruit."),
-            ("listen_and_choose", "Pick the correct picture for the weather word you heard."),
-            ("simon_says",        "Clap twice when you hear a colour word."),
-            ("listen_and_spell",  "Write the animal name that was spoken aloud."),
-            ("listen_and_choose", "Select the image matching the action described in the audio."),
-            ("simon_says",        "Stand up when you hear a number greater than five."),
-            ("listen_and_spell",  "Spell the vehicle name from the audio clip."),
-            ("listen_and_choose", "Choose the correct season based on what you heard."),
+            # listen_and_choose / simon_says / listen_and_spell: dedup key = audio_text, must be distinct
+            ("listen_and_choose", "Listen and choose.",
+             {"audio_text": "The dog is barking loudly in the garden.", "correct_answer": "a", "image_options": [{"id":"a","text":"dog","emoji":"🐶"},{"id":"b","text":"cat","emoji":"🐱"},{"id":"c","text":"bird","emoji":"🐦"},{"id":"d","text":"fish","emoji":"🐟"}]}),
+            ("simon_says",        "Do what Simon says.",
+             {"audio_text": "Touch your nose.", "correct_answer": "a", "options": [{"id":"a","text":"Touch nose"},{"id":"b","text":"Clap hands"},{"id":"c","text":"Stamp feet"},{"id":"d","text":"Blink eyes"}]}),
+            ("listen_and_spell",  "Spell the word you hear.",
+             {"audio_text": "apple", "correct_answer": "apple"}),
+            ("listen_and_choose", "Listen and choose.",
+             {"audio_text": "It is raining outside and the sky is grey.", "correct_answer": "b", "image_options": [{"id":"a","text":"sun","emoji":"☀️"},{"id":"b","text":"rain","emoji":"🌧️"},{"id":"c","text":"snow","emoji":"❄️"},{"id":"d","text":"wind","emoji":"💨"}]}),
+            ("simon_says",        "Do what Simon says.",
+             {"audio_text": "Clap your hands twice.", "correct_answer": "b", "options": [{"id":"a","text":"Stamp feet"},{"id":"b","text":"Clap hands"},{"id":"c","text":"Touch head"},{"id":"d","text":"Close eyes"}]}),
+            ("listen_and_spell",  "Spell the word you hear.",
+             {"audio_text": "elephant", "correct_answer": "elephant"}),
+            ("listen_and_choose", "Listen and choose.",
+             {"audio_text": "The girl is jumping rope in the playground.", "correct_answer": "c", "image_options": [{"id":"a","text":"swimming","emoji":"🏊"},{"id":"b","text":"running","emoji":"🏃"},{"id":"c","text":"jumping","emoji":"⛹️"},{"id":"d","text":"sleeping","emoji":"😴"}]}),
+            ("simon_says",        "Do what Simon says.",
+             {"audio_text": "Stand on one leg.", "correct_answer": "d", "options": [{"id":"a","text":"Sit down"},{"id":"b","text":"Spin around"},{"id":"c","text":"Touch toes"},{"id":"d","text":"Stand on one leg"}]}),
+            ("listen_and_spell",  "Spell the word you hear.",
+             {"audio_text": "bicycle", "correct_answer": "bicycle"}),
+            ("listen_and_choose", "Listen and choose.",
+             {"audio_text": "It is very hot today and the sun is bright.", "correct_answer": "a", "image_options": [{"id":"a","text":"summer","emoji":"🌞"},{"id":"b","text":"winter","emoji":"🌨️"},{"id":"c","text":"spring","emoji":"🌸"},{"id":"d","text":"autumn","emoji":"🍂"}]}),
         ],
         "speaking": [
-            ("repeat_after_me",      "Repeat: The cat sat on the mat."),
-            ("what_is_this",         "What is this object used for in a kitchen?"),
-            ("finish_the_sentence",  "The sky is blue and the grass is ___."),
-            ("repeat_after_me",      "Say aloud: My name is Ahmed and I am eight years old."),
-            ("what_is_this",         "Name the animal shown in the picture."),
-            ("finish_the_sentence",  "We use an umbrella when it ___."),
-            ("repeat_after_me",      "Repeat clearly: She sells seashells by the seashore."),
-            ("what_is_this",         "What do we call this tool used for writing?"),
-            ("finish_the_sentence",  "I brush my teeth before I go to ___."),
-            ("repeat_after_me",      "Say: The quick brown fox jumps over the lazy dog."),
+            # repeat_after_me: dedup key = audio_text, must be distinct
+            ("repeat_after_me",     "Repeat after me.",
+             {"audio_text": "The cat sat on the mat.", "correct_answer": "The cat sat on the mat."}),
+            # what_is_this: dedup key = image_context, must be distinct
+            ("what_is_this",        "What is this?",
+             {"image_context": "🍎", "correct_answer": "apple"}),
+            # finish_the_sentence: dedup key = sentence_start, must be distinct
+            ("finish_the_sentence", "Finish this sentence:",
+             {"sentence_start": "The sky is blue and the grass is", "correct_answer": "green"}),
+            ("repeat_after_me",     "Repeat after me.",
+             {"audio_text": "My name is Ahmed and I am eight years old.", "correct_answer": "My name is Ahmed and I am eight years old."}),
+            ("what_is_this",        "What is this?",
+             {"image_context": "🐶", "correct_answer": "dog"}),
+            ("finish_the_sentence", "Finish this sentence:",
+             {"sentence_start": "We use an umbrella when it", "correct_answer": "rains"}),
+            ("repeat_after_me",     "Repeat after me.",
+             {"audio_text": "She sells seashells by the seashore.", "correct_answer": "She sells seashells by the seashore."}),
+            ("what_is_this",        "What is this?",
+             {"image_context": "✏️", "correct_answer": "pencil"}),
+            ("finish_the_sentence", "Finish this sentence:",
+             {"sentence_start": "I brush my teeth before I go to", "correct_answer": "sleep"}),
+            ("repeat_after_me",     "Repeat after me.",
+             {"audio_text": "The quick brown fox jumps over the lazy dog.", "correct_answer": "The quick brown fox jumps over the lazy dog."}),
         ],
     }
     entries = questions_by_pillar.get(pillar, questions_by_pillar["reading"])
     questions = []
-    for i, (task_type, question_text) in enumerate(entries):
-        questions.append({
+    for i, (task_type, question_text, extra) in enumerate(entries):
+        q = {
             "id": i + 1,
             "task_type": task_type,
             "pillar": pillar,
@@ -118,7 +168,9 @@ def _make_mock_pillar_questions(pillar: str = "reading"):
             "urdu_hint": "",
             "is_weakness_focused": i < 3,
             "source": "llm",
-        })
+        }
+        q.update(extra)
+        questions.append(q)
     return questions
 
 
