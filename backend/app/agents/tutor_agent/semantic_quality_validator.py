@@ -331,12 +331,12 @@ class SemanticQualityValidator:
         # Get options
         options_field = "image_options" if task_type in ("sentence_picture_match", "listen_and_choose") else "options"
         options = question.get(options_field) or []
-        correct_answer_id = question.get("correct_answer", "").lower()
+        correct_answer_id = (question.get("correct_answer") or "").lower()
 
         if not options or len(options) < 4:
             return issues  # Structural issue, not our concern here
 
-        option_texts = [opt.get("text", "").lower().strip() for opt in options]
+        option_texts = [(opt.get("text", "") if isinstance(opt, dict) else str(opt)).lower().strip() for opt in options]
         correct_text = next((opt.get("text", "") for opt in options if opt.get("id", "").lower() == correct_answer_id), "")
 
         # Check if all options are the same part of speech / category
@@ -418,10 +418,10 @@ class SemanticQualityValidator:
 
         # Collect all text: question + options
         all_text = question_text
-        for opt in question.get("options", []):
+        for opt in (question.get("options") or []):
             all_text += " " + (opt.get("text", "") if isinstance(opt, dict) else str(opt)).lower()
         # Include word_bank if present
-        for word in question.get("word_bank", []):
+        for word in (question.get("word_bank") or []):
             all_text += " " + str(word).lower()
 
         # Check homophones — too confusing for grade 1-3
@@ -547,8 +547,8 @@ class SemanticQualityValidator:
 
         # Get options
         options_field = "image_options" if task_type in ("sentence_picture_match", "listen_and_choose") else "options"
-        options = question.get(options_field, [])
-        option_texts = {opt.get("text", "").strip() for opt in options}
+        options = question.get(options_field) or []
+        option_texts = {(opt.get("text", "") if isinstance(opt, dict) else str(opt)).strip() for opt in options}
 
         # Count how many are punctuation marks
         punct_count = sum(1 for opt in option_texts if opt in PUNCTUATION_MARKS)

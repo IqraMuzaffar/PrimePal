@@ -917,26 +917,33 @@ If you answer NO to any of these, REJECT that question and create a different on
             from app.agents.tutor_agent.semantic_quality_validator import SemanticQualityValidator
 
             semantic_validator = SemanticQualityValidator(strict_mode=False)
-            semantically_valid, semantically_invalid, semantic_issues = semantic_validator.validate_questions(
-                validated,
-                grade_level=grade_level,
-            )
+            try:
+                semantically_valid, semantically_invalid, semantic_issues = semantic_validator.validate_questions(
+                    validated,
+                    grade_level=grade_level,
+                )
 
-            semantic_pass_rate = (len(semantically_valid) / len(validated) * 100) if validated else 0
-            logger.info(
-                f"Semantic validation: {len(semantically_valid)}/{len(validated)} passed "
-                f"({semantic_pass_rate:.1f}%) for {pillar} grade {grade_level}"
-            )
+                semantic_pass_rate = (len(semantically_valid) / len(validated) * 100) if validated else 0
+                logger.info(
+                    f"Semantic validation: {len(semantically_valid)}/{len(validated)} passed "
+                    f"({semantic_pass_rate:.1f}%) for {pillar} grade {grade_level}"
+                )
 
-            # Log rejected questions for analysis
-            if semantically_invalid:
-                for invalid_q in semantically_invalid[:3]:  # Log first 3 rejections
-                    logger.warning(
-                        f"Semantic rejection: Q{invalid_q.get('id', '?')} - {invalid_q.get('question', '')[:50]}..."
-                    )
+                # Log rejected questions for analysis
+                if semantically_invalid:
+                    for invalid_q in semantically_invalid[:3]:  # Log first 3 rejections
+                        logger.warning(
+                            f"Semantic rejection: Q{invalid_q.get('id', '?')} - {invalid_q.get('question', '')[:50]}..."
+                        )
 
-            # Use semantically valid questions for further processing
-            validated = semantically_valid
+                # Use semantically valid questions for further processing
+                validated = semantically_valid
+            except Exception as sem_exc:
+                # Semantic validator crash must never kill mission generation — pass all through
+                logger.error(
+                    f"Semantic validator crashed for {pillar} grade {grade_level}: {sem_exc}. "
+                    f"Passing all {len(validated)} questions through unfiltered."
+                )
 
             # ══════════════════════════════════════════════════════════════
             # LAYER 3: Evaluator Agent Quality Gate (LLM-Powered)
