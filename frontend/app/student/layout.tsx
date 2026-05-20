@@ -32,6 +32,7 @@ const NAV_LINKS = [
   { href: "/student/missions",     label: "Missions", icon: "🎯" },
   { href: "/student/scores",       label: "Scores",   icon: "📊" },
   { href: "/student/achievements", label: "Badges",   icon: "🏅" },
+  { href: "/student/evaluation",   label: "Test",     icon: "📝" },
 ];
 
 function StudentLayoutContent({ children }: { children: React.ReactNode }) {

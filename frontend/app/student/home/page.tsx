@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   useStudentProfile,
   useStreak,
@@ -148,6 +149,23 @@ export default function HomePage() {
           </p>
         </div>
       )}
+
+      {/* Evaluation banner */}
+      <Link
+        href="/student/evaluation"
+        className="block w-full rounded-2xl bg-gradient-to-r from-violet-500 to-indigo-600 p-4 sm:p-5 shadow-lg hover:shadow-xl transition-shadow"
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <span className="text-3xl">📝</span>
+            <div>
+              <p className="font-baloo font-extrabold text-white text-base sm:text-lg">Take Your Evaluation!</p>
+              <p className="text-violet-100 text-xs sm:text-sm">Answer a few questions to help us improve PrimePal</p>
+            </div>
+          </div>
+          <span className="text-white text-2xl">→</span>
+        </div>
+      </Link>
 
       {/* ① Hero */}
       {loadingProfile ? (
