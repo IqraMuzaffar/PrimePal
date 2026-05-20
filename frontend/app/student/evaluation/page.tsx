@@ -172,17 +172,6 @@ export default function EvaluationPage() {
       // Compute academic score from questions with section === "academic"
       const academicQs = questions.filter((q) => q.section === "academic");
       if (academicQs.length > 0) {
-        let correct = 0;
-        for (const q of academicQs) {
-          const ans = answers.get(q.id);
-          if (!ans) continue;
-          // Find the correct option — the one whose value matches the answer
-          const correctOpt = q.options?.find(
-            (o) => o.value === "correct" || o.value === ans.student_answer
-          );
-          // Use result from backend if available, otherwise count answered
-          correct++;
-        }
         // Prefer backend score if returned
         if (result && typeof result === "object" && "academic_score" in result) {
           const r = result as { academic_score: number; academic_total: number };
