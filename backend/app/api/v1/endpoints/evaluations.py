@@ -166,15 +166,8 @@ async def submit_evaluation(
     student_id = student["sub"]
     grade = _get_student_grade(sb, student_id)
 
-    # Verify evaluation is actually needed
+    # Ensure status row exists (no completion blocking — students can retake)
     row = _ensure_status_row(sb, student_id)
-    if body.evaluation_type == "pre" and row.get("pre_test_completed"):
-        raise HTTPException(status_code=400, detail="Pre-test already completed")
-    if body.evaluation_type == "post":
-        if not row.get("post_test_unlocked"):
-            raise HTTPException(status_code=403, detail="Post-test not yet unlocked")
-        if row.get("post_test_completed"):
-            raise HTTPException(status_code=400, detail="Post-test already completed")
 
     # Fetch correct answers + metadata for grading
     q_ids = [a.question_id for a in body.answers]

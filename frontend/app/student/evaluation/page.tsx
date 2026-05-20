@@ -70,16 +70,11 @@ export default function EvaluationPage() {
     }
   }, [router]);
 
-  // Determine eval type from status
-  // Pre-test is disabled — data gathered via paper forms
+  // Always show post-test — students can retake it
   useEffect(() => {
     if (!evalStatus) return;
-    if (evalStatus.needs_post_test) {
-      setEvalType("post");
-    } else {
-      router.push("/student/home");
-    }
-  }, [evalStatus, router]);
+    setEvalType("post");
+  }, [evalStatus]);
 
   useEffect(() => {
     if (statusError) {
