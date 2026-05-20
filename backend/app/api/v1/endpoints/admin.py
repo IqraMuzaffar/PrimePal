@@ -1221,19 +1221,30 @@ async def export_evaluations_pivoted(
                 "time_ms": r.get("time_taken_ms"),
             }
 
-        # Build sorted question columns
+        # Build sorted question columns with readable names
         sorted_qs = sorted(all_q_indices, key=lambda x: x[0])
-        q_labels = [f"Q{idx}_{sec}" for idx, sec, _, _ in sorted_qs]
+
+        def _short_name(idx: int, sec: str, text: str, pillar: str) -> str:
+            """Turn question text into a short readable column prefix."""
+            # Take first 30 chars, clean up for CSV header
+            short = text[:40].replace(",", "").replace('"', "").strip()
+            if pillar:
+                return f"Q{idx}_{pillar}_{short}"
+            return f"Q{idx}_{sec}_{short}"
+
+        q_col_map = {}  # (idx, sec) -> short_name
+        for idx, sec, text, pillar in sorted_qs:
+            q_col_map[(idx, sec)] = _short_name(idx, sec, text, pillar)
 
         # Build fieldnames
         fieldnames = ["student_name", "student_id", "grade_level", "class_name", "evaluation_type"]
         for idx, sec, text, pillar in sorted_qs:
-            label = f"Q{idx}_{sec}"
-            fieldnames.append(f"{label}_answer")
+            col = q_col_map[(idx, sec)]
+            fieldnames.append(f"{col}_answer")
             if sec == "academic":
-                fieldnames.append(f"{label}_correct")
+                fieldnames.append(f"{col}_correct")
             if sec == "psychometric":
-                fieldnames.append(f"{label}_likert")
+                fieldnames.append(f"{col}_likert")
         # Summary columns
         fieldnames.extend(["academic_score", "academic_total", "academic_pct", "confidence_avg"])
 
@@ -1246,19 +1257,20 @@ async def export_evaluations_pivoted(
             likert_vals = []
 
             for idx, sec, text, pillar in sorted_qs:
-                label = f"Q{idx}_{sec}"
-                ans_data = data["answers"].get(label, {})
-                row[f"{label}_answer"] = ans_data.get("answer", "")
+                old_label = f"Q{idx}_{sec}"
+                col = q_col_map[(idx, sec)]
+                ans_data = data["answers"].get(old_label, {})
+                row[f"{col}_answer"] = ans_data.get("answer", "")
                 if sec == "academic":
                     ic = ans_data.get("is_correct")
-                    row[f"{label}_correct"] = "TRUE" if ic else "FALSE" if ic is False else ""
+                    row[f"{col}_correct"] = "TRUE" if ic else "FALSE" if ic is False else ""
                     if ic is not None:
                         academic_total += 1
                         if ic:
                             academic_correct += 1
                 if sec == "psychometric":
                     lv = ans_data.get("likert_value")
-                    row[f"{label}_likert"] = lv if lv is not None else ""
+                    row[f"{col}_likert"] = lv if lv is not None else ""
                     if lv is not None:
                         likert_vals.append(lv)
 
