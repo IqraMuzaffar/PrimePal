@@ -281,3 +281,29 @@ export function useTeacherAnalytics() {
     staleTime: 5 * 60 * 1000, // 5 minutes
   });
 }
+
+// ── Teacher Evaluation ───────────────────────────────────────────────────────
+
+export function useSubmitTeacherEvaluation() {
+  return useMutation({
+    mutationFn: (data: Record<string, unknown>) =>
+      teacherMutate<{ id: string; message: string }>(
+        "/teacher-evaluations/submit",
+        data
+      ),
+  });
+}
+
+export function useTeacherEvaluations(params?: {
+  timepoint?: string;
+  group_type?: string;
+}) {
+  const qs = new URLSearchParams();
+  if (params?.timepoint) qs.set("timepoint", params.timepoint);
+  if (params?.group_type) qs.set("group_type", params.group_type);
+  const suffix = qs.toString() ? `?${qs.toString()}` : "";
+  return useQuery({
+    queryKey: ["teacher", "evaluations", suffix],
+    queryFn: () => teacherFetch<any[]>(`/teacher-evaluations/${suffix}`),
+  });
+}

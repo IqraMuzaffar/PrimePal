@@ -3,7 +3,7 @@
 import React, { Suspense } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Activity, BookOpenCheck, Headphones, MessageSquare, FileText, Target } from "lucide-react";
+import { Users, TrendingUp, BookOpen, BarChart3, ChevronRight, Activity, BookOpenCheck, Headphones, MessageSquare, FileText, Target, ClipboardList, ArrowRight } from "lucide-react";
 import FilterBar, { useFilterParams } from "@/components/teacher/FilterBar";
 import { useTeacherClassrooms, useTeacherDashboardStats, useTeacherSkillAccuracy, type TeacherClassroom } from "@/lib/hooks/teacher-queries";
 import { WelcomeBanner } from "@/components/teacher/dashboard";
@@ -78,6 +78,30 @@ function DashboardContent() {
 
   return (
     <div style={{ padding: designTokens.spacing.section }}>
+      {/* Study Evaluation Banner */}
+      <Link
+        href="/teacher/evaluation"
+        className="block mb-6 group"
+      >
+        <div className="bg-gradient-to-r from-indigo-600 to-blue-500 rounded-2xl p-5 shadow-lg hover:shadow-xl transition-shadow duration-200">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="bg-white/20 rounded-xl p-3">
+                <ClipboardList className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h3 className="text-white font-bold text-lg">Study Evaluation Form</h3>
+                <p className="text-indigo-100 text-sm mt-0.5">Complete your Pre/Post evaluation for the PrimePal study</p>
+              </div>
+            </div>
+            <span className="hidden sm:flex items-center gap-2 bg-white text-indigo-600 font-semibold text-sm px-5 py-2.5 rounded-xl group-hover:bg-indigo-50 transition-colors">
+              Fill Out Form
+              <ArrowRight className="w-4 h-4" />
+            </span>
+          </div>
+        </div>
+      </Link>
+
       {/* Welcome Banner */}
       <WelcomeBanner
         teacherName={email?.split('@')[0] || 'Teacher'}

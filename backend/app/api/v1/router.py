@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import achievements, admin, auth, chat, classroom, curriculum, evaluations, evaluator, interactions, missions, monitoring, puzzle_palace, rewards, spelling_bee, story_time, student_scores, teacher, topics
+from app.api.v1.endpoints import achievements, admin, auth, chat, classroom, curriculum, evaluations, evaluator, interactions, missions, monitoring, puzzle_palace, rewards, spelling_bee, story_time, student_scores, teacher, teacher_evaluations, topics
 
 api_router = APIRouter()
 
@@ -21,4 +21,5 @@ api_router.include_router(spelling_bee.router, prefix="/spelling-bee", tags=["sp
 api_router.include_router(story_time.router, prefix="/story-time", tags=["story-time"])
 api_router.include_router(student_scores.router, prefix="/student", tags=["student"])
 api_router.include_router(teacher.router, prefix="/teacher", tags=["teacher"])
+api_router.include_router(teacher_evaluations.router, prefix="/teacher-evaluations", tags=["teacher-evaluations"])
 api_router.include_router(monitoring.router, prefix="/admin/monitoring", tags=["monitoring"])

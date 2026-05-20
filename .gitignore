@@ -1,6 +1,9 @@
 # Git worktrees
 .worktrees/
 
+# Thesis and docs (local only — upload to Overleaf manually)
+docs/
+
 # Dependencies
 node_modules/
 __pycache__/

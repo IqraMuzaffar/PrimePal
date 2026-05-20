@@ -14,6 +14,7 @@ import {
   BarChart2,
   FileBarChart,
   Sparkles,
+  ClipboardList,
 } from "lucide-react";
 import { Sidebar, TopBar } from "@/components/teacher/design-system";
 import { supabase } from "@/lib/supabase/client";
@@ -28,6 +29,7 @@ const NAV_LINKS = [
   { href: "/teacher/analytics", label: "Analytics", icon: BarChart2 },
   { href: "/teacher/reports", label: "Reports", icon: FileBarChart },
   { href: "/teacher/assistant", label: "AI Assistant", icon: Sparkles },
+  { href: "/teacher/evaluation", label: "Evaluation", icon: ClipboardList },
 ];
 
 const PAGE_TITLES: Record<string, string> = {
@@ -40,6 +42,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/teacher/analytics": "Analytics",
   "/teacher/reports": "Reports",
   "/teacher/assistant": "AI Assistant",
+  "/teacher/evaluation": "Evaluation",
 };
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {
