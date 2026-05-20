@@ -288,21 +288,23 @@ export default function TeacherEvaluationPage() {
     }
 
     // Map frontend field names to backend Pydantic model field names
+    // NOTE: DB CHECK constraints expect lowercase values, so we lowercase all enum-style fields
+    const lc = (v: string | null | undefined) => v ? v.toLowerCase().replace(/ /g, '_') : null;
     const payload: Record<string, unknown> = {
       teacher_name: form.teacher_name,
       teacher_email: form.teacher_email || null,
-      gender: form.gender || null,
-      qualification: form.qualification || null,
-      years_teaching: form.years_teaching_primary || null,
+      gender: lc(form.gender),  // "Female" → "female", "Prefer not to say" → "prefer_not_to_say"
+      qualification: lc(form.qualification),  // "Inter" → "inter"
+      years_teaching: form.years_teaching_primary || null,  // already correct format "<1", "1-2", etc.
       grades_taught: form.grades_taught.length ? form.grades_taught : null,
       snc_training: form.received_snc_training,
       ai_training: form.received_ai_training,
       timepoint: form.timepoint,
       group_type: form.group_type,
-      avg_class_size: form.avg_class_size || null,
-      student_device_access: form.student_home_device_access || null,
-      internet_stability: form.internet_stability || null,
-      main_constraints: form.main_constraints.length ? form.main_constraints : null,
+      avg_class_size: form.avg_class_size || null,  // already correct format "20-30" etc.
+      student_device_access: lc(form.student_home_device_access),  // "Most" → "most"
+      internet_stability: lc(form.internet_stability),  // "Stable" → "stable"
+      main_constraints: form.main_constraints.length ? form.main_constraints.map(s => s.toLowerCase()) : null,
       skill_listening_speaking: form.listening_speaking_ability,
       skill_reading_writing: form.reading_writing_ability,
       skill_vocabulary: form.vocabulary_sentence_formation,
