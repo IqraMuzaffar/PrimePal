@@ -140,24 +140,21 @@ function LikertRow({
           {lowLabel}
         </span>
         {[1, 2, 3, 4, 5].map((n) => (
-          <label
+          <div
             key={n}
-            className={`flex items-center justify-center w-10 h-10 rounded-lg border cursor-pointer transition-all text-sm font-medium ${
+            role="radio"
+            aria-checked={value === n}
+            tabIndex={0}
+            onClick={() => onChange(n)}
+            onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); onChange(n); } }}
+            className={`flex items-center justify-center w-10 h-10 rounded-lg border cursor-pointer transition-all text-sm font-medium select-none ${
               value === n
                 ? "bg-indigo-600 text-white border-indigo-600 shadow-sm"
                 : "bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300 hover:bg-indigo-50"
             }`}
           >
-            <input
-              type="radio"
-              name={label}
-              value={n}
-              checked={value === n}
-              onChange={() => onChange(n)}
-              className="sr-only"
-            />
             {n}
-          </label>
+          </div>
         ))}
         <span className="text-xs text-gray-400 w-24 hidden sm:block text-right">
           {highLabel}
@@ -191,22 +188,21 @@ function CheckboxGroup({
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
       {options.map((opt) => (
-        <label
+        <div
           key={opt}
-          className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-sm ${
+          role="checkbox"
+          aria-checked={selected.includes(opt)}
+          tabIndex={0}
+          onClick={() => toggle(opt)}
+          onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); toggle(opt); } }}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-all text-sm select-none ${
             selected.includes(opt)
               ? "bg-indigo-50 border-indigo-300 text-indigo-700"
               : "bg-gray-50 border-gray-200 text-gray-600 hover:border-gray-300"
           }`}
         >
-          <input
-            type="checkbox"
-            checked={selected.includes(opt)}
-            onChange={() => toggle(opt)}
-            className="sr-only"
-          />
           <span
-            className={`flex items-center justify-center w-4 h-4 rounded border ${
+            className={`flex-shrink-0 flex items-center justify-center w-4 h-4 rounded border ${
               selected.includes(opt)
                 ? "bg-indigo-600 border-indigo-600"
                 : "border-gray-300"
@@ -229,7 +225,7 @@ function CheckboxGroup({
             )}
           </span>
           {opt}
-        </label>
+        </div>
       ))}
     </div>
   );
@@ -291,8 +287,48 @@ export default function TeacherEvaluationPage() {
       return;
     }
 
+    // Map frontend field names to backend Pydantic model field names
+    const payload: Record<string, unknown> = {
+      teacher_name: form.teacher_name,
+      teacher_email: form.teacher_email || null,
+      gender: form.gender || null,
+      qualification: form.qualification || null,
+      years_teaching: form.years_teaching_primary || null,
+      grades_taught: form.grades_taught.length ? form.grades_taught : null,
+      snc_training: form.received_snc_training,
+      ai_training: form.received_ai_training,
+      timepoint: form.timepoint,
+      group_type: form.group_type,
+      avg_class_size: form.avg_class_size || null,
+      student_device_access: form.student_home_device_access || null,
+      internet_stability: form.internet_stability || null,
+      main_constraints: form.main_constraints.length ? form.main_constraints : null,
+      skill_listening_speaking: form.listening_speaking_ability,
+      skill_reading_writing: form.reading_writing_ability,
+      skill_vocabulary: form.vocabulary_sentence_formation,
+      skill_confidence: form.overall_english_confidence,
+      readiness_hesitation: form.students_hesitate_english,
+      readiness_fear: form.students_fear_mistakes,
+      readiness_avoidance: form.students_avoid_english,
+      readiness_urdu_support: form.urdu_english_support_helps,
+      visibility_identify_weaknesses: form.can_identify_weaknesses,
+      visibility_personalize: form.enough_info_personalize,
+      visibility_monitor_beyond: form.can_monitor_beyond_classroom,
+      confidence_explain: form.can_explain_concepts,
+      confidence_design_activities: form.can_design_mixed_activities,
+      confidence_safe_environment: form.can_create_safe_environment,
+      usefulness_improves_learning: form.approach_improves_learning,
+      usefulness_notice_weaknesses: form.approach_helps_notice_weaknesses,
+      usefulness_home_realistic: form.home_use_realistic,
+      impact_helped_students: form.primepal_helped_improve,
+      impact_helped_identify_weaknesses: form.primepal_helped_identify,
+      impact_would_recommend: form.would_recommend,
+      impact_most_valuable: form.most_valuable_aspects.length ? form.most_valuable_aspects : null,
+      impact_improvements: form.improvements_suggested.length ? form.improvements_suggested : null,
+    };
+
     try {
-      await submitMutation.mutateAsync(form as unknown as Record<string, unknown>);
+      await submitMutation.mutateAsync(payload);
       setSubmitted(true);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Submission failed. Please try again.");
@@ -371,24 +407,21 @@ export default function TeacherEvaluationPage() {
               </label>
               <div className="flex gap-2">
                 {(["treatment", "control"] as GroupType[]).map((g) => (
-                  <label
+                  <div
                     key={g}
-                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer text-sm font-bold transition-all ${
+                    role="radio"
+                    aria-checked={form.group_type === g}
+                    tabIndex={0}
+                    onClick={() => set("group_type", g)}
+                    onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); set("group_type", g); } }}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 cursor-pointer text-sm font-bold transition-all select-none ${
                       form.group_type === g
                         ? "bg-indigo-600 text-white border-indigo-600"
                         : "bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300"
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="group_type"
-                      value={g}
-                      checked={form.group_type === g}
-                      onChange={() => set("group_type", g)}
-                      className="sr-only"
-                    />
                     {g === "treatment" ? "Treatment" : "Control"}
-                  </label>
+                  </div>
                 ))}
               </div>
             </div>
@@ -432,24 +465,21 @@ export default function TeacherEvaluationPage() {
               </label>
               <div className="flex gap-2 flex-wrap">
                 {["Female", "Male", "Prefer not to say"].map((g) => (
-                  <label
+                  <div
                     key={g}
-                    className={`px-4 py-2 rounded-lg border cursor-pointer text-sm font-medium transition-all ${
+                    role="radio"
+                    aria-checked={form.gender === g}
+                    tabIndex={0}
+                    onClick={() => set("gender", g)}
+                    onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); set("gender", g); } }}
+                    className={`px-4 py-2 rounded-lg border cursor-pointer text-sm font-medium transition-all select-none ${
                       form.gender === g
                         ? "bg-indigo-600 text-white border-indigo-600"
                         : "bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300"
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="gender"
-                      value={g}
-                      checked={form.gender === g}
-                      onChange={() => set("gender", g)}
-                      className="sr-only"
-                    />
                     {g}
-                  </label>
+                  </div>
                 ))}
               </div>
             </div>
@@ -498,29 +528,38 @@ export default function TeacherEvaluationPage() {
               </label>
               <div className="flex gap-2 flex-wrap">
                 {[1, 2, 3, 4, 5].map((g) => (
-                  <label
+                  <div
                     key={g}
-                    className={`flex items-center justify-center w-12 h-10 rounded-lg border cursor-pointer text-sm font-bold transition-all ${
-                      form.grades_taught.includes(g)
-                        ? "bg-indigo-600 text-white border-indigo-600"
-                        : "bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300"
-                    }`}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={form.grades_taught.includes(g)}
-                      onChange={() =>
+                    role="checkbox"
+                    aria-checked={form.grades_taught.includes(g)}
+                    tabIndex={0}
+                    onClick={() =>
+                      set(
+                        "grades_taught",
+                        form.grades_taught.includes(g)
+                          ? form.grades_taught.filter((x) => x !== g)
+                          : [...form.grades_taught, g]
+                      )
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === " " || e.key === "Enter") {
+                        e.preventDefault();
                         set(
                           "grades_taught",
                           form.grades_taught.includes(g)
                             ? form.grades_taught.filter((x) => x !== g)
                             : [...form.grades_taught, g]
-                        )
+                        );
                       }
-                      className="sr-only"
-                    />
+                    }}
+                    className={`flex items-center justify-center w-12 h-10 rounded-lg border cursor-pointer text-sm font-bold transition-all select-none ${
+                      form.grades_taught.includes(g)
+                        ? "bg-indigo-600 text-white border-indigo-600"
+                        : "bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300"
+                    }`}
+                  >
                     G{g}
-                  </label>
+                  </div>
                 ))}
               </div>
             </div>
@@ -566,24 +605,21 @@ export default function TeacherEvaluationPage() {
               </label>
               <div className="flex gap-2 flex-wrap">
                 {["Most", "Some", "Few"].map((opt) => (
-                  <label
+                  <div
                     key={opt}
-                    className={`px-4 py-2 rounded-lg border cursor-pointer text-sm font-medium transition-all ${
+                    role="radio"
+                    aria-checked={form.student_home_device_access === opt}
+                    tabIndex={0}
+                    onClick={() => set("student_home_device_access", opt)}
+                    onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); set("student_home_device_access", opt); } }}
+                    className={`px-4 py-2 rounded-lg border cursor-pointer text-sm font-medium transition-all select-none ${
                       form.student_home_device_access === opt
                         ? "bg-indigo-600 text-white border-indigo-600"
                         : "bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300"
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="device_access"
-                      value={opt}
-                      checked={form.student_home_device_access === opt}
-                      onChange={() => set("student_home_device_access", opt)}
-                      className="sr-only"
-                    />
                     {opt}
-                  </label>
+                  </div>
                 ))}
               </div>
             </div>
@@ -593,24 +629,21 @@ export default function TeacherEvaluationPage() {
               </label>
               <div className="flex gap-2">
                 {["Stable", "Unstable"].map((opt) => (
-                  <label
+                  <div
                     key={opt}
-                    className={`px-4 py-2 rounded-lg border cursor-pointer text-sm font-medium transition-all ${
+                    role="radio"
+                    aria-checked={form.internet_stability === opt}
+                    tabIndex={0}
+                    onClick={() => set("internet_stability", opt)}
+                    onKeyDown={(e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); set("internet_stability", opt); } }}
+                    className={`px-4 py-2 rounded-lg border cursor-pointer text-sm font-medium transition-all select-none ${
                       form.internet_stability === opt
                         ? "bg-indigo-600 text-white border-indigo-600"
                         : "bg-gray-50 text-gray-600 border-gray-200 hover:border-indigo-300"
                     }`}
                   >
-                    <input
-                      type="radio"
-                      name="internet"
-                      value={opt}
-                      checked={form.internet_stability === opt}
-                      onChange={() => set("internet_stability", opt)}
-                      className="sr-only"
-                    />
                     {opt}
-                  </label>
+                  </div>
                 ))}
               </div>
             </div>
