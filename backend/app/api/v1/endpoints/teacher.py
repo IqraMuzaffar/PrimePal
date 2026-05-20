@@ -395,7 +395,7 @@ async def get_analytics(
             pillar_breakdown=[],
             top_students=[],
             struggling_students=[],
-            weekly_trends=[],
+            daily_trends=[],
         )
 
     # Compute breakdowns

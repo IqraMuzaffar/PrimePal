@@ -22,7 +22,7 @@ export default function ListenAndChoose({ question, onAnswer, showFeedback, disa
       <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-4 leading-tight">Listen and choose the right picture</h2>
       <div className="bg-gradient-to-br from-indigo-50 to-purple-50 rounded-2xl p-6 mb-6 border-2 border-indigo-200">
         <div className="flex justify-center">
-          <AudioPlayButton text={question.audio_text ?? ''} autoPlay size="lg" />
+          <AudioPlayButton text={(question.audio_text ?? '').replace(/_+/g, ' ').replace(/\s{2,}/g, ' ').trim()} autoPlay size="lg" />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">

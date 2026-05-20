@@ -18,7 +18,7 @@ export default function RepeatAfterMe({ question, onAnswer, showFeedback, disabl
     <div>
       <h2 className="text-lg sm:text-xl font-bold text-gray-800 mb-2 leading-tight">Listen, then repeat!</h2>
       <div className="flex justify-center mb-3">
-        <AudioPlayButton text={question.audio_text ?? question.correct_answer ?? ''} autoPlay size="lg" />
+        <AudioPlayButton text={(question.audio_text ?? question.correct_answer ?? '').replace(/_+/g, ' ').replace(/\s{2,}/g, ' ').trim()} autoPlay size="lg" />
       </div>
 
       {/* Format hint */}

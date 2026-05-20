@@ -1,23 +1,43 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { TaskProps } from '@/types/missions';
 import LetterGrid from '../shared/LetterGrid';
 
 export default function MissingLetter({ question, onAnswer, showFeedback, disabled }: TaskProps) {
   const [selectedLetters, setSelectedLetters] = useState<string[]>([]);
 
-  const blanks = (question.word_with_blanks ?? '').split('');
+  // Ensure word_with_blanks actually has blanks; if LLM filled them, regenerate
+  const wordWithBlanks = useMemo(() => {
+    const raw = question.word_with_blanks ?? '';
+    if (raw.includes('_')) return raw;
+    const ca = (question.correct_answer ?? '').toLowerCase();
+    if (ca.length >= 2) {
+      const chars = ca.split('');
+      // Blank out ~1/3 of characters (at least 1)
+      const numBlanks = Math.max(1, Math.floor(chars.length / 3));
+      const positions: number[] = [];
+      while (positions.length < numBlanks) {
+        const p = Math.floor(Math.random() * chars.length);
+        if (!positions.includes(p)) positions.push(p);
+      }
+      positions.forEach(p => { chars[p] = '_'; });
+      return chars.join('');
+    }
+    return raw;
+  }, [question.word_with_blanks, question.correct_answer]);
+
+  const blanks = wordWithBlanks.split('');
   const blankCount = blanks.filter(c => c === '_').length;
 
   const handleSelect = (letterKey: string) => {
-    if (disabled || showFeedback) return;
+    if (disabled || showFeedback || blankCount === 0) return;
     const newSelected = [...selectedLetters, letterKey];
     setSelectedLetters(newSelected);
 
     if (newSelected.length >= blankCount) {
       const filledLetters = newSelected.map(k => k.split('_')[0]);
-      let result = question.word_with_blanks ?? '';
+      let result = wordWithBlanks;
       for (const letter of filledLetters) {
         result = result.replace('_', letter);
       }

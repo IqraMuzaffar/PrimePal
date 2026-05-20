@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams, usePathname } from "next/navigation";
 import { Search, SlidersHorizontal } from "lucide-react";
 
@@ -69,13 +69,18 @@ export default function FilterBar({
     setLocalSearch(search);
   }, [search]);
 
+  // Use ref to avoid circular dependency: updateParams depends on searchParams,
+  // and including it in the debounce effect causes infinite re-renders
+  const updateParamsRef = useRef(updateParams);
+  updateParamsRef.current = updateParams;
+
   // Debounce: only push search to URL 400ms after user stops typing
   useEffect(() => {
     const timer = setTimeout(() => {
-      updateParams({ search: localSearch });
+      updateParamsRef.current({ search: localSearch });
     }, 400);
     return () => clearTimeout(timer);
-  }, [localSearch, updateParams]);
+  }, [localSearch]);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-200 p-4">

@@ -217,6 +217,87 @@ def normalize_correct_answer(question: dict) -> dict:
         # Ensure question is generic
         question["question"] = "Fill in the missing letter(s)"
 
+        # Validate word_with_blanks actually contains underscores
+        wb = question.get("word_with_blanks", "")
+        ca = question.get("correct_answer", "")
+        if wb and "_" not in wb and ca:
+            # LLM filled in the word completely — regenerate blanks from correct_answer
+            import random
+            ca_lower = ca.lower().strip()
+            if len(ca_lower) >= 2:
+                # Remove 1-2 letters to create blanks
+                indices = list(range(len(ca_lower)))
+                num_blanks = min(2, max(1, len(ca_lower) // 3))
+                blank_positions = random.sample(indices, num_blanks)
+                blanked = list(ca_lower)
+                for pos in blank_positions:
+                    blanked[pos] = "_"
+                question["word_with_blanks"] = "".join(blanked)
+                logger.info(
+                    f"Regenerated word_with_blanks: '{wb}' -> '{question['word_with_blanks']}' "
+                    f"(correct_answer='{ca}')"
+                )
+
+    elif tt == "fill_blank_word_bank":
+        # Ensure question text contains ___ blank placeholder
+        q_text = question.get("question", "")
+        ca = question.get("correct_answer", "")
+        if q_text and "___" not in q_text and "_" not in q_text:
+            # LLM didn't include blanks — try to insert them
+            # Find the correct answer word in the question and replace it with ___
+            if ca:
+                # For option-based tasks, find the correct option's text
+                options = question.get("options") or []
+                correct_word = None
+                ca_lower = ca.lower().strip()
+                for opt in options:
+                    if opt.get("id", "").lower() == ca_lower:
+                        correct_word = opt.get("text", "")
+                        break
+                if correct_word and correct_word.lower() in q_text.lower():
+                    import re
+                    q_text = re.sub(
+                        re.escape(correct_word), "___", q_text, count=1, flags=re.IGNORECASE
+                    )
+                    question["question"] = q_text
+                    logger.info(f"Inserted blank into fill_blank_word_bank question: '{q_text}'")
+
+    # Sanitize audio_text — remove underscores/blanks that TTS would read literally
+    audio = question.get("audio_text")
+    if audio and isinstance(audio, str):
+        import re
+        # Remove patterns like ___, __, _ (blank placeholders)
+        cleaned = re.sub(r'_+', ' ', audio).strip()
+        # Collapse multiple spaces
+        cleaned = re.sub(r'\s{2,}', ' ', cleaned)
+        if cleaned != audio:
+            logger.info(f"Sanitized audio_text: '{audio}' -> '{cleaned}'")
+            question["audio_text"] = cleaned
+
+    # Validate guided_translation word_bank/correct_order consistency
+    if tt == "guided_translation":
+        wb = question.get("word_bank") or []
+        co = question.get("correct_order") or []
+        ca = question.get("correct_answer", "")
+
+        if wb and co:
+            # Ensure word_bank contains all words from correct_order
+            wb_lower = [w.lower().strip() for w in wb]
+            co_lower = [w.lower().strip() for w in co]
+            missing_from_bank = [w for w in co_lower if w not in wb_lower]
+            if missing_from_bank:
+                # Add missing words to word_bank
+                for w in missing_from_bank:
+                    # Find original casing from correct_order
+                    for orig in co:
+                        if orig.lower().strip() == w:
+                            wb.append(orig)
+                            break
+                question["word_bank"] = wb
+                logger.info(
+                    f"Added missing words to guided_translation word_bank: {missing_from_bank}"
+                )
+
     return question
 
 

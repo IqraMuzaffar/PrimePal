@@ -562,6 +562,7 @@ export default function PuzzlePalacePage() {
             {currentQuestion && (
               <>
                 <TaskRouter
+                  key={`task-${roomIndex}-${questionIndexInRoom}`}
                   question={currentQuestion}
                   onAnswer={handleAnswer}
                   showFeedback={showFeedback}
