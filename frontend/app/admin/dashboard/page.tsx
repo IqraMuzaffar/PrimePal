@@ -6,6 +6,9 @@ import {
   useAdminEvalResults,
   useTriggerPostTest,
 } from "@/lib/hooks/admin-queries";
+import { getAdminHeaders } from "@/lib/adminAuth";
+
+const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 // ── Component ────────────────────────────────────────────────────────────────
 
@@ -178,9 +181,43 @@ export default function AdminDashboardPage() {
 
       {/* ── Results Summary Card ───────────────────────────────────── */}
       <div className="bg-slate-800 rounded-xl border border-slate-700 shadow-sm p-6">
-        <h2 className="text-lg font-semibold text-slate-200 mb-4">
-          Evaluation Results Summary
-        </h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-slate-200">
+            Evaluation Results Summary
+          </h2>
+          <div className="flex gap-2">
+            <button
+              onClick={async () => {
+                try {
+                  const headers = await getAdminHeaders();
+                  const res = await fetch(`${API}/admin/export/evaluations?format=csv`, { headers });
+                  if (!res.ok) throw new Error("Export failed");
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a"); a.href = url; a.download = "student_evaluations.csv"; a.click(); URL.revokeObjectURL(url);
+                } catch (e) { alert((e as Error).message); }
+              }}
+              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-medium rounded-lg transition-colors"
+            >
+              📥 Student Evals CSV
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  const headers = await getAdminHeaders();
+                  const res = await fetch(`${API}/teacher-evaluations/export`, { headers });
+                  if (!res.ok) throw new Error("Export failed");
+                  const blob = await res.blob();
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a"); a.href = url; a.download = "teacher_evaluations.csv"; a.click(); URL.revokeObjectURL(url);
+                } catch (e) { alert((e as Error).message); }
+              }}
+              className="px-3 py-1.5 bg-indigo-700 hover:bg-indigo-600 text-white text-xs font-medium rounded-lg transition-colors"
+            >
+              📥 Teacher Evals CSV
+            </button>
+          </div>
+        </div>
 
         {loadingResults && (
           <p className="text-sm text-slate-400">Loading results...</p>
