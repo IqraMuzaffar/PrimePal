@@ -364,16 +364,18 @@ async def get_evaluation_results(
 
     # Aggregate per (student_id, evaluation_type)
     from collections import defaultdict
-    buckets: dict = defaultdict(lambda: {"total": 0, "correct": 0, "likert_vals": []})
+    buckets: dict = defaultdict(lambda: {"total": 0, "academic_total": 0, "correct": 0, "likert_vals": []})
     for r in rows:
         key = (r["student_id"], r["evaluation_type"])
         qid = r.get("question_id", "")
         section = q_meta.get(qid, {}).get("section", "")
 
         buckets[key]["total"] += 1
-        # Only count correct answers for academic sections, not feedback
-        if section != "feedback" and r.get("is_correct") is True:
-            buckets[key]["correct"] += 1
+        # Only count academic questions with a graded answer in the score
+        if section == "academic" and r.get("is_correct") is not None:
+            buckets[key]["academic_total"] += 1
+            if r["is_correct"]:
+                buckets[key]["correct"] += 1
         if r.get("likert_value") is not None:
             buckets[key]["likert_vals"].append(r["likert_value"])
 
@@ -386,7 +388,7 @@ async def get_evaluation_results(
             student_id=sid,
             student_name=name_map.get(sid),
             evaluation_type=etype,
-            total=agg["total"],
+            total=agg["academic_total"],
             correct=agg["correct"],
             psychometric_avg=likert_avg,
         ))
