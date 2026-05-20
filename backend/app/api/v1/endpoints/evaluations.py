@@ -7,7 +7,7 @@ improvement.  Results are completely ISOLATED from the gamification layer
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import List, Optional, Union
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel
@@ -29,7 +29,7 @@ class EvaluationStatusOut(BaseModel):
 
 class AnswerIn(BaseModel):
     question_id: str
-    student_answer: str
+    student_answer: Union[str, List[str]]  # str for most types; list for checkbox_multi
     time_taken_ms: int = 0
     likert_value: Optional[int] = None
 
@@ -111,7 +111,7 @@ async def get_evaluation_status(student: dict = Depends(get_current_student)):
     post_done = bool(row.get("post_test_completed"))
     post_unlocked = bool(row.get("post_test_unlocked"))
     return EvaluationStatusOut(
-        needs_pre_test=not pre_done,
+        needs_pre_test=False,  # Pre-test disabled — data gathered via paper forms
         needs_post_test=post_unlocked and not post_done,
         pre_completed=pre_done,
         post_completed=post_done,
@@ -163,11 +163,11 @@ async def submit_evaluation(
         if row.get("post_test_completed"):
             raise HTTPException(status_code=400, detail="Post-test already completed")
 
-    # Fetch correct answers for grading
+    # Fetch correct answers + metadata for grading
     q_ids = [a.question_id for a in body.answers]
     q_res = (
         sb.table("evaluation_questions")
-        .select("id,correct_answer,section")
+        .select("id,correct_answer,section,task_type")
         .in_("id", q_ids)
         .execute()
     )
@@ -177,17 +177,38 @@ async def submit_evaluation(
     correct_count = 0
     for ans in body.answers:
         q = answer_map.get(ans.question_id)
+        task_type = q.get("task_type", "") if q else ""
+        section = q.get("section", "") if q else ""
         is_correct = None
-        if q and q.get("correct_answer"):
-            is_correct = ans.student_answer.strip().lower() == q["correct_answer"].strip().lower()
+
+        # Normalise student_answer to a string for storage
+        if isinstance(ans.student_answer, list):
+            student_answer_str = ",".join(ans.student_answer)
+        else:
+            student_answer_str = ans.student_answer
+
+        # Feedback section questions are never graded
+        if section == "feedback":
+            is_correct = None
+        # Likert scales (emoji or 4-point) are opinion — not graded
+        elif task_type in ("likert_emoji", "likert_4pt"):
+            is_correct = None
+        # Checkbox multi-select (feedback checkboxes) — not graded
+        elif task_type == "checkbox_multi":
+            is_correct = None
+        # Academic multiple_choice / other types with a correct_answer
+        elif q and q.get("correct_answer"):
+            is_correct = student_answer_str.strip().lower() == q["correct_answer"].strip().lower()
             if is_correct:
                 correct_count += 1
+        # Academic questions with NULL correct_answer (e.g. "which skill improved most") — not graded
+        # is_correct stays None
 
         records.append({
             "student_id": student_id,
             "evaluation_type": body.evaluation_type,
             "question_id": ans.question_id,
-            "student_answer": ans.student_answer,
+            "student_answer": student_answer_str,
             "is_correct": is_correct,
             "time_taken_ms": ans.time_taken_ms,
             "likert_value": ans.likert_value,
@@ -273,8 +294,8 @@ async def get_evaluation_results(
     """Return aggregated evaluation results for admin review."""
     sb = get_supabase_admin()
 
-    # Build query for evaluation_records
-    query = sb.table("evaluation_records").select("student_id,evaluation_type,is_correct,likert_value,grade_level")
+    # Build query for evaluation_records — join question_id to get section
+    query = sb.table("evaluation_records").select("student_id,evaluation_type,is_correct,likert_value,grade_level,question_id")
     if grade_level is not None:
         query = query.eq("grade_level", grade_level)
     if evaluation_type:
@@ -288,6 +309,13 @@ async def get_evaluation_results(
     if not rows:
         return ResultsOut(results=[])
 
+    # Fetch question metadata to identify feedback-section questions
+    all_qids = list({r["question_id"] for r in rows if r.get("question_id")})
+    q_meta = {}
+    if all_qids:
+        q_res = sb.table("evaluation_questions").select("id,section").in_("id", all_qids).execute()
+        q_meta = {q["id"]: q for q in (q_res.data or [])}
+
     # Collect unique student IDs and fetch names
     unique_sids = list({r["student_id"] for r in rows})
     names_res = sb.table("students").select("id,student_name").in_("id", unique_sids).execute()
@@ -298,8 +326,12 @@ async def get_evaluation_results(
     buckets: dict = defaultdict(lambda: {"total": 0, "correct": 0, "likert_vals": []})
     for r in rows:
         key = (r["student_id"], r["evaluation_type"])
+        qid = r.get("question_id", "")
+        section = q_meta.get(qid, {}).get("section", "")
+
         buckets[key]["total"] += 1
-        if r.get("is_correct") is True:
+        # Only count correct answers for academic sections, not feedback
+        if section != "feedback" and r.get("is_correct") is True:
             buckets[key]["correct"] += 1
         if r.get("likert_value") is not None:
             buckets[key]["likert_vals"].append(r["likert_value"])
