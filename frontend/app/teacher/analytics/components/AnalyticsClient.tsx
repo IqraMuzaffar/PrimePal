@@ -32,7 +32,7 @@ export default function AnalyticsClient({
     let pillarBreakdown = data.pillar_breakdown;
     let topStudents = data.top_students;
     let strugglingStudents = data.struggling_students;
-    const weeklyTrends = data.weekly_trends;
+    const dailyTrends = data.daily_trends;
 
     if (gradeLevel) {
       gradeBreakdown = gradeBreakdown.filter((g) => g.grade_level === gradeLevel);
@@ -88,7 +88,7 @@ export default function AnalyticsClient({
       pillar_breakdown: pillarBreakdown,
       top_students: topStudents,
       struggling_students: strugglingStudents,
-      weekly_trends: weeklyTrends,
+      daily_trends: dailyTrends,
     };
   }, [data, gradeLevel, pillar]);
 
@@ -138,7 +138,7 @@ export default function AnalyticsClient({
             strugglingStudents={filteredData.struggling_students}
           />
 
-          <PerformanceTrends trends={filteredData.weekly_trends} pillar={pillar} />
+          <PerformanceTrends trends={filteredData.daily_trends} pillar={pillar} />
         </div>
       )}
 

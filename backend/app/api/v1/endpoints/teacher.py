@@ -54,9 +54,9 @@ class StudentRanking(BaseModel):
     recent_activity: Optional[str] = None
 
 
-class WeeklyTrend(BaseModel):
-    week_start: str
-    week_label: str
+class DailyTrend(BaseModel):
+    date: str
+    date_label: str
     avg_accuracy: int
     total_interactions: int
 
@@ -67,7 +67,7 @@ class AnalyticsResponse(BaseModel):
     pillar_breakdown: list[PillarBreakdown]
     top_students: list[StudentRanking]
     struggling_students: list[StudentRanking]
-    weekly_trends: list[WeeklyTrend]
+    daily_trends: list[DailyTrend]
 
 
 # Helper functions for data aggregation
@@ -298,27 +298,27 @@ def compute_pillar_breakdown(all_students: list) -> list:
     return breakdown
 
 
-def compute_weekly_trends(
+def compute_daily_trends(
     supabase,
     grade_level: Optional[int] = None,
     pillar: Optional[str] = None,
     section: Optional[str] = None,
 ) -> list:
     """
-    Calculate weekly performance trends for the last 8 weeks.
+    Calculate daily performance trends for the last 14 days.
     """
     trends = []
 
-    for week_offset in range(7, -1, -1):
-        week_start = datetime.utcnow() - timedelta(weeks=week_offset + 1)
-        week_end = datetime.utcnow() - timedelta(weeks=week_offset)
+    for day_offset in range(13, -1, -1):
+        day_start = (datetime.utcnow() - timedelta(days=day_offset)).replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
 
-        # Query interactions for this week (exclude chat, only scored interactions)
+        # Query interactions for this day (exclude chat, only scored interactions)
         query = (
             supabase.table("student_interactions")
             .select("id, correct, created_at, classroom_id")
-            .gte("created_at", week_start.isoformat())
-            .lt("created_at", week_end.isoformat())
+            .gte("created_at", day_start.isoformat())
+            .lt("created_at", day_end.isoformat())
             .neq("interaction_type", "chat")
             .not_.is_("correct", "null")
         )
@@ -337,12 +337,12 @@ def compute_weekly_trends(
         correct_count = sum(1 for i in interactions if i["correct"])
         avg_accuracy = int((correct_count / total_interactions * 100)) if total_interactions > 0 else 0
 
-        # Format week label
-        week_label = f"{week_start.strftime('%b %d')} - {week_end.strftime('%b %d')}"
+        # Format day label
+        date_label = day_start.strftime('%b %d')
 
-        trends.append(WeeklyTrend(
-            week_start=week_start.isoformat(),
-            week_label=week_label,
+        trends.append(DailyTrend(
+            date=day_start.strftime('%Y-%m-%d'),
+            date_label=date_label,
             avg_accuracy=avg_accuracy,
             total_interactions=total_interactions,
         ))
@@ -436,8 +436,8 @@ async def get_analytics(
         for s in struggling_sorted
     ]
 
-    # Weekly trends
-    weekly_trends = compute_weekly_trends(supabase, grade_level, pillar, section)
+    # Daily trends
+    daily_trends = compute_daily_trends(supabase, grade_level, pillar, section)
 
     return AnalyticsResponse(
         summary_stats=SummaryStats(**summary),
@@ -445,5 +445,5 @@ async def get_analytics(
         pillar_breakdown=pillar_breakdown,
         top_students=top_students_list,
         struggling_students=struggling_students_list,
-        weekly_trends=weekly_trends,
+        daily_trends=daily_trends,
     )

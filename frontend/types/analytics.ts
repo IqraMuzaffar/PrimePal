@@ -104,9 +104,9 @@ export interface TeacherStudentRanking {
   recent_activity?: string | null;
 }
 
-export interface TeacherWeeklyTrend {
-  week_start: string;
-  week_label: string;
+export interface TeacherDailyTrend {
+  date: string;
+  date_label: string;
   avg_accuracy: number;
   total_interactions: number;
 }
@@ -117,5 +117,5 @@ export interface TeacherAnalyticsData {
   pillar_breakdown: TeacherPillarBreakdown[];
   top_students: TeacherStudentRanking[];
   struggling_students: TeacherStudentRanking[];
-  weekly_trends: TeacherWeeklyTrend[];
+  daily_trends: TeacherDailyTrend[];
 }
