@@ -1168,6 +1168,113 @@ async def export_evaluations(
         return _csv_response([], fieldnames, f"evaluations_{date.today().isoformat()}.csv")
 
 
+@router.get("/export/evaluations-pivoted")
+async def export_evaluations_pivoted(
+    evaluation_type: Optional[str] = Query(None),
+    current_admin: dict = Depends(get_current_admin),
+):
+    """Export evaluations pivoted: one row per student, questions as columns."""
+    supabase = get_supabase_admin()
+
+    try:
+        query = supabase.table("evaluation_records").select(
+            "student_id, evaluation_type, is_correct, likert_value, "
+            "time_taken_ms, student_answer, "
+            "evaluation_questions(question_index, question_text, section, pillar, task_type, correct_answer), "
+            "students(student_name, classrooms(class_name, grade_level))"
+        )
+        if evaluation_type:
+            query = query.eq("evaluation_type", evaluation_type)
+        query = query.limit(50000)
+        result = query.execute()
+        records = result.data or []
+
+        if not records:
+            return _csv_response([], ["No data"], f"evaluations_pivoted_{date.today().isoformat()}.csv")
+
+        # Group by (student_id, evaluation_type)
+        from collections import defaultdict, OrderedDict
+        grouped: dict = defaultdict(lambda: {"meta": {}, "answers": {}})
+        all_q_indices: set = set()
+
+        for r in records:
+            student = r.get("students") or {}
+            classroom = student.get("classrooms") or {}
+            q = r.get("evaluation_questions") or {}
+            key = (r["student_id"], r["evaluation_type"])
+            q_idx = q.get("question_index", 0)
+            section = q.get("section", "")
+            q_label = f"Q{q_idx}_{section}"
+            all_q_indices.add((q_idx, section, q.get("question_text", ""), q.get("pillar", "")))
+
+            grouped[key]["meta"] = {
+                "student_id": r["student_id"],
+                "student_name": student.get("student_name", ""),
+                "grade_level": classroom.get("grade_level", ""),
+                "class_name": classroom.get("class_name", ""),
+                "evaluation_type": r["evaluation_type"],
+            }
+            grouped[key]["answers"][q_label] = {
+                "answer": r.get("student_answer", ""),
+                "is_correct": r.get("is_correct"),
+                "likert_value": r.get("likert_value"),
+                "time_ms": r.get("time_taken_ms"),
+            }
+
+        # Build sorted question columns
+        sorted_qs = sorted(all_q_indices, key=lambda x: x[0])
+        q_labels = [f"Q{idx}_{sec}" for idx, sec, _, _ in sorted_qs]
+
+        # Build fieldnames
+        fieldnames = ["student_name", "student_id", "grade_level", "class_name", "evaluation_type"]
+        for idx, sec, text, pillar in sorted_qs:
+            label = f"Q{idx}_{sec}"
+            fieldnames.append(f"{label}_answer")
+            if sec == "academic":
+                fieldnames.append(f"{label}_correct")
+            if sec == "psychometric":
+                fieldnames.append(f"{label}_likert")
+        # Summary columns
+        fieldnames.extend(["academic_score", "academic_total", "academic_pct", "confidence_avg"])
+
+        # Build rows
+        rows = []
+        for key, data in grouped.items():
+            row = dict(data["meta"])
+            academic_correct = 0
+            academic_total = 0
+            likert_vals = []
+
+            for idx, sec, text, pillar in sorted_qs:
+                label = f"Q{idx}_{sec}"
+                ans_data = data["answers"].get(label, {})
+                row[f"{label}_answer"] = ans_data.get("answer", "")
+                if sec == "academic":
+                    ic = ans_data.get("is_correct")
+                    row[f"{label}_correct"] = "TRUE" if ic else "FALSE" if ic is False else ""
+                    if ic is not None:
+                        academic_total += 1
+                        if ic:
+                            academic_correct += 1
+                if sec == "psychometric":
+                    lv = ans_data.get("likert_value")
+                    row[f"{label}_likert"] = lv if lv is not None else ""
+                    if lv is not None:
+                        likert_vals.append(lv)
+
+            row["academic_score"] = academic_correct
+            row["academic_total"] = academic_total
+            row["academic_pct"] = round(academic_correct / academic_total * 100) if academic_total else ""
+            row["confidence_avg"] = round(sum(likert_vals) / len(likert_vals), 2) if likert_vals else ""
+            rows.append(row)
+
+        return _csv_response(rows, fieldnames, f"evaluations_pivoted_{date.today().isoformat()}.csv")
+
+    except Exception as e:
+        logger.error(f"Pivoted export failed: {e}")
+        return _csv_response([], ["error"], f"evaluations_pivoted_{date.today().isoformat()}.csv")
+
+
 # ─────────────────────────────────────────────────────────────
 # CLASSROOM CRUD (Admin)
 # ─────────────────────────────────────────────────────────────

@@ -190,7 +190,7 @@ export default function AdminDashboardPage() {
               onClick={async () => {
                 try {
                   const headers = await getAdminHeaders();
-                  const res = await fetch(`${API}/admin/export/evaluations?format=csv`, { headers });
+                  const res = await fetch(`${API}/admin/export/evaluations-pivoted`, { headers });
                   if (!res.ok) throw new Error("Export failed");
                   const blob = await res.blob();
                   const url = URL.createObjectURL(blob);
