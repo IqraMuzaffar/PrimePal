@@ -39,10 +39,23 @@ class SubmitBody(BaseModel):
     answers: List[AnswerIn]
 
 
+class QuestionResult(BaseModel):
+    question_id: str
+    question_text: str
+    student_answer: str
+    correct_answer: Optional[str] = None
+    is_correct: Optional[bool] = None
+    section: str
+    pillar: Optional[str] = None
+
+
 class SubmitOut(BaseModel):
     total_questions: int
     correct_count: int
+    academic_total: int
+    academic_correct: int
     completed: bool
+    question_results: List[QuestionResult] = []
 
 
 class TriggerPostTestBody(BaseModel):
@@ -167,7 +180,7 @@ async def submit_evaluation(
     q_ids = [a.question_id for a in body.answers]
     q_res = (
         sb.table("evaluation_questions")
-        .select("id,correct_answer,section,task_type")
+        .select("id,correct_answer,section,task_type,question_text,pillar")
         .in_("id", q_ids)
         .execute()
     )
@@ -232,10 +245,38 @@ async def submit_evaluation(
             "post_test_completed_at": now,
         }).eq("student_id", student_id).execute()
 
+    # Build per-question results for the completion screen
+    question_results = []
+    academic_total = 0
+    academic_correct = 0
+    for ans in body.answers:
+        q = answer_map.get(ans.question_id, {})
+        section = q.get("section", "")
+        student_ans = ",".join(ans.student_answer) if isinstance(ans.student_answer, list) else ans.student_answer
+        correct_ans = q.get("correct_answer")
+        is_correct_val = None
+        if section == "academic" and correct_ans:
+            is_correct_val = student_ans.strip().lower() == correct_ans.strip().lower()
+            academic_total += 1
+            if is_correct_val:
+                academic_correct += 1
+        question_results.append(QuestionResult(
+            question_id=ans.question_id,
+            question_text=q.get("question_text", ""),
+            student_answer=student_ans,
+            correct_answer=correct_ans if section == "academic" else None,
+            is_correct=is_correct_val,
+            section=section,
+            pillar=q.get("pillar"),
+        ))
+
     return SubmitOut(
         total_questions=len(body.answers),
         correct_count=correct_count,
+        academic_total=academic_total,
+        academic_correct=academic_correct,
         completed=True,
+        question_results=question_results,
     )
 
 

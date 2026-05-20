@@ -55,6 +55,10 @@ export default function EvaluationPage() {
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const [academicScore, setAcademicScore] = useState<{ correct: number; total: number } | null>(null);
+  const [submissionResults, setSubmissionResults] = useState<Array<{
+    question_id: string; question_text: string; student_answer: string;
+    correct_answer: string | null; is_correct: boolean | null; section: string; pillar: string | null;
+  }>>([]);
   const [error, setError] = useState("");
 
   const loading = statusLoading || (!!evalType && questionsLoading);
@@ -165,20 +169,23 @@ export default function EvaluationPage() {
     if (!evalType) return;
     setSubmitting(true);
     try {
-      const result = await studentMutate("/evaluations/submit", {
+      const result = await studentMutate<{
+        total_questions: number; correct_count: number;
+        academic_total: number; academic_correct: number;
+        completed: boolean;
+        question_results: Array<{
+          question_id: string; question_text: string; student_answer: string;
+          correct_answer: string | null; is_correct: boolean | null; section: string; pillar: string | null;
+        }>;
+      }>("/evaluations/submit", {
         evaluation_type: evalType,
         answers: Array.from(answers.values()),
       });
-      // Compute academic score from questions with section === "academic"
-      const academicQs = questions.filter((q) => q.section === "academic");
-      if (academicQs.length > 0) {
-        // Prefer backend score if returned
-        if (result && typeof result === "object" && "academic_score" in result) {
-          const r = result as { academic_score: number; academic_total: number };
-          setAcademicScore({ correct: r.academic_score, total: r.academic_total });
-        } else {
-          setAcademicScore({ correct: academicQs.length, total: academicQs.length });
-        }
+      if (result?.question_results) {
+        setSubmissionResults(result.question_results);
+      }
+      if (result?.academic_total) {
+        setAcademicScore({ correct: result.academic_correct, total: result.academic_total });
       }
       setCompleted(true);
     } catch (err: any) {
@@ -218,32 +225,82 @@ export default function EvaluationPage() {
   }
 
   if (completed) {
+    const academicResults = submissionResults.filter((r) => r.section === "academic" && r.is_correct !== null);
+    const score = academicResults.filter((r) => r.is_correct).length;
+    const total = academicResults.length;
+    const pct = total > 0 ? Math.round((score / total) * 100) : 0;
+    const emoji = pct >= 80 ? "🌟" : pct >= 50 ? "💪" : "🎯";
+    const message = pct >= 80
+      ? "Amazing work! You're an English superstar!"
+      : pct >= 50
+      ? "Great effort! You're getting better every day!"
+      : "Keep practicing — every try makes you stronger!";
+
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-8 max-w-md text-center">
-          <div className="text-6xl mb-4">&#127881;</div>
-          <h2 className="text-2xl font-baloo font-extrabold text-slate-800 mb-2">
-            Thank you for completing the evaluation!
+      <div className="max-w-2xl mx-auto px-4 py-8 space-y-6">
+        {/* Hero card */}
+        <div className="bg-white rounded-3xl shadow-lg border border-slate-200 p-8 text-center">
+          <div className="text-7xl mb-3">{emoji}</div>
+          <h2 className="text-2xl sm:text-3xl font-baloo font-extrabold text-slate-800 mb-2">
+            You Did It!
           </h2>
-          <p className="text-lg text-slate-600 mb-2">
-            You did a great job finishing all the questions!
-          </p>
-          {academicScore && (
-            <p className="text-lg font-baloo font-bold text-indigo-600 mb-6">
-              You got {academicScore.correct} out of {academicScore.total} correct!
-            </p>
+          <p className="text-lg text-slate-600 mb-1">{message}</p>
+          {total > 0 && (
+            <div className="mt-4 mb-2">
+              <span className="inline-block bg-gradient-to-r from-indigo-500 to-violet-500 text-white text-xl font-baloo font-extrabold px-6 py-2 rounded-full shadow-md">
+                {score} / {total} correct ({pct}%)
+              </span>
+            </div>
           )}
-          {!academicScore && (
-            <p className="text-slate-500 mb-6">Your answers have been saved.</p>
-          )}
+          <p className="text-sm text-slate-400 mt-2">Thank you for helping us make PrimePal better!</p>
+        </div>
+
+        {/* Per-question results (academic only) */}
+        {academicResults.length > 0 && (
+          <div className="bg-white rounded-2xl shadow border border-slate-200 p-5">
+            <h3 className="font-baloo font-extrabold text-lg text-slate-800 mb-4">Your Answers</h3>
+            <div className="space-y-3">
+              {academicResults.map((r, i) => (
+                <div
+                  key={r.question_id}
+                  className={`flex items-start gap-3 p-3 rounded-xl border ${
+                    r.is_correct
+                      ? "bg-emerald-50 border-emerald-200"
+                      : "bg-red-50 border-red-200"
+                  }`}
+                >
+                  <span className="text-xl mt-0.5">{r.is_correct ? "✅" : "❌"}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-baloo font-bold text-sm text-slate-800 leading-snug">
+                      {i + 1}. {r.question_text}
+                    </p>
+                    <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                      <span className={r.is_correct ? "text-emerald-700" : "text-red-600"}>
+                        Your answer: <strong>{r.student_answer}</strong>
+                      </span>
+                      {!r.is_correct && r.correct_answer && (
+                        <span className="text-emerald-700">
+                          Correct: <strong>{r.correct_answer}</strong>
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Back button */}
+        <div className="text-center">
           <button
-            onClick={() => router.push("/student/missions")}
-            className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white px-6 py-3 rounded-xl text-lg font-baloo font-extrabold
+            onClick={() => router.push("/student/home")}
+            className="bg-gradient-to-br from-indigo-500 to-indigo-600 text-white px-8 py-3 rounded-xl text-lg font-baloo font-extrabold
                        shadow-[0_4px_0_#3730a3] hover:brightness-110
                        active:translate-y-[4px] active:shadow-none
                        transition-all duration-100"
           >
-            Back to Missions
+            Back to Home 🏠
           </button>
         </div>
       </div>
