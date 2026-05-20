@@ -54,7 +54,7 @@ export default function EvaluationPage() {
   const [questionStartTime, setQuestionStartTime] = useState(Date.now());
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
-  const [academicScore, setAcademicScore] = useState<{ correct: number; total: number } | null>(null);
+  const [, setAcademicScore] = useState<{ correct: number; total: number } | null>(null);
   const [submissionResults, setSubmissionResults] = useState<Array<{
     question_id: string; question_text: string; student_answer: string;
     correct_answer: string | null; is_correct: boolean | null; section: string; pillar: string | null;
