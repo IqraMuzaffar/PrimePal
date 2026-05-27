@@ -24,7 +24,6 @@ const GRADE_COLORS: Record<number, { badge: string; button: string }> = {
   3: { badge: "bg-violet-100 text-violet-700",   button: "bg-violet-600 hover:bg-violet-700" },
   4: { badge: "bg-amber-100 text-amber-700",     button: "bg-amber-600 hover:bg-amber-700" },
   5: { badge: "bg-rose-100 text-rose-700",       button: "bg-rose-600 hover:bg-rose-700" },
-  6: { badge: "bg-indigo-100 text-indigo-700",   button: "bg-indigo-600 hover:bg-indigo-700" },
 };
 
 function formatDate(iso: string) {
@@ -61,12 +60,13 @@ export default function CurriculumPage() {
     uploads.filter((u) => u.grade_level === grade);
 
   return (
-    <div className="max-w-5xl mx-auto py-8 px-4">
-      <h1 className="text-3xl font-bold text-gray-900 mb-6">Curriculum Hub</h1>
+    <div className="max-w-6xl mx-auto py-8 px-4">
+      <h1 className="text-3xl font-bold text-gray-900 mb-2">Curriculum Hub</h1>
+      <p className="text-gray-500 mb-6">Manage SNC textbook content for Grades 1–5</p>
 
       {/* Grade cards grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {[1, 2, 3, 4, 5, 6].map((grade) => {
+        {[1, 2, 3, 4, 5].map((grade) => {
           const colors = GRADE_COLORS[grade];
           const gradeUploads = uploadsForGrade(grade);
 

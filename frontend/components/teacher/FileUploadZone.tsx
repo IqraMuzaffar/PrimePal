@@ -130,7 +130,7 @@ export default function FileUploadZone({ onSuccess }: FileUploadZoneProps) {
             disabled={isLoading}
             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
           >
-            {[1, 2, 3, 4, 5, 6].map((g) => (
+            {[1, 2, 3, 4, 5].map((g) => (
               <option key={g} value={g}>
                 Grade {g}
               </option>

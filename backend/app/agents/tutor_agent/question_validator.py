@@ -301,10 +301,48 @@ def normalize_correct_answer(question: dict) -> dict:
     return question
 
 
+# Common word-to-emoji mapping for auto-fill
+_WORD_EMOJI_MAP = {
+    "cat": "🐱", "dog": "🐶", "bird": "🐦", "fish": "🐟", "cow": "🐄",
+    "tree": "🌳", "flower": "🌸", "sun": "☀️", "moon": "🌙", "star": "⭐",
+    "book": "📖", "pen": "🖊️", "school": "🏫", "house": "🏠", "car": "🚗",
+    "ball": "⚽", "apple": "🍎", "water": "💧", "fire": "🔥", "rain": "🌧️",
+    "boy": "👦", "girl": "👧", "man": "👨", "woman": "👩", "baby": "👶",
+    "run": "🏃", "running": "🏃", "walk": "🚶", "walking": "🚶",
+    "jump": "🤸", "jumping": "🤸", "sit": "🪑", "sitting": "🪑",
+    "sleep": "😴", "sleeping": "😴", "eat": "🍽️", "eating": "🍽️",
+    "read": "📖", "reading": "📖", "write": "✍️", "writing": "✍️",
+    "sing": "🎤", "singing": "🎤", "dance": "💃", "dancing": "💃",
+    "play": "🎮", "playing": "🎮", "swim": "🏊", "swimming": "🏊",
+    "fly": "✈️", "flying": "✈️", "cry": "😢", "crying": "😢",
+    "laugh": "😂", "laughing": "😂", "smile": "😊", "smiling": "😊",
+    "happy": "😊", "sad": "😢", "angry": "😠", "scared": "😨",
+    "big": "🔴", "small": "🔵", "hot": "🔥", "cold": "❄️",
+    "red": "🔴", "blue": "🔵", "green": "🟢", "yellow": "🟡",
+    "lion": "🦁", "elephant": "🐘", "monkey": "🐒", "rabbit": "🐰",
+    "horse": "🐴", "sheep": "🐑", "chicken": "🐔", "duck": "🦆",
+    "table": "🪑", "chair": "💺", "bed": "🛏️", "door": "🚪",
+    "food": "🍲", "milk": "🥛", "bread": "🍞", "rice": "🍚",
+    "hand": "✋", "eye": "👁️", "nose": "👃", "mouth": "👄",
+}
+
+def _auto_fill_emoji(question: dict) -> None:
+    """Add emoji to image_options if missing, based on the option text."""
+    tt = question.get("task_type", "")
+    if tt not in ("sentence_picture_match", "listen_and_choose"):
+        return
+    options = question.get("image_options") or []
+    for opt in options:
+        if not opt.get("emoji") or opt["emoji"] == "❓":
+            text = (opt.get("text") or "").strip().lower()
+            opt["emoji"] = _WORD_EMOJI_MAP.get(text, "📝")
+
+
 def normalize_all_questions(questions: list[dict]) -> list[dict]:
-    """Run normalize_correct_answer on every question in the list."""
+    """Run normalize_correct_answer and auto-fill emoji on every question."""
     for q in questions:
         normalize_correct_answer(q)
+        _auto_fill_emoji(q)
     return questions
 
 
