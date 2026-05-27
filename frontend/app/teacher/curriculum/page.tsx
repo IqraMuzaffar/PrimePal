@@ -59,21 +59,41 @@ export default function CurriculumPage() {
   const uploadsForGrade = (grade: number) =>
     uploads.filter((u) => u.grade_level === grade);
 
+  const totalBooks = uploads.length;
+  const totalChunks = uploads.reduce((sum, u) => sum + (u.embedded_count || u.total_chunks || 0), 0);
+
   return (
     <div className="max-w-6xl mx-auto py-8 px-4">
       <h1 className="text-3xl font-bold text-gray-900 mb-2">Curriculum Hub</h1>
       <p className="text-gray-500 mb-6">Manage SNC textbook content for Grades 1–5</p>
 
-      {/* Grade cards grid — 3 top, 2 bottom centered */}
-      <div className="flex flex-wrap justify-center gap-5">
+      {/* Summary stats */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-white border border-gray-200 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-indigo-600">{totalBooks}</p>
+          <p className="text-xs text-gray-500 mt-1">Books Uploaded</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-emerald-600">5</p>
+          <p className="text-xs text-gray-500 mt-1">Grades Covered</p>
+        </div>
+        <div className="bg-white border border-gray-200 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-amber-600">{totalChunks.toLocaleString()}</p>
+          <p className="text-xs text-gray-500 mt-1">Content Chunks</p>
+        </div>
+      </div>
+
+      {/* Grade cards grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {[1, 2, 3, 4, 5].map((grade) => {
           const colors = GRADE_COLORS[grade];
           const gradeUploads = uploadsForGrade(grade);
+          const gradeChunks = gradeUploads.reduce((sum, u) => sum + (u.embedded_count || u.total_chunks || 0), 0);
 
           return (
             <div
               key={grade}
-              className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm w-full sm:w-[calc(50%-10px)] lg:w-[calc(33.333%-14px)]"
+              className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
             >
               {/* Card header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
@@ -105,16 +125,24 @@ export default function CurriculumPage() {
                 )}
               </div>
 
+              {/* Chunk count badge */}
+              {!loading && gradeChunks > 0 && (
+                <div className="px-5 py-2 bg-gray-50 border-b border-gray-100">
+                  <p className="text-xs text-gray-500">{gradeUploads.length} book{gradeUploads.length !== 1 ? "s" : ""} · {gradeChunks.toLocaleString()} chunks indexed</p>
+                </div>
+              )}
+
               {/* Upload history list */}
-              <div className="px-5 py-3 min-h-[100px]">
+              <div className="px-5 py-3 min-h-[120px]">
                 {loading && (
                   <p className="text-xs text-gray-400 text-center py-6">Loading…</p>
                 )}
 
                 {!loading && gradeUploads.length === 0 && (
-                  <div className="flex flex-col items-center justify-center py-6 text-center">
-                    <BookOpen size={20} className="text-gray-300 mb-1" />
-                    <p className="text-xs text-gray-400">No books uploaded yet</p>
+                  <div className="flex flex-col items-center justify-center py-8 text-center">
+                    <BookOpen size={24} className="text-gray-300 mb-2" />
+                    <p className="text-sm text-gray-400">No books uploaded yet</p>
+                    <p className="text-xs text-gray-300 mt-1">Upload an SNC textbook PDF to get started</p>
                   </div>
                 )}
 
