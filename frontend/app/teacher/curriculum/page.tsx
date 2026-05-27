@@ -64,8 +64,8 @@ export default function CurriculumPage() {
       <h1 className="text-3xl font-bold text-gray-900 mb-2">Curriculum Hub</h1>
       <p className="text-gray-500 mb-6">Manage SNC textbook content for Grades 1–5</p>
 
-      {/* Grade cards grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+      {/* Grade cards grid — 3 top, 2 bottom centered */}
+      <div className="flex flex-wrap justify-center gap-5">
         {[1, 2, 3, 4, 5].map((grade) => {
           const colors = GRADE_COLORS[grade];
           const gradeUploads = uploadsForGrade(grade);
@@ -73,7 +73,7 @@ export default function CurriculumPage() {
           return (
             <div
               key={grade}
-              className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm"
+              className="bg-white border border-gray-200 rounded-2xl overflow-hidden shadow-sm w-full sm:w-[calc(50%-10px)] lg:w-[calc(33.333%-14px)]"
             >
               {/* Card header */}
               <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
