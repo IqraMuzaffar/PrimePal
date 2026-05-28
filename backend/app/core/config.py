@@ -40,6 +40,7 @@ class Settings(BaseSettings):
         "http://localhost:3001",
         "http://localhost:3002",
         "http://localhost:3003",
+        "https://prime-pal-alpha.vercel.app",
     ]
 
     class Config:
