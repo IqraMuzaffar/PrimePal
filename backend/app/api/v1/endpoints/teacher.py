@@ -305,12 +305,20 @@ def compute_daily_trends(
     section: Optional[str] = None,
 ) -> list:
     """
-    Calculate daily performance trends for the last 14 days.
+    Calculate daily performance trends for the study period (May 10-22, 2026).
+    Uses PKT (UTC+5) day boundaries since the school is in Pakistan.
     """
     trends = []
 
-    for day_offset in range(13, -1, -1):
-        day_start = (datetime.utcnow() - timedelta(days=day_offset)).replace(hour=0, minute=0, second=0, microsecond=0)
+    # PKT midnight = UTC 19:00 previous day (UTC+5)
+    pkt_offset = timedelta(hours=5)
+    study_start_pkt = datetime(2026, 5, 10, 0, 0, 0)
+    study_days = 13  # May 10 to May 22 inclusive
+
+    for day_offset in range(study_days):
+        # PKT day boundaries converted to UTC for querying
+        day_start_pkt = study_start_pkt + timedelta(days=day_offset)
+        day_start = day_start_pkt - pkt_offset  # Convert to UTC
         day_end = day_start + timedelta(days=1)
 
         # Query interactions for this day (exclude chat, only scored interactions)
@@ -337,11 +345,11 @@ def compute_daily_trends(
         correct_count = sum(1 for i in interactions if i["correct"])
         avg_accuracy = int((correct_count / total_interactions * 100)) if total_interactions > 0 else 0
 
-        # Format day label
-        date_label = day_start.strftime('%b %d')
+        # Format day label using PKT date
+        date_label = day_start_pkt.strftime('%b %d')
 
         trends.append(DailyTrend(
-            date=day_start.strftime('%Y-%m-%d'),
+            date=day_start_pkt.strftime('%Y-%m-%d'),
             date_label=date_label,
             avg_accuracy=avg_accuracy,
             total_interactions=total_interactions,
