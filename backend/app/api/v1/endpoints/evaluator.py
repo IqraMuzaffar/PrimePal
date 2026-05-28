@@ -1584,18 +1584,18 @@ async def _generate_daily_plan_inner(
     study_start_str = "2026-05-10T00:00:00"
     study_end_str = "2026-05-23T00:00:00"
 
-    # Query by grade_level instead of .in_(student_ids) to avoid URL length limit
+    # Query by grade_level; filter mission types client-side to avoid Cloudflare URL issues
     int_res = (
         supabase_admin_client.table("student_interactions")
         .select("student_id, pillar, correct, interaction_type")
         .eq("grade_level", grade_level)
-        .like("interaction_type", "mission_%")
+        .neq("interaction_type", "chat")
         .gte("created_at", study_start_str)
         .lte("created_at", study_end_str)
         .limit(10000)
         .execute()
     )
-    interactions = int_res.data or []
+    interactions = [r for r in (int_res.data or []) if r.get("interaction_type", "").startswith("mission_")]
 
     # -- 5. Compute per-pillar accuracy and per-student accuracy --
     pillar_agg: dict[str, dict] = defaultdict(lambda: {"total": 0, "correct": 0})
