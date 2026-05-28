@@ -1551,9 +1551,10 @@ async def generate_daily_plan(
     student_ids = [s["id"] for s in student_rows]
     student_name_map = {s["id"]: s["student_name"] for s in student_rows}
 
-    # -- 4. Fetch interactions from the last 7 days --
-    now = datetime.now(timezone.utc)
-    seven_days_ago = (now - timedelta(days=7)).isoformat()
+    # -- 4. Fetch interactions from the study period (May 10-22, 2026) --
+    # Use fixed study window instead of rolling 7 days so data is always available
+    study_end = datetime(2026, 5, 22, 19, 0, 0, tzinfo=timezone.utc)  # May 22 PKT = May 22 19:00 UTC
+    seven_days_ago = datetime(2026, 5, 10, 19, 0, 0, tzinfo=timezone.utc).isoformat()  # May 10 PKT start
 
     int_res = (
         supabase_admin_client.table("student_interactions")
