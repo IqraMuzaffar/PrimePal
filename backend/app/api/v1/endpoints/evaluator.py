@@ -1511,6 +1511,33 @@ async def generate_daily_plan(
     from collections import defaultdict
     from app.core.cache import cache_get, cache_set, make_cache_key
     from app.agents.tutor_agent.chatbot import retrieve_grade_filtered_chunks
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
+
+    try:
+        return await _generate_daily_plan_inner(body, teacher, supabase_admin_client)
+    except HTTPException:
+        raise  # let explicit HTTP errors pass through
+    except Exception as exc:
+        _log.exception("generate_daily_plan failed for teacher=%s grade=%s", teacher.get("id"), body.grade_level)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Daily plan generation failed: {type(exc).__name__}: {str(exc)[:300]}",
+        )
+
+
+async def _generate_daily_plan_inner(
+    body,
+    teacher: dict,
+    supabase_admin_client,
+):
+    """Inner implementation extracted for clean error handling."""
+    from datetime import datetime, timedelta, timezone, date
+    from collections import defaultdict
+    from app.core.cache import cache_get, cache_set, make_cache_key
+    from app.agents.tutor_agent.chatbot import retrieve_grade_filtered_chunks
+    import logging as _logging
+    _log = _logging.getLogger(__name__)
 
     grade_level = body.grade_level
     teacher_id: str = teacher["id"]
@@ -1552,16 +1579,18 @@ async def generate_daily_plan(
     student_name_map = {s["id"]: s["student_name"] for s in student_rows}
 
     # -- 4. Fetch interactions from the study period (May 10-22, 2026) --
-    # Use fixed study window instead of rolling 7 days so data is always available
-    study_end = datetime(2026, 5, 22, 19, 0, 0, tzinfo=timezone.utc)  # May 22 PKT = May 22 19:00 UTC
-    seven_days_ago = datetime(2026, 5, 10, 19, 0, 0, tzinfo=timezone.utc).isoformat()  # May 10 PKT start
+    # Use fixed study window instead of rolling 7 days so data is always available.
+    # Naive ISO strings (no timezone suffix) for Supabase timestamp columns.
+    study_start_str = "2026-05-10T00:00:00"
+    study_end_str = "2026-05-23T00:00:00"
 
     int_res = (
         supabase_admin_client.table("student_interactions")
         .select("student_id, pillar, correct, interaction_type")
         .in_("student_id", student_ids)
         .like("interaction_type", "mission_%")
-        .gte("created_at", seven_days_ago)
+        .gte("created_at", study_start_str)
+        .lte("created_at", study_end_str)
         .limit(10000)
         .execute()
     )
@@ -1694,6 +1723,7 @@ async def generate_daily_plan(
     )
 
     # -- 9. Call LLM with structured output --
+    _log.info("Calling LLM for daily plan: grade=%s, interactions=%d, students=%d", grade_level, total_count, len(student_rows))
     try:
         from langchain_openai import ChatOpenAI
         from app.core.config import settings as app_settings
@@ -1706,9 +1736,10 @@ async def generate_daily_plan(
         structured_llm = llm.with_structured_output(TeacherDailyPlan)
         plan: TeacherDailyPlan = await structured_llm.ainvoke(prompt)
     except Exception as e:
+        _log.exception("LLM call failed for daily plan: %s", e)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=f"Failed to generate daily plan: {str(e)}",
+            detail=f"Failed to generate daily plan: {type(e).__name__}: {str(e)[:300]}",
         )
 
     # -- 10. Set generated_at and cache --
