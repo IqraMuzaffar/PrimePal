@@ -1584,10 +1584,11 @@ async def _generate_daily_plan_inner(
     study_start_str = "2026-05-10T00:00:00"
     study_end_str = "2026-05-23T00:00:00"
 
+    # Query by grade_level instead of .in_(student_ids) to avoid URL length limit
     int_res = (
         supabase_admin_client.table("student_interactions")
         .select("student_id, pillar, correct, interaction_type")
-        .in_("student_id", student_ids)
+        .eq("grade_level", grade_level)
         .like("interaction_type", "mission_%")
         .gte("created_at", study_start_str)
         .lte("created_at", study_end_str)
