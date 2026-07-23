@@ -8,6 +8,7 @@ Endpoints (admin auth required):
 
 import asyncio
 import logging
+from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 
@@ -48,19 +49,24 @@ async def get_monitoring_stats(teacher: dict = Depends(get_current_teacher)):
     supabase = get_supabase_admin()
 
     # Aggregate stats
-    stats_resp = await asyncio.to_thread(
-        lambda: supabase.rpc("get_llm_stats_24h", {}).execute()
-    )
-    row = stats_resp.data[0] if stats_resp.data else {}
+    try:
+        stats_resp = await asyncio.to_thread(
+            lambda: supabase.rpc("get_llm_stats_24h").execute()
+        )
+        row = stats_resp.data[0] if stats_resp.data else {}
+    except Exception:
+        logger.warning("RPC get_llm_stats_24h failed, falling back to empty stats")
+        row = {}
 
     total_tokens = row.get("total_tokens") or 0
     est_cost = (total_tokens * 0.3 * 0.15 / 1_000_000) + (total_tokens * 0.7 * 0.60 / 1_000_000)
 
     # Breakdown by endpoint (top 10)
+    cutoff = (datetime.now(tz=timezone.utc) - timedelta(hours=24)).isoformat()
     breakdown_resp = await asyncio.to_thread(
         lambda: supabase.table("llm_metrics")
         .select("endpoint")
-        .gte("created_at", "now() - interval '24 hours'")
+        .gte("created_at", cutoff)
         .execute()
     )
 

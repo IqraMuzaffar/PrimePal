@@ -982,8 +982,7 @@ async def export_interactions(
     try:
         query = supabase.table("student_interactions").select(
             "id, student_id, interaction_type, pillar, correct, score, "
-            "original_message, grade_level, created_at, "
-            "students(student_name, classrooms(class_name, grade_level))"
+            "original_message, grade_level, created_at"
         )
 
         if student_id:
@@ -1001,10 +1000,32 @@ async def export_interactions(
         result = query.execute()
         interactions = result.data or []
 
+        # Build student lookup for names and classrooms
+        student_ids = list({i["student_id"] for i in interactions if i.get("student_id")})
+        student_map: dict = {}
+        if student_ids:
+            for batch_start in range(0, len(student_ids), 100):
+                batch = student_ids[batch_start:batch_start + 100]
+                s_resp = supabase.table("students").select(
+                    "id, student_name, classroom_id"
+                ).in_("id", batch).execute()
+                for s in (s_resp.data or []):
+                    student_map[s["id"]] = s
+
+        # Build classroom lookup
+        classroom_ids = list({s.get("classroom_id") for s in student_map.values() if s.get("classroom_id")})
+        classroom_map: dict = {}
+        if classroom_ids:
+            c_resp = supabase.table("classrooms").select(
+                "id, class_name, grade_level"
+            ).in_("id", classroom_ids).execute()
+            for c in (c_resp.data or []):
+                classroom_map[c["id"]] = c
+
         rows = []
         for i in interactions:
-            student = i.get("students") or {}
-            classroom = student.get("classrooms") or {}
+            student = student_map.get(i.get("student_id", ""), {})
+            classroom = classroom_map.get(student.get("classroom_id", ""), {})
             rows.append({
                 "id": i.get("id", ""),
                 "student_id": i.get("student_id", ""),
@@ -1048,8 +1069,7 @@ async def export_missions(
     try:
         # Use student_interactions filtered to mission types
         query = supabase.table("student_interactions").select(
-            "student_id, pillar, interaction_type, correct, score, created_at, "
-            "students(student_name, classrooms(class_name, grade_level))"
+            "student_id, pillar, interaction_type, correct, score, grade_level, created_at"
         ).like("interaction_type", "mission_%")
 
         if student_id:
@@ -1067,14 +1087,25 @@ async def export_missions(
         result = query.execute()
         interactions = result.data or []
 
+        # Build student lookup for names
+        student_ids = list({i["student_id"] for i in interactions if i.get("student_id")})
+        student_map: dict = {}
+        if student_ids:
+            for batch_start in range(0, len(student_ids), 100):
+                batch = student_ids[batch_start:batch_start + 100]
+                s_resp = supabase.table("students").select(
+                    "id, student_name"
+                ).in_("id", batch).execute()
+                for s in (s_resp.data or []):
+                    student_map[s["id"]] = s
+
         rows = []
         for i in interactions:
-            student = i.get("students") or {}
-            classroom = student.get("classrooms") or {}
+            student = student_map.get(i.get("student_id", ""), {})
             rows.append({
                 "student_id": i.get("student_id", ""),
                 "student_name": student.get("student_name", ""),
-                "grade_level": classroom.get("grade_level", ""),
+                "grade_level": i.get("grade_level", ""),
                 "pillar": i.get("pillar", ""),
                 "task_type": i.get("interaction_type", ""),
                 "is_correct": i.get("correct", ""),
