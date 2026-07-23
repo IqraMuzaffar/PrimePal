@@ -1067,10 +1067,11 @@ async def export_missions(
     supabase = get_supabase_admin()
 
     try:
-        # Use student_interactions filtered to mission types
+        # Use student_interactions filtered to mission types (client-side filter
+        # to avoid .like() which triggers Cloudflare WAF errors on Supabase)
         query = supabase.table("student_interactions").select(
             "student_id, pillar, interaction_type, correct, score, grade_level, created_at"
-        ).like("interaction_type", "mission_%")
+        )
 
         if student_id:
             query = query.eq("student_id", student_id)
@@ -1085,7 +1086,11 @@ async def export_missions(
 
         query = query.limit(50000)
         result = query.execute()
-        interactions = result.data or []
+        # Filter to mission types client-side
+        interactions = [
+            r for r in (result.data or [])
+            if (r.get("interaction_type") or "").startswith("mission_")
+        ]
 
         # Build student lookup for names
         student_ids = list({i["student_id"] for i in interactions if i.get("student_id")})
