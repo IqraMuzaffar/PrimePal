@@ -1,0 +1,139 @@
+{
+  "name": "Lead Qualifier",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "lead-qualifier",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "name": "Webhook",
+      "webhookId": "lead-qualifier-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/score-lead",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "first_name", "value": "={{ $json.first_name }}" },
+            { "name": "last_name", "value": "={{ $json.last_name }}" },
+            { "name": "email", "value": "={{ $json.email }}" },
+            { "name": "company", "value": "={{ $json.company }}" },
+            { "name": "job_title", "value": "={{ $json.job_title }}" },
+            { "name": "industry", "value": "={{ $json.industry }}" },
+            { "name": "message", "value": "={{ $json.message }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [500, 300],
+      "name": "Score Lead"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": false },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "hot",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "hot"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "warm",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "warm"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "cold",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "cold"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [750, 300],
+      "name": "Route by Lead Score"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1000, 150],
+      "name": "Hot Lead (Immediate Sales Follow-up)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1000, 300],
+      "name": "Warm Lead (Add to Nurture Sequence)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1000, 450],
+      "name": "Cold Lead (Add to Newsletter)"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{ "node": "Score Lead", "type": "main", "index": 0 }]
+      ]
+    },
+    "Score Lead": {
+      "main": [
+        [{ "node": "Route by Lead Score", "type": "main", "index": 0 }]
+      ]
+    },
+    "Route by Lead Score": {
+      "main": [
+        [{ "node": "Hot Lead (Immediate Sales Follow-up)", "type": "main", "index": 0 }],
+        [{ "node": "Warm Lead (Add to Nurture Sequence)", "type": "main", "index": 0 }],
+        [{ "node": "Cold Lead (Add to Newsletter)", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

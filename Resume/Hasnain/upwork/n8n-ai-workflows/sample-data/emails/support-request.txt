@@ -1,0 +1,16 @@
+From: john.doe@acmecorp.com
+Subject: Cannot access dashboard - Error 403
+
+Hi Support,
+
+I've been getting a 403 Forbidden error when trying to access
+the analytics dashboard since this morning. I've tried clearing
+my browser cache and using incognito mode but the issue persists.
+
+My account email is john.doe@acmecorp.com
+Browser: Chrome 120
+
+Can you help?
+
+Thanks,
+John

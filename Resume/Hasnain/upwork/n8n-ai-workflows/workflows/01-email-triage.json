@@ -1,0 +1,157 @@
+{
+  "name": "Email Triage",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "email-triage",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "name": "Webhook",
+      "webhookId": "email-triage-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/classify-email",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "subject", "value": "={{ $json.subject }}" },
+            { "name": "sender", "value": "={{ $json.sender }}" },
+            { "name": "body", "value": "={{ $json.body }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [500, 300],
+      "name": "Classify Email"
+    },
+    {
+      "parameters": {
+        "rules": {
+          "rules": [
+            {
+              "conditions": {
+                "options": { "caseSensitive": false },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "urgent",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "urgent"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "sales_lead",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "sales_lead"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "support",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "support"
+            },
+            {
+              "conditions": {
+                "options": { "caseSensitive": false },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.category }}",
+                    "rightValue": "spam",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ]
+              },
+              "renameOutput": true,
+              "outputKey": "spam"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [750, 300],
+      "name": "Route by Category"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1000, 100],
+      "name": "Handle Urgent (Slack Alert)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1000, 250],
+      "name": "Handle Sales Lead (Add to CRM)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1000, 400],
+      "name": "Handle Support (Create Ticket)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1000, 550],
+      "name": "Handle Spam (Archive)"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{ "node": "Classify Email", "type": "main", "index": 0 }]
+      ]
+    },
+    "Classify Email": {
+      "main": [
+        [{ "node": "Route by Category", "type": "main", "index": 0 }]
+      ]
+    },
+    "Route by Category": {
+      "main": [
+        [{ "node": "Handle Urgent (Slack Alert)", "type": "main", "index": 0 }],
+        [{ "node": "Handle Sales Lead (Add to CRM)", "type": "main", "index": 0 }],
+        [{ "node": "Handle Support (Create Ticket)", "type": "main", "index": 0 }],
+        [{ "node": "Handle Spam (Archive)", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

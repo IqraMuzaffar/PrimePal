@@ -1,0 +1,89 @@
+{
+  "name": "Invoice Processor",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "invoice-processor",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "name": "Webhook",
+      "webhookId": "invoice-processor-webhook"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/extract-invoice",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "file", "value": "={{ $binary.data }}" }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [500, 300],
+      "name": "Extract Invoice Data"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.needs_approval }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [750, 300],
+      "name": "Needs Approval?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1000, 175],
+      "name": "Request Manual Approval (Email/Slack)"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [1000, 425],
+      "name": "Auto-Approve and Log to Sheets"
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [{ "node": "Extract Invoice Data", "type": "main", "index": 0 }]
+      ]
+    },
+    "Extract Invoice Data": {
+      "main": [
+        [{ "node": "Needs Approval?", "type": "main", "index": 0 }]
+      ]
+    },
+    "Needs Approval?": {
+      "main": [
+        [{ "node": "Request Manual Approval (Email/Slack)", "type": "main", "index": 0 }],
+        [{ "node": "Auto-Approve and Log to Sheets", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}
