@@ -1,0 +1,44 @@
+TRIAGE PROTOCOL — SIMPLIFIED MANCHESTER TRIAGE SYSTEM
+
+RED — IMMEDIATE (Emergency)
+- Airway compromise
+- Inadequate breathing
+- Severe hemorrhage
+- Unconscious / unresponsive
+- Chest pain with sweating, nausea, arm pain
+- Seizure (active)
+- Anaphylaxis
+- Stroke symptoms (facial droop, arm weakness, speech difficulty)
+
+YELLOW — URGENT (Within 24-48 hours)
+- Moderate pain (5-7/10)
+- Persistent vomiting or diarrhea (>24 hours)
+- High fever (>38.5C / 101.3F) without red flags
+- Abdominal pain without red flags
+- Laceration requiring stitches (bleeding controlled)
+- Acute joint swelling
+- Persistent headache (new onset)
+
+GREEN — ROUTINE (Within 1 week)
+- Mild pain (1-4/10)
+- Common cold symptoms
+- Minor skin rash (no fever)
+- Follow-up appointment
+- Prescription refill
+- Mild musculoskeletal pain
+- Minor eye irritation
+
+DEPARTMENT ROUTING:
+- Chest pain, palpitations, blood pressure → Cardiology
+- Headache, dizziness, numbness, seizure → Neurology
+- Cough, breathing difficulty, asthma → Pulmonology
+- Stomach pain, nausea, vomiting, diarrhea → Gastroenterology
+- Bone, joint, muscle, back pain → Orthopedics
+- Skin rash, eczema, acne → Dermatology
+- Ear, nose, throat, sore throat → ENT
+- Eye problems, vision changes → Ophthalmology
+- Urinary, kidney pain → Urology
+- Children under 12 → Pediatrics
+- Pregnancy, menstrual → Gynecology
+- Anxiety, depression, mental health → Psychiatry
+- All others / unclear → General Practice
