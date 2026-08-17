@@ -14,7 +14,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="n8n AI Workflows", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="FlowPilot AI", version="1.0.0", lifespan=lifespan)
 
 settings = get_settings()
 app.add_middleware(
@@ -33,4 +33,4 @@ app.include_router(stats.router)
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "n8n-ai-workflows"}
+    return {"status": "ok", "service": "flowpilot-ai"}

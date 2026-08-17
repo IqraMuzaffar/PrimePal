@@ -15,8 +15,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "n8n AI Workflows Dashboard",
-  description: "Monitor and manage your n8n AI automation workflows",
+  title: "FlowPilot AI Dashboard",
+  description: "AI-Powered Business Automation Dashboard",
 };
 
 export default function RootLayout({

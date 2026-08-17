@@ -74,7 +74,7 @@ export default function WorkflowsPage() {
           Workflow Runs
         </h1>
         <p className="text-slate-400" style={{ fontSize: 15 }}>
-          Execution history for all n8n automation workflows
+          Execution history for all FlowPilot automation workflows
         </p>
       </div>
 
@@ -101,7 +101,7 @@ export default function WorkflowsPage() {
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <Activity className="text-slate-600 mb-3" size={40} />
             <p className="text-slate-500 text-lg">No workflow runs recorded yet.</p>
-            <p className="text-slate-600 text-sm mt-1">Trigger a workflow in n8n to see run history here.</p>
+            <p className="text-slate-600 text-sm mt-1">Trigger a workflow to see run history here.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

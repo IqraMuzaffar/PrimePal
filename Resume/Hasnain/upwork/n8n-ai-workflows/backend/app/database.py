@@ -337,32 +337,68 @@ async def get_stats() -> dict:
         )
         today_leads = (await cur.fetchone())["c"]
 
-        # Recent workflow runs
+        # Recent workflow runs -> format for frontend
         cur = await db.execute(
             "SELECT * FROM workflow_runs ORDER BY id DESC LIMIT 10"
         )
-        recent = [_row_to_dict(r) for r in await cur.fetchall()]
+        raw_recent = [_row_to_dict(r) for r in await cur.fetchall()]
 
-        # Pipeline summary
+        workflow_type_map = {
+            "email_classification": "email",
+            "invoice_extraction": "invoice",
+            "lead_qualification": "lead",
+            "lead_scoring": "lead",
+        }
+        recent_activity = []
+        for r in raw_recent:
+            wname = r.get("workflow_name", "")
+            wtype = workflow_type_map.get(wname, "workflow")
+            items = r.get("items_processed", 0)
+            status = r.get("status", "success")
+            desc_map = {
+                "email_classification": f"Classified {items} email{'s' if items != 1 else ''}",
+                "invoice_extraction": f"Extracted {items} invoice{'s' if items != 1 else ''}",
+                "lead_qualification": f"Scored {items} lead{'s' if items != 1 else ''}",
+                "lead_scoring": f"Scored {items} lead{'s' if items != 1 else ''}",
+            }
+            description = desc_map.get(wname, f"Ran {wname}")
+            if status == "error":
+                description += f" (Error: {r.get('error_message', 'unknown')})"
+            category = status if status == "failed" else (
+                "urgent" if wtype == "email" else
+                "success" if status == "success" else status
+            )
+            recent_activity.append({
+                "type": wtype,
+                "description": description,
+                "category": category,
+                "time": r.get("run_at", ""),
+            })
+
+        # Pipeline summary -> format for frontend
         cur = await db.execute(
             "SELECT workflow_name, COUNT(*) as runs, "
-            "SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) as successes, "
-            "COALESCE(AVG(duration_ms), 0) as avg_duration "
-            "FROM workflow_runs GROUP BY workflow_name"
+            "SUM(items_processed) as total_items "
+            "FROM workflow_runs WHERE status='success' GROUP BY workflow_name"
         )
-        pipeline = {}
-        for row in await cur.fetchall():
-            pipeline[row["workflow_name"]] = {
-                "runs": row["runs"],
-                "successes": row["successes"],
-                "avg_duration_ms": round(row["avg_duration"], 1),
-            }
+        pipe_rows = {row["workflow_name"]: row["total_items"] for row in await cur.fetchall()}
+        total_runs = sum(1 for _ in raw_recent)
+
+        pipeline_summary = {
+            "emails_processed": pipe_rows.get("email_classification", 0),
+            "invoices_extracted": pipe_rows.get("invoice_extraction", 0),
+            "leads_scored": pipe_rows.get("lead_qualification", 0) + pipe_rows.get("lead_scoring", 0),
+            "workflow_runs": total_runs,
+        }
 
         return {
             "total_processed": total_processed,
             "emails": {
                 "total": total_emails,
-                "breakdown": email_breakdown,
+                "urgent": email_breakdown.get("urgent", 0),
+                "sales_lead": email_breakdown.get("sales_lead", 0),
+                "support": email_breakdown.get("support", 0),
+                "spam": email_breakdown.get("spam", 0),
             },
             "invoices": {
                 "total": total_invoices,
@@ -371,16 +407,17 @@ async def get_stats() -> dict:
             },
             "leads": {
                 "total": total_leads,
-                "breakdown": lead_breakdown,
-                "average_score": round(lead_avg, 1),
+                "hot": lead_breakdown.get("hot", 0),
+                "warm": lead_breakdown.get("warm", 0),
+                "cold": lead_breakdown.get("cold", 0),
             },
             "today": {
                 "emails": today_emails,
                 "invoices": today_invoices,
                 "leads": today_leads,
             },
-            "recent_activity": recent,
-            "pipeline_summary": pipeline,
+            "recent_activity": recent_activity,
+            "pipeline_summary": pipeline_summary,
         }
     finally:
         await db.close()
