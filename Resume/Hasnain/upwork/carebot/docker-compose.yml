@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:15-alpine
+    ports:
+      - "5434:5432"
+    environment:
+      POSTGRES_USER: carebot
+      POSTGRES_PASSWORD: carebot_dev
+      POSTGRES_DB: carebot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./supabase/migrations:/docker-entrypoint-initdb.d/01-migrations
+      - ./seed:/docker-entrypoint-initdb.d/02-seed
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U carebot"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

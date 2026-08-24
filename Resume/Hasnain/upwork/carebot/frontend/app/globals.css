@@ -1,0 +1,228 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url("https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap");
+
+@layer base {
+  :root {
+    /* Premium Healthcare — Light Theme */
+    --background: 0 0% 100%;
+    --foreground: 222 20% 14%;
+    --card: 210 25% 98%;
+    --card-foreground: 222 20% 14%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 20% 14%;
+    --primary: 172 66% 30%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 18% 94%;
+    --secondary-foreground: 222 20% 20%;
+    --muted: 210 18% 95%;
+    --muted-foreground: 215 14% 46%;
+    --accent: 38 80% 55%;
+    --accent-foreground: 30 60% 12%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --warning: 35 92% 50%;
+    --warning-foreground: 0 0% 100%;
+    --border: 214 22% 90%;
+    --input: 214 22% 90%;
+    --ring: 172 66% 30%;
+    --radius: 0.625rem;
+
+    /* Brand tokens */
+    --gold: 38 80% 55%;
+    --gold-light: 38 70% 68%;
+    --teal: 172 66% 30%;
+    --teal-light: 172 50% 42%;
+    --emerald: 152 60% 40%;
+
+    /* Charts */
+    --chart-1: 172 66% 30%;
+    --chart-2: 38 80% 55%;
+    --chart-3: 152 60% 40%;
+    --chart-4: 250 50% 55%;
+    --chart-5: 340 60% 50%;
+  }
+
+  /* Admin pages — Dark Premium */
+  .admin-dark {
+    --background: 225 45% 5%;
+    --foreground: 210 30% 94%;
+    --card: 225 40% 8%;
+    --card-foreground: 210 30% 94%;
+    --popover: 225 40% 8%;
+    --popover-foreground: 210 30% 94%;
+    --primary: 172 55% 42%;
+    --primary-foreground: 225 45% 5%;
+    --secondary: 225 35% 13%;
+    --secondary-foreground: 210 30% 90%;
+    --muted: 225 35% 13%;
+    --muted-foreground: 215 18% 52%;
+    --accent: 38 75% 52%;
+    --accent-foreground: 225 45% 5%;
+    --destructive: 0 72% 56%;
+    --destructive-foreground: 210 30% 94%;
+    --warning: 35 92% 50%;
+    --warning-foreground: 225 45% 5%;
+    --border: 225 28% 16%;
+    --input: 225 28% 16%;
+    --ring: 172 55% 42%;
+    --gold: 38 75% 52%;
+    --gold-light: 38 65% 65%;
+    --teal: 172 55% 42%;
+    --teal-light: 172 45% 52%;
+    --emerald: 152 55% 45%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  /* Glassmorphic card */
+  .glass-card {
+    @apply bg-card/80 backdrop-blur-sm border border-border/50 rounded-xl;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+  }
+  .glass-card:hover {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Dark glassmorphic card (admin) */
+  .glass-card-dark {
+    background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(15,20,40,0.92));
+    @apply backdrop-blur-xl border border-white/[0.06] rounded-xl;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  }
+  .glass-card-dark:hover {
+    box-shadow: 0 6px 28px rgba(0, 0, 0, 0.55);
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  /* Gold glow button */
+  .btn-gold {
+    @apply bg-accent text-accent-foreground font-semibold;
+    box-shadow: 0 4px 16px hsla(38, 80%, 55%, 0.25);
+    transition: all 0.2s ease;
+  }
+  .btn-gold:hover {
+    box-shadow: 0 6px 24px hsla(38, 80%, 55%, 0.35);
+    transform: translateY(-1px);
+  }
+  .btn-gold:active {
+    transform: translateY(0);
+  }
+
+  /* Eyebrow label */
+  .eyebrow {
+    @apply text-xs font-semibold uppercase tracking-[0.15em];
+    color: hsl(var(--gold) / 0.85);
+  }
+
+  /* Stat card with subtle glow */
+  .stat-card {
+    @apply glass-card-dark p-5 relative overflow-hidden;
+    transition: all 0.3s ease;
+  }
+  .stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.4), transparent);
+  }
+  .stat-card:hover {
+    border-color: hsl(var(--primary) / 0.2);
+  }
+}
+
+@layer utilities {
+  /* Ambient glow */
+  @keyframes glow-breathe {
+    0%, 100% { opacity: 0.22; transform: scale(1); }
+    50% { opacity: 0.38; transform: scale(1.02); }
+  }
+  .animate-glow-breathe {
+    animation: glow-breathe 4s ease-in-out infinite;
+  }
+
+  /* Fade in up */
+  @keyframes fade-in-up {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .animate-fade-in-up {
+    animation: fade-in-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  /* Stagger children */
+  .stagger-1 { animation-delay: 0.1s; }
+  .stagger-2 { animation-delay: 0.2s; }
+  .stagger-3 { animation-delay: 0.3s; }
+  .stagger-4 { animation-delay: 0.4s; }
+  .stagger-5 { animation-delay: 0.5s; }
+  .stagger-6 { animation-delay: 0.6s; }
+
+  /* Float */
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-8px); }
+  }
+  .animate-float {
+    animation: float 4s ease-in-out infinite;
+  }
+
+  /* Shimmer / shine sweep */
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+  .animate-shimmer {
+    animation: shimmer 2s ease-in-out infinite;
+  }
+
+  /* Subtle pulse for status dots */
+  @keyframes pulse-soft {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+  .animate-pulse-soft {
+    animation: pulse-soft 2s ease-in-out infinite;
+  }
+
+  /* Gradient text */
+  .text-gradient-teal {
+    background: linear-gradient(135deg, hsl(172, 66%, 30%), hsl(172, 50%, 42%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .text-gradient-gold {
+    background: linear-gradient(135deg, hsl(38, 80%, 55%), hsl(38, 70%, 68%));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Ambient background glows */
+  .bg-glow-teal {
+    background: radial-gradient(ellipse at center, hsla(172, 66%, 30%, 0.15) 0%, transparent 70%);
+  }
+  .bg-glow-gold {
+    background: radial-gradient(ellipse at center, hsla(38, 80%, 55%, 0.1) 0%, transparent 70%);
+  }
+}
